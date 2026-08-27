@@ -59,9 +59,9 @@ const FIELD_CONFIG = {
     confirm: v => {
       const total = (Number(v.qty) || 0) * (Number(v.price) || 0);
       if (!v.item || !v.qty || !v.price) return '';
-      return `${v.qty} × ${v.item} at ${fmt(v.price)} = ${fmt(total)}`;
+      return `${v.qty} \u00d7 ${v.item} at ${fmt(v.price)} = ${fmt(total)}`;
     },
-    desc: v => `${v.qty} × ${v.item}`,
+    desc: v => `${v.qty} \u00d7 ${v.item}`,
     amountSign: 1
   },
   expense: {
@@ -73,7 +73,7 @@ const FIELD_CONFIG = {
     compute: v => Number(v.price) || 0,
     confirm: v => {
       if (!v.item || !v.price) return '';
-      return `${v.item} — ${fmt(v.price)}`;
+      return `${v.item} \u2014 ${fmt(v.price)}`;
     },
     desc: v => v.item,
     amountSign: -1
@@ -90,7 +90,7 @@ const FIELD_CONFIG = {
       if (!v.item || !v.price) return '';
       return `${v.item} owes you ${fmt(v.price)}`;
     },
-    desc: v => v.item + (v.note ? ' — ' + v.note : ''),
+    desc: v => v.item + (v.note ? ' \u2014 ' + v.note : ''),
     amountSign: 1,
     isDebt: true
   },
@@ -106,7 +106,7 @@ const FIELD_CONFIG = {
       if (!v.item || !v.price) return '';
       return `You owe ${v.item} ${fmt(v.price)}`;
     },
-    desc: v => v.item + (v.note ? ' — ' + v.note : ''),
+    desc: v => v.item + (v.note ? ' \u2014 ' + v.note : ''),
     amountSign: -1,
     isDebt: true
   }
@@ -116,14 +116,14 @@ let activeType = null;
 
 const API_BASE = 'https://countmy-api.boatengbobby.workers.dev';
 
-// Voice v1 (Web Speech API) was removed 27 Aug after real-device testing — broken on
+// Voice v1 (Web Speech API) was removed 27 Aug after real-device testing \u2014 broken on
 // iOS Safari and unreliable on Android Chrome on weak mobile data (it ran fully
 // on-device via the browser, no server, so a bad phone or a bad signal broke it with
 // no fallback). Voice v2 (below) fixes the actual cause, not just the symptom: record
 // raw audio with MediaRecorder (broadly supported on both platforms) and send it to a
-// real hosted transcription service (OpenAI Whisper, via the countmy-api Worker) —
+// real hosted transcription service (OpenAI Whisper, via the countmy-api Worker) \u2014
 // same job, a server doing the hard part instead of the phone. This is the product's
-// core differentiator for shop owners who don't reliably read or type English —
+// core differentiator for shop owners who don't reliably read or type English \u2014
 // voice is the primary path, typing is the fallback, not the other way round.
 let mediaRecorder = null;
 let recordedChunks = [];
@@ -140,9 +140,9 @@ function setMicStatus(text, cls) {
 
 // Deliberately simple, not NLP: pulls every number out of what was heard, and treats
 // whatever text is left (after stripping filler words) as the item/name. Good enough
-// for "five bags of rice at ten cedis each" or "Ama owes me fifty cedis for soap" —
+// for "five bags of rice at ten cedis each" or "Ama owes me fifty cedis for soap" \u2014
 // exactly the short, spoken-number sentences a shop owner actually says. Never
-// auto-saves — this only fills the same fields typing would, so the owner still sees
+// auto-saves \u2014 this only fills the same fields typing would, so the owner still sees
 // and confirms the number before it's written, same as every other entry path.
 const NUMBER_WORDS = { one:1,two:2,three:3,four:4,five:5,six:6,seven:7,eight:8,nine:9,ten:10,
   eleven:11,twelve:12,thirteen:13,fourteen:14,fifteen:15,twenty:20,thirty:30,forty:40,fifty:50,
@@ -188,14 +188,14 @@ async function transcribeBlob(blob) {
   form.append('audio', blob, 'voice.webm');
   const res = await fetch(`${API_BASE}/transcribe`, { method: 'POST', body: form });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error || 'Could not hear that — try again');
+  if (!res.ok) throw new Error(data.error || 'Could not hear that \u2014 try again');
   return data.text || '';
 }
 
 async function toggleMic() {
   const btn = document.getElementById('micBtn');
   if (!micSupported()) {
-    setMicStatus('Voice isn’t available on this phone/browser — please type instead.', 'err');
+    setMicStatus('Voice isn\u2019t available on this phone/browser \u2014 please type instead.', 'err');
     return;
   }
   if (mediaRecorder && mediaRecorder.state === 'recording') {
@@ -210,22 +210,22 @@ async function toggleMic() {
     mediaRecorder.onstop = async () => {
       stream.getTracks().forEach(t => t.stop());
       btn.classList.remove('recording');
-      setMicStatus('Listening to what you said…');
+      setMicStatus('Listening to what you said\u2026');
       try {
         const blob = new Blob(recordedChunks, { type: 'audio/webm' });
         const heard = await transcribeBlob(blob);
-        if (!heard.trim()) { setMicStatus('Didn’t catch that — try again, or type below.', 'err'); return; }
+        if (!heard.trim()) { setMicStatus('Didn\u2019t catch that \u2014 try again, or type below.', 'err'); return; }
         fillFields(parseHeardText(activeType, heard));
-        setMicStatus(`Heard: “${heard}” — check the numbers below, then Save.`, 'heard');
+        setMicStatus(`Heard: \u201c${heard}\u201d \u2014 check the numbers below, then Save.`, 'heard');
       } catch (err) {
-        setMicStatus(err.message || 'Could not hear that — try again, or type below.', 'err');
+        setMicStatus(err.message || 'Could not hear that \u2014 try again, or type below.', 'err');
       }
     };
     mediaRecorder.start();
     btn.classList.add('recording');
-    setMicStatus('Listening… tap again when you’re done speaking.');
+    setMicStatus('Listening\u2026 tap again when you\u2019re done speaking.');
   } catch (err) {
-    setMicStatus('Couldn’t reach the microphone — check phone permission, or type below.', 'err');
+    setMicStatus('Couldn\u2019t reach the microphone \u2014 check phone permission, or type below.', 'err');
   }
 }
 function openSheet(type) {
@@ -264,7 +264,7 @@ function updateConfirm() {
   const v = readValues();
   const line = cfg.confirm(v);
   const el = document.getElementById('confirmLine');
-  if (line) { el.textContent = line + ' — correct?'; el.classList.add('show'); }
+  if (line) { el.textContent = line + ' \u2014 correct?'; el.classList.add('show'); }
   else { el.classList.remove('show'); }
 }
 
@@ -282,12 +282,12 @@ async function saveEntry() {
   saving = true;
   const saveBtn = document.getElementById('saveBtn');
   saveBtn.disabled = true;
-  saveBtn.textContent = 'Saving…';
+  saveBtn.textContent = 'Saving\u2026';
   const ts = Date.now();
-  // Client-generated id, not IndexedDB autoIncrement — this is the idempotency key.
+  // Client-generated id, not IndexedDB autoIncrement \u2014 this is the idempotency key.
   // Defense in depth beyond the button-disable above: if this same save ever got
   // dispatched twice (a future sync retry, a bug), the store rejects the duplicate
-  // key instead of silently creating a second transaction. Kept simple deliberately —
+  // key instead of silently creating a second transaction. Kept simple deliberately \u2014
   // no backend to reconcile against yet, so this only protects the local device today,
   // but the id shape is what a future sync layer would need anyway.
   const id = crypto.randomUUID();
@@ -307,7 +307,7 @@ async function saveEntry() {
     await render();
   } catch (err) {
     if (err && err.name === 'ConstraintError') {
-      // Same id already saved — treat as already-done, not a failure.
+      // Same id already saved \u2014 treat as already-done, not a failure.
       closeSheet();
       await render();
     } else {
@@ -320,9 +320,9 @@ async function saveEntry() {
   }
 }
 
-// Plan state now has a real source of truth (countmy-api / KV — Bobby, the CEO, flips
+// Plan state now has a real source of truth (countmy-api / KV \u2014 Bobby, the CEO, flips
 // a shop's status directly in the Cloudflare dashboard, no admin UI needed: see
-// worker/worker.js). The local toggle below still exists as an offline fallback only —
+// worker/worker.js). The local toggle below still exists as an offline fallback only \u2014
 // if the shop has no Shop ID set, or the phone is offline, or the backend can't be
 // reached, this falls back to the same local self-report as before rather than
 // blocking. Cached last-known-good result so a paid shop doesn't flicker back to
@@ -345,15 +345,15 @@ async function refreshPaidStatus() {
     const data = await res.json();
     localStorage.setItem('kym_paid_backend', data.paid ? '1' : '0');
     await render();
-  } catch (err) { /* offline or unreachable — keep last-known-good, don't block */ }
+  } catch (err) { /* offline or unreachable \u2014 keep last-known-good, don't block */ }
 }
 
 function renderAdmin() {
   const btn = document.getElementById('adminToggle');
   const paid = isPaid();
-  btn.textContent = paid ? '✓ Paid — tap to undo' : "I've paid";
+  btn.textContent = paid ? '\u2713 Paid \u2014 tap to undo' : "I've paid";
   btn.classList.toggle('is-paid', paid);
-  document.getElementById('planPill').textContent = paid ? 'Paid · full history unlocked' : 'Free · last 7 days shown';
+  document.getElementById('planPill').textContent = paid ? 'Paid \u00b7 full history unlocked' : 'Free \u00b7 last 7 days shown';
   const ref = document.getElementById('planPayRef');
   if (ref) ref.textContent = getShopId() || 'Your shop name';
   const shopInput = document.getElementById('shopIdInput');
@@ -391,7 +391,7 @@ async function render() {
   const hiddenCount = entries.length - visible.length;
   histEl.innerHTML = visible.slice(0, 30).map(e => {
     const cfg = FIELD_CONFIG[e.type];
-    const sign = cfg.amountSign > 0 ? '+' : '−';
+    const sign = cfg.amountSign > 0 ? '+' : '\u2212';
     const cls = cfg.amountSign > 0 ? 'pos' : 'neg';
     const when = new Date(e.ts).toLocaleString('en-GH', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
     const remind = e.type === 'debt_in'
@@ -401,21 +401,21 @@ async function render() {
       <div class="desc">${cfg.desc(e)}<small>${when}</small>${remind}</div>
       <div class="amt ${cls}">${sign}${fmt(e.amount)}</div>
     </div>`;
-  }).join('') + (hiddenCount > 0 ? `<div class="empty">${hiddenCount} older entr${hiddenCount === 1 ? 'y' : 'ies'} — go Paid to see your full history</div>` : '');
+  }).join('') + (hiddenCount > 0 ? `<div class="empty">${hiddenCount} older entr${hiddenCount === 1 ? 'y' : 'ies'} \u2014 go Paid to see your full history</div>` : '');
 }
 
 // Reads today's numbers aloud. Evidence for this over text-only: Viamo's Ghana voice
-// campaign reached ~37,000 customers with weekly voice calls — those who engaged with
+// campaign reached ~37,000 customers with weekly voice calls \u2014 those who engaged with
 // 6+ of 10 calls saw mobile savings balances nearly double. Numbers, spoken, drive
-// behaviour for people who don't reliably read English prose. English-only for now —
+// behaviour for people who don't reliably read English prose. English-only for now \u2014
 // a Twi/Pidgin voice would need real translation + testing with real shop owners
 // first, not an invented script.
 function speakToday() {
   if (!('speechSynthesis' in window)) return;
   const t = window._kymToday || { sales: 0, expenses: 0, owedMe: 0, balance: 0 };
-  // Matches the on-screen labels word for word — hearing something different from
+  // Matches the on-screen labels word for word \u2014 hearing something different from
   // what's on the screen is confusing, not helpful. Short, plain sentences, slow
-  // pace — this is read aloud, not read silently.
+  // pace \u2014 this is read aloud, not read silently.
   const text = `Today. Sales: ${fmt(t.sales)}. Expenses: ${fmt(t.expenses)}. `
     + `Customers owe you: ${fmt(t.owedMe)}. Sales minus expenses: ${fmt(t.balance)}.`;
   const utter = new SpeechSynthesisUtterance(text);
@@ -428,11 +428,11 @@ function speakToday() {
 }
 
 // Real, evidence-backed threat this closes: Ghanaian shop owners routinely hand
-// their phone to a customer to show a product photo on WhatsApp — the customer can
+// their phone to a customer to show a product photo on WhatsApp \u2014 the customer can
 // then swipe back and see the shop's daily revenue. This is a screen-lock deterrent,
 // not real security: the PIN is stored in plain localStorage, no encryption, nothing
 // server-side. Honest about that limit, not pretending it's more than it is. Optional
-// and off by default — no forced registration wall.
+// and off by default \u2014 no forced registration wall.
 function getPin() { return localStorage.getItem('kym_pin') || ''; }
 function setPin(p) { if (p) localStorage.setItem('kym_pin', p); else localStorage.removeItem('kym_pin'); }
 
@@ -456,14 +456,14 @@ function tryUnlock() {
     document.getElementById('lockScreen').classList.remove('show');
     if (pendingAdminReveal) { pendingAdminReveal = false; document.getElementById('adminBar').classList.add('open'); }
   } else {
-    document.getElementById('lockError').textContent = 'Wrong PIN — try again.';
+    document.getElementById('lockError').textContent = 'Wrong PIN \u2014 try again.';
     input.value = '';
   }
 }
 
-// The gear is deliberately unlabeled and tiny — not a bar sitting in view for
+// The gear is deliberately unlabeled and tiny \u2014 not a bar sitting in view for
 // anyone holding the phone. If a PIN is set, opening owner settings requires it,
-// same as viewing history — someone glancing at the phone shouldn't be able to
+// same as viewing history \u2014 someone glancing at the phone shouldn't be able to
 // toggle billing state or change the PIN without knowing it.
 function openAdminBar() {
   if (getPin()) { pendingAdminReveal = true; showLock(); }
@@ -473,10 +473,10 @@ function closeAdminBar() { document.getElementById('adminBar').classList.remove(
 
 function updatePinToggle() {
   const btn = document.getElementById('pinToggle');
-  btn.textContent = getPin() ? '🔒 Remove PIN' : 'Set a PIN';
+  btn.textContent = getPin() ? '\u{1F512} Remove PIN' : 'Set a PIN';
 }
 
-// Real answer to "what if the phone is lost" without building a sync backend —
+// Real answer to "what if the phone is lost" without building a sync backend \u2014
 // a plain CSV the merchant can save, WhatsApp to themselves, or hand to anyone
 // (accountant, family) who wants to open it. No account, no server, no new cost.
 async function exportBackup() {
@@ -542,7 +542,7 @@ document.getElementById('shopIdInput').addEventListener('change', async (e) => {
 });
 window.addEventListener('online', () => { updateOfflineBadge(); refreshPaidStatus(); });
 window.addEventListener('offline', updateOfflineBadge);
-// Lock whenever the tab comes back into view — covers "handed the phone to a
+// Lock whenever the tab comes back into view \u2014 covers "handed the phone to a
 // customer, they swiped back to the browser" and "phone was asleep in a pocket."
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible') showLock();
