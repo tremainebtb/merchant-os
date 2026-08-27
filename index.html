@@ -103,6 +103,7 @@ h1 .tagline{font-family:"Work Sans",sans-serif;font-size:.78rem;font-weight:500;
 .plan-pay-label{font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;color:var(--leaf-deep);font-weight:700;margin-bottom:2px}
 .plan-pay-number{font-weight:800;color:var(--leaf-deep);margin-bottom:10px;font-size:.98rem}
 .plan-pay-number:last-child{margin-bottom:0}
+.plan-pay-input{width:100%;font-weight:800;color:var(--leaf-deep);font-size:.98rem;background:var(--surface);border:1.5px solid var(--leaf);border-radius:8px;padding:8px 10px}
 .plan-note{font-size:.82rem;color:var(--muted);margin-bottom:14px}
 .footer-row{max-width:480px;margin:16px auto 0;padding:0 16px 20px;display:flex;align-items:center;justify-content:center;gap:8px;position:relative}
 .gear-btn{position:absolute;right:16px;background:none;border:none;color:var(--rule);font-size:1rem;cursor:pointer;padding:6px;line-height:1}
@@ -115,7 +116,6 @@ h1 .tagline{font-family:"Work Sans",sans-serif;font-size:.78rem;font-weight:500;
 .admin-header span{font-size:.74rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-weight:700}
 .admin-close{background:none;border:none;color:var(--muted);font-size:1rem;cursor:pointer;padding:4px}
 .admin-toggle{background:none;border:1px solid var(--rule);color:var(--ink-soft);border-radius:100px;padding:6px 12px;font-size:.76rem;font-weight:700;cursor:pointer}
-.admin-toggle.is-paid{background:var(--leaf-soft);color:var(--leaf-deep);border-color:var(--leaf-soft)}
 .lock-screen{display:none;position:fixed;inset:0;background:var(--paper);z-index:200;align-items:center;justify-content:center;padding:20px}
 .lock-screen.show{display:flex}
 .lock-box{max-width:320px;width:100%;text-align:center}
@@ -131,9 +131,6 @@ h1 .tagline{font-family:"Work Sans",sans-serif;font-size:.78rem;font-weight:500;
 .mic-status{font-size:.86rem;color:var(--ink-soft);min-height:1.3em;margin-bottom:8px}
 .mic-status.heard{color:var(--leaf-deep);font-weight:600}
 .mic-status.err{color:var(--brick);font-weight:600}
-.shopid-row{margin-top:12px}
-.shopid-row label{display:block;font-size:.72rem;color:var(--muted);margin-bottom:6px}
-.shopid-row input{width:100%;padding:10px 12px;border:1.5px solid var(--rule);border-radius:8px;background:var(--surface);color:var(--ink);font-size:.9rem}
 .voice-review{display:none;margin-bottom:20px}
 .voice-review.open{display:block}
 .voice-review-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;font-size:.78rem;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;font-weight:700}
@@ -233,7 +230,7 @@ h1 .tagline{font-family:"Work Sans",sans-serif;font-size:.78rem;font-weight:500;
 
   <div class="safety-block">
     <button id="exportBtn" class="export-btn">&#x1F4BE; Save a backup of my records</button>
-    <div class="export-note">If this phone is lost, records only saved here go with it. This saves a copy you can keep &#x2014; send it to yourself on WhatsApp.</div>
+    <div class="export-note">If this phone is lost, records only saved here go with it. Tap this and send a copy to yourself on WhatsApp &#x2014; just like sending a photo.</div>
   </div>
 
   <div class="trust-block">
@@ -249,8 +246,8 @@ h1 .tagline{font-family:"Work Sans",sans-serif;font-size:.78rem;font-weight:500;
     <div class="plan-pay-box">
       <div class="plan-pay-label">Send by MoMo to</div>
       <div class="plan-pay-number">0209090019</div>
-      <div class="plan-pay-label">Reference</div>
-      <div class="plan-pay-number" id="planPayRef" data-clarity-mask="True">Your shop name</div>
+      <div class="plan-pay-label">Reference &#x2014; type your shop name</div>
+      <input id="shopIdInput" class="plan-pay-input" type="text" autocomplete="off" placeholder="e.g. mama ama provisions" data-clarity-mask="True">
     </div>
     <p class="plan-note">We turn on Paid the same day we see it. We never call or message asking for your PIN.</p>
     <button id="planCloseBtn" class="btn btn-cancel" style="width:100%">Close</button>
@@ -259,21 +256,16 @@ h1 .tagline{font-family:"Work Sans",sans-serif;font-size:.78rem;font-weight:500;
 
 <div class="footer-row">
   <footer class="site-footer">CountMy &#x2014; a free tool for Ghanaian shop owners, nothing more.</footer>
-  <button id="gearBtn" class="gear-btn" aria-label="My settings">&#x2699;</button>
+  <button id="gearBtn" class="gear-btn" aria-label="Lock this app">&#x1F512;</button>
 </div>
 
 <div id="adminBar" class="admin-bar">
   <div class="admin-header">
-    <span>My settings &#x2014; for you, the shop owner</span>
+    <span>Keep your numbers private</span>
     <button id="adminCloseBtn" class="admin-close">&#x2715;</button>
   </div>
   <div style="display:flex;gap:8px">
     <button id="pinToggle" class="admin-toggle">Set a PIN</button>
-    <button id="adminToggle" class="admin-toggle">I've paid</button>
-  </div>
-  <div class="shopid-row">
-    <label for="shopIdInput">Shop ID (used as the MoMo payment reference)</label>
-    <input id="shopIdInput" type="text" autocomplete="off" placeholder="e.g. mama-ama-provisions" data-clarity-mask="True">
   </div>
 </div>
 

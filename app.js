@@ -503,21 +503,17 @@ async function saveEntry() {
   }
 }
 
-// Plan state now has a real source of truth (countmy-api / KV \u2014 Bobby, the CEO, flips
-// a shop's status directly in the Cloudflare dashboard, no admin UI needed: see
-// worker/worker.js). The local toggle below still exists as an offline fallback only \u2014
-// if the shop has no Shop ID set, or the phone is offline, or the backend can't be
-// reached, this falls back to the same local self-report as before rather than
-// blocking. Cached last-known-good result so a paid shop doesn't flicker back to
-// Free the moment it goes offline.
+// Plan state's only source of truth is countmy-api / KV \u2014 Bobby, the CEO, flips a
+// shop's status directly in the Cloudflare dashboard after seeing a MoMo payment
+// (see worker/worker.js). There is deliberately no local self-report toggle any
+// more \u2014 one existed briefly as an offline fallback but shipped as a tappable
+// "I've paid" button reachable by any user, which let anyone unlock paid access
+// for free with one tap. isPaid() below only ever reflects what the server last
+// confirmed, cached so a paid shop doesn't flicker back to Free the moment it
+// goes offline \u2014 it is never something the UI can set directly.
 function getShopId() { return (localStorage.getItem('kym_shop_id') || '').trim(); }
 function setShopId(id) { localStorage.setItem('kym_shop_id', (id || '').trim()); }
-function isPaid() {
-  const cached = localStorage.getItem('kym_paid_backend');
-  if (cached !== null) return cached === '1';
-  return localStorage.getItem('kym_paid') === '1';
-}
-function setPaid(v) { localStorage.setItem('kym_paid', v ? '1' : '0'); }
+function isPaid() { return localStorage.getItem('kym_paid_backend') === '1'; }
 
 async function refreshPaidStatus() {
   const shop = getShopId();
@@ -532,13 +528,8 @@ async function refreshPaidStatus() {
 }
 
 function renderAdmin() {
-  const btn = document.getElementById('adminToggle');
   const paid = isPaid();
-  btn.textContent = paid ? '\u2713 Paid \u2014 tap to undo' : "I've paid";
-  btn.classList.toggle('is-paid', paid);
   document.getElementById('planPill').textContent = paid ? 'Paid \u00b7 full history unlocked' : 'Free \u00b7 last 7 days shown';
-  const ref = document.getElementById('planPayRef');
-  if (ref) ref.textContent = getShopId() || 'Your shop name';
   const shopInput = document.getElementById('shopIdInput');
   if (shopInput && document.activeElement !== shopInput) shopInput.value = getShopId();
 }
@@ -662,6 +653,16 @@ function updatePinToggle() {
 // Real answer to "what if the phone is lost" without building a sync backend \u2014
 // a plain CSV the merchant can save, WhatsApp to themselves, or hand to anyone
 // (accountant, family) who wants to open it. No account, no server, no new cost.
+//
+// The file format stays CSV under the hood (an accountant can open it, and it's
+// free to generate) but a plain a.download link is the wrong delivery mechanism
+// for this audience \u2014 it depends on a merchant knowing what a Downloads folder
+// or a .csv file even is, and on many phones an installed PWA won't reliably
+// trigger that download at all. The Web Share API instead opens the exact same
+// "share to WhatsApp / Save to Files" sheet a merchant already uses to share a
+// photo, so backing up is one familiar tap, not a file-management lesson. Falls
+// back to the old download link only where file sharing genuinely isn't
+// supported (mainly desktop browsers, where "find the file" is normal).
 async function exportBackup() {
   const entries = await getAllEntries();
   if (!entries.length) { alert('Nothing to back up yet.'); return; }
@@ -674,11 +675,23 @@ async function exportBackup() {
     rows.push([when, typeLabel[e.type], csvSafe(cfg.desc(e)), e.amount, e.source === 'voice' ? 'Voice' : 'Typed']);
   });
   const csv = rows.map(r => r.join(',')).join('\n');
-  const blob = new Blob([csv], { type: 'text/csv' });
-  const url = URL.createObjectURL(blob);
+  const shopName = getShopId() || 'my-shop';
+  const filename = `${shopName}-records-${todayKey(Date.now())}.csv`;
+  const file = new File([csv], filename, { type: 'text/csv' });
+
+  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+    try {
+      await navigator.share({ files: [file], title: 'My shop records' });
+      return;
+    } catch (err) {
+      if (err && err.name === 'AbortError') return; // merchant closed the share sheet \u2014 not a failure
+      // any other failure falls through to the download link below
+    }
+  }
+  const url = URL.createObjectURL(file);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `countmy-backup-${todayKey(Date.now())}.csv`;
+  a.download = filename;
   document.body.appendChild(a);
   a.click();
   a.remove();
@@ -700,10 +713,6 @@ document.getElementById('planPill').addEventListener('click', () => document.get
 document.getElementById('planCloseBtn').addEventListener('click', () => document.getElementById('planSheet').classList.remove('open'));
 document.getElementById('gearBtn').addEventListener('click', openAdminBar);
 document.getElementById('adminCloseBtn').addEventListener('click', closeAdminBar);
-document.getElementById('adminToggle').addEventListener('click', async () => {
-  setPaid(!isPaid());
-  await render();
-});
 document.getElementById('pinToggle').addEventListener('click', () => {
   if (getPin()) {
     setPin('');
