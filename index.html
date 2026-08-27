@@ -175,6 +175,10 @@ h1{font-family:"Manrope",sans-serif;font-size:1.1rem;font-weight:800;margin:8px 
   <span>Owner tools</span>
   <button id="adminToggle" class="admin-toggle">Mark this shop Paid</button>
 </div>
-<script src="app.js"></script>
+<!-- Bump ?v= on every deploy alongside the service-worker CACHE version — this query
+     string is what forces a fresh script fetch even before any service worker logic
+     runs, independent of it. Found live 27 Aug: without this, an already-visited
+     browser can keep running old code from plain HTTP cache regardless of SW strategy. -->
+<script src="app.js?v=4"></script>
 </body>
 </html>
