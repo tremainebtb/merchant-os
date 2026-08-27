@@ -308,6 +308,7 @@ function renderVoiceReview() {
     const ts = Date.now();
     await addEntry({ id: crypto.randomUUID(), type: entry.type, item: entry.item, note: entry.note, qty: entry.qty, price: entry.price, amount: entry.amount, source: 'voice', day: todayKey(ts), ts });
     track('save_entry', { type: entry.type, source: 'voice' });
+    ping('save');
     pendingVoiceEvents.splice(idx, 1);
     renderVoiceReview();
     await render();
@@ -385,6 +386,24 @@ let sheetVoiceFilled = false;
 // servers. Safe no-op if GA4 was never configured (see index.html).
 function track(event, params) {
   if (window.gtag) window.gtag('event', event, params || {});
+}
+
+// Sent only when a Shop ID is set - this is how Bobby, as owner, counts
+// distinct businesses and usage over time from server logs. Only a one-way
+// hash of the shop id and an event type ever leaves this call - never an
+// item, price, customer name, or the shop id itself in plain text (the
+// Worker hashes it before it touches storage). Fire-and-forget: never
+// blocks the UI, never retried, silently no-ops offline or on any failure -
+// this is a directional usage signal, not a source of truth for the
+// merchant's own ledger, which stays local per PRD.
+function ping(eventType) {
+  const shop = getShopId();
+  if (!shop || !navigator.onLine) return;
+  fetch(`${API_BASE}/ping`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ shop, event: eventType })
+  }).catch(() => {});
 }
 
 function openSheet(type) {
@@ -466,6 +485,7 @@ async function saveEntry() {
       ts
     });
     track('save_entry', { type: activeType, source: sheetVoiceFilled ? 'voice' : 'manual' });
+    ping('save');
     closeSheet();
     await render();
   } catch (err) {
@@ -700,6 +720,7 @@ document.getElementById('micBtn').addEventListener('click', toggleMic);
 if (!micSupported()) document.getElementById('micBtn').style.display = 'none';
 document.getElementById('shopIdInput').addEventListener('change', async (e) => {
   setShopId(e.target.value);
+  ping('open');
   await refreshPaidStatus();
   await render();
 });
@@ -718,6 +739,7 @@ document.addEventListener('visibilitychange', () => {
   showLock();
   await render();
   refreshPaidStatus();
+  ping('open');
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('service-worker.js').catch(() => {});
   }

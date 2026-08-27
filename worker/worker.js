@@ -17,6 +17,114 @@ async function handleStatus(request, env) {
   }));
 }
 
+// Usage tracking, added 27 Aug for the owner dashboard. The shop id itself
+// NEVER touches D1 - only a SHA-256 hash of it. This is deliberate, not
+// decorative: the shop id is free text a merchant typed in and could easily
+// be their real business or personal name, and the whole product promise is
+// "your records stay on your phone." A hash still lets every query below
+// count and trend distinct businesses correctly (same shop id always hashes
+// to the same value) without ever storing anything that identifies a real
+// person or business in this database.
+async function sha256Hex(str) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+async function handlePing(request, env) {
+  if (!env.COUNTMY_DB) return cors(new Response(JSON.stringify({ error: 'not configured' }), { status: 503 }));
+  let body;
+  try { body = await request.json(); } catch (e) {
+    return cors(new Response(JSON.stringify({ error: 'invalid request' }), { status: 400 }));
+  }
+  const shop = String((body && body.shop) || '').trim().toLowerCase().slice(0, 200);
+  const eventType = String((body && body.event) || '');
+  if (!shop) return cors(new Response(JSON.stringify({ error: 'missing shop id' }), { status: 400 }));
+  if (eventType !== 'open' && eventType !== 'save') {
+    return cors(new Response(JSON.stringify({ error: 'invalid event' }), { status: 400 }));
+  }
+  const shopHash = (await sha256Hex(shop)).slice(0, 32);
+  await env.COUNTMY_DB.prepare('INSERT INTO events (shop_hash, event_type, ts) VALUES (?, ?, ?)')
+    .bind(shopHash, eventType, Date.now()).run();
+  return cors(new Response(null, { status: 204 }));
+}
+
+// Owner-only dashboard feed, gated by a secret query key (env.ADMIN_KEY, a
+// Worker secret set in the Cloudflare dashboard - never committed to the repo,
+// never in client-side code). Periods are rolling windows (last 24h / 7d /
+// 30d / 365d / all-time), not calendar day/week/month/year - deliberately,
+// since shop owners span timezones and a "day" boundary tied to one
+// timezone would silently misattribute activity for everyone else. "signups"
+// = distinct shop hashes whose EARLIEST logged event falls inside the
+// window; "active" = distinct shop hashes with ANY event inside it;
+// "entries" = saved ledger entries (event_type 'save') inside it. All three
+// are computed with real COUNT(DISTINCT ...)/MIN(ts) queries, not summed
+// from the daily series below (summing daily distinct counts would
+// double-count a shop that returns on multiple days within the window).
+async function handleAdminStats(request, env) {
+  if (!env.COUNTMY_DB) return cors(new Response(JSON.stringify({ error: 'not configured' }), { status: 503 }));
+  const url = new URL(request.url);
+  const key = url.searchParams.get('key') || '';
+  if (!env.ADMIN_KEY || key !== env.ADMIN_KEY) {
+    return cors(new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401 }));
+  }
+  const DAY = 86400000;
+  const now = Date.now();
+  const periods = [
+    ['day', now - DAY],
+    ['week', now - 7 * DAY],
+    ['month', now - 30 * DAY],
+    ['year', now - 365 * DAY],
+    ['all', 0]
+  ];
+  const stmts = [];
+  for (const [, since] of periods) {
+    stmts.push(env.COUNTMY_DB.prepare(
+      'SELECT COUNT(*) as n FROM (SELECT shop_hash, MIN(ts) as first_ts FROM events GROUP BY shop_hash) WHERE first_ts >= ?'
+    ).bind(since));
+    stmts.push(env.COUNTMY_DB.prepare(
+      'SELECT COUNT(DISTINCT shop_hash) as n FROM events WHERE ts >= ?'
+    ).bind(since));
+    stmts.push(env.COUNTMY_DB.prepare(
+      "SELECT COUNT(*) as n FROM events WHERE event_type = 'save' AND ts >= ?"
+    ).bind(since));
+  }
+  // Daily trend series, last 120 days - enough for the day/week/month views;
+  // the dashboard sums these client-side for week/month bars, and for the
+  // year view only (where a day-by-day trend line would be unreadable
+  // anyway) falls back to the exact 'year' period totals above instead of
+  // trying to stretch 120 days of daily data across 365.
+  const dailySince = now - 120 * DAY;
+  stmts.push(env.COUNTMY_DB.prepare(
+    'SELECT CAST(first_ts / ? AS INTEGER) as bucket, COUNT(*) as n FROM (SELECT shop_hash, MIN(ts) as first_ts FROM events GROUP BY shop_hash) WHERE first_ts >= ? GROUP BY bucket'
+  ).bind(DAY, dailySince));
+  stmts.push(env.COUNTMY_DB.prepare(
+    'SELECT CAST(ts / ? AS INTEGER) as bucket, COUNT(DISTINCT shop_hash) as n FROM events WHERE ts >= ? GROUP BY bucket'
+  ).bind(DAY, dailySince));
+  stmts.push(env.COUNTMY_DB.prepare(
+    "SELECT CAST(ts / ? AS INTEGER) as bucket, COUNT(*) as n FROM events WHERE event_type = 'save' AND ts >= ? GROUP BY bucket"
+  ).bind(DAY, dailySince));
+
+  const results = await env.COUNTMY_DB.batch(stmts);
+
+  const out = { generatedAt: now, periods: {}, daily: { signups: {}, active: {}, entries: {} } };
+  let i = 0;
+  for (const [name] of periods) {
+    out.periods[name] = {
+      signups: ((results[i++].results || [])[0] || {}).n || 0,
+      active: ((results[i++].results || [])[0] || {}).n || 0,
+      entries: ((results[i++].results || [])[0] || {}).n || 0
+    };
+  }
+  const bucketToDate = (b) => new Date(b * DAY).toISOString().slice(0, 10);
+  for (const row of (results[i++].results || [])) out.daily.signups[bucketToDate(row.bucket)] = row.n;
+  for (const row of (results[i++].results || [])) out.daily.active[bucketToDate(row.bucket)] = row.n;
+  for (const row of (results[i++].results || [])) out.daily.entries[bucketToDate(row.bucket)] = row.n;
+
+  return cors(new Response(JSON.stringify(out), {
+    headers: { 'Content-Type': 'application/json' }
+  }));
+}
+
 // Runs on Cloudflare Workers AI (env.AI), NOT a paid third-party API. Verified live
 // against Cloudflare's own docs, twice, independently (27 Aug): whisper-large-v3-turbo
 // is on the genuinely-free tier (10,000 Neurons/day, no card on file, no gated-model
@@ -251,6 +359,8 @@ export default {
       if (url.pathname === '/status' && request.method === 'GET') return await handleStatus(request, env);
       if (url.pathname === '/transcribe' && request.method === 'POST') return await handleTranscribe(request, env);
       if (url.pathname === '/extract' && request.method === 'POST') return await handleExtract(request, env);
+      if (url.pathname === '/ping' && request.method === 'POST') return await handlePing(request, env);
+      if (url.pathname === '/admin/stats' && request.method === 'GET') return await handleAdminStats(request, env);
       return cors(new Response('Not found', { status: 404 }));
     } catch (err) {
       return cors(new Response(JSON.stringify({ error: 'server error', detail: String(err) }), { status: 500 }));

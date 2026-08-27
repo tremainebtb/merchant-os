@@ -1,0 +1,277 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>CountMy - Owner Dashboard</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&family=Work+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@600;700&display=swap">
+<style>
+:root{
+  --paper:#F8F3EC; --surface:#FFFFFF; --ink:#221A12; --ink-soft:#5C5142; --muted:#8C8172;
+  --rule:#E7DDCD; --flame:#D9541A; --flame-deep:#A83F12; --flame-soft:#FBE3D2;
+  --leaf:#1B7A43; --leaf-deep:#125C32; --leaf-soft:#E1F2E7;
+  --steel:#2A5FA5; --steel-deep:#1E4578; --steel-soft:#E1EAF6;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]){
+    --paper:#161009; --surface:#1F1810; --ink:#F3EBDF; --ink-soft:#CDBFA9; --muted:#93876F;
+    --rule:#372B1D; --flame:#F0713A; --flame-deep:#F79764; --flame-soft:#3A2415;
+    --leaf:#4CC585; --leaf-deep:#6FD79E; --leaf-soft:#15301F;
+    --steel:#6FA8E8; --steel-deep:#9CC3F0; --steel-soft:#152238;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#161009; --surface:#1F1810; --ink:#F3EBDF; --ink-soft:#CDBFA9; --muted:#93876F;
+  --rule:#372B1D; --flame:#F0713A; --flame-deep:#F79764; --flame-soft:#3A2415;
+  --leaf:#4CC585; --leaf-deep:#6FD79E; --leaf-soft:#15301F;
+  --steel:#6FA8E8; --steel-deep:#9CC3F0; --steel-soft:#152238;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:"Work Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;line-height:1.4}
+.wrap{max-width:920px;margin:0 auto;padding:20px 16px 60px}
+header{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-bottom:18px;flex-wrap:wrap}
+h1{font-family:"Manrope",sans-serif;font-size:1.3rem;font-weight:800;margin:0;display:flex;align-items:baseline;gap:8px}
+h1 .tagline{font-family:"Work Sans",sans-serif;font-size:.78rem;font-weight:500;color:var(--muted)}
+.refresh-row{display:flex;align-items:center;gap:10px;font-size:.78rem;color:var(--muted)}
+.refresh-btn{font-family:"Manrope",sans-serif;background:none;border:1px solid var(--rule);color:var(--ink-soft);border-radius:100px;padding:6px 14px;font-size:.78rem;font-weight:700;cursor:pointer}
+.refresh-btn:hover{border-color:var(--steel)}
+
+.gate{max-width:360px;margin:80px auto;text-align:center}
+.gate h2{font-family:"Manrope",sans-serif;font-size:1.05rem;margin:0 0 6px}
+.gate p{color:var(--ink-soft);font-size:.86rem;margin:0 0 16px}
+.gate input{width:100%;padding:12px;border:1px solid var(--rule);border-radius:10px;font-size:1rem;background:var(--surface);color:var(--ink);text-align:center;margin-bottom:10px}
+.gate button{width:100%;font-family:"Manrope",sans-serif;background:var(--leaf);color:#fff;border:none;border-radius:10px;padding:12px;font-weight:700;font-size:.95rem;cursor:pointer}
+.gate .err{color:var(--flame-deep);font-size:.8rem;min-height:1.2em;margin-top:8px}
+
+.tabs{display:flex;gap:6px;margin-bottom:16px;flex-wrap:wrap}
+.tab{font-family:"Manrope",sans-serif;background:var(--surface);border:1px solid var(--rule);color:var(--ink-soft);border-radius:100px;padding:8px 16px;font-size:.84rem;font-weight:700;cursor:pointer}
+.tab.active{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+
+.kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:24px}
+@media (max-width:640px){.kpis{grid-template-columns:1fr}}
+.kpi{background:var(--surface);border:1px solid var(--rule);border-radius:14px;padding:16px 18px}
+.kpi .label{font-size:.78rem;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px}
+.kpi .num{font-family:"IBM Plex Mono",monospace;font-size:2rem;font-weight:700;font-variant-numeric:tabular-nums;line-height:1}
+.kpi.signups .num{color:var(--leaf-deep)}
+.kpi.active .num{color:var(--steel-deep)}
+.kpi.entries .num{color:var(--flame-deep)}
+.kpi .sub{font-size:.76rem;color:var(--muted);margin-top:6px}
+
+.panel{background:var(--surface);border:1px solid var(--rule);border-radius:14px;padding:16px 18px 10px;margin-bottom:18px}
+.panel h3{font-family:"Manrope",sans-serif;font-size:.92rem;margin:0 0 2px}
+.panel .note{font-size:.76rem;color:var(--muted);margin:0 0 12px}
+.legend{display:flex;gap:16px;font-size:.78rem;color:var(--ink-soft);margin-bottom:8px}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.legend i{width:10px;height:10px;border-radius:3px;display:inline-block}
+svg text{font-family:"Work Sans",sans-serif;fill:var(--muted)}
+.empty-note{color:var(--muted);font-size:.84rem;padding:20px 0;text-align:center}
+
+footer{font-size:.76rem;color:var(--muted);margin-top:20px;border-top:1px solid var(--rule);padding-top:14px}
+footer p{margin:0 0 6px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<div id="gate" class="gate">
+  <h2>Owner Dashboard</h2>
+  <p>Enter the admin key to view signups and usage.</p>
+  <input id="keyInput" type="password" placeholder="Admin key" autocomplete="off">
+  <button id="unlockBtn">View dashboard</button>
+  <div class="err" id="gateErr"></div>
+</div>
+
+<div id="dash" style="display:none">
+  <header>
+    <h1>CountMy <span class="tagline">Owner Dashboard</span></h1>
+    <div class="refresh-row">
+      <span id="refreshedAt"></span>
+      <button class="refresh-btn" id="refreshBtn">Refresh</button>
+    </div>
+  </header>
+
+  <div class="tabs" id="tabs">
+    <button class="tab" data-period="day">Today</button>
+    <button class="tab" data-period="week">This week</button>
+    <button class="tab" data-period="month">This month</button>
+    <button class="tab" data-period="year">This year</button>
+    <button class="tab active" data-period="all">All time</button>
+  </div>
+
+  <div class="kpis">
+    <div class="kpi signups"><div class="label">New businesses</div><div class="num" id="kSignups">-</div><div class="sub" id="kSignupsSub"></div></div>
+    <div class="kpi active"><div class="label">Active businesses</div><div class="num" id="kActive">-</div><div class="sub" id="kActiveSub"></div></div>
+    <div class="kpi entries"><div class="label">Ledger entries saved</div><div class="num" id="kEntries">-</div><div class="sub" id="kEntriesSub"></div></div>
+  </div>
+
+  <div class="panel">
+    <h3>Businesses over time</h3>
+    <p class="note">Daily counts, last 120 days. New = first-ever use that day. Active = used the app at all that day.</p>
+    <div class="legend">
+      <span><i style="background:var(--leaf)"></i>New businesses</span>
+      <span><i style="background:var(--steel)"></i>Active businesses</span>
+    </div>
+    <div id="chartBusinesses"></div>
+  </div>
+
+  <div class="panel">
+    <h3>Ledger entries saved</h3>
+    <p class="note">Sales, expenses, and debts logged per day - voice and manual combined.</p>
+    <div id="chartEntries"></div>
+  </div>
+
+  <footer>
+    <p><strong>How to read this:</strong> "Today / week / month / year" are rolling windows (last 24h / 7d / 30d / 365d), not calendar boundaries - shop owners span timezones, so a fixed calendar day would misattribute activity for most of them.</p>
+    <p>A "business" here is a hashed Shop ID, never the ID itself - no shop name, item, price, or customer name ever reaches this dashboard or the database behind it.</p>
+  </footer>
+</div>
+
+</div>
+
+<script>
+const API_BASE = 'https://countmy-api.boatengbobby.workers.dev';
+const KEY_STORAGE = 'countmy_admin_key';
+let statsData = null;
+let currentPeriod = 'all';
+
+const PERIOD_LABEL = {
+  day: 'in the last 24 hours',
+  week: 'in the last 7 days',
+  month: 'in the last 30 days',
+  year: 'in the last 365 days',
+  all: 'all time'
+};
+
+function fmtInt(n) { return (n || 0).toLocaleString('en-US'); }
+
+function showGateError(msg) {
+  document.getElementById('gateErr').textContent = msg;
+}
+
+async function loadStats(key) {
+  const res = await fetch(`${API_BASE}/admin/stats?key=${encodeURIComponent(key)}`);
+  if (res.status === 401) throw new Error('unauthorized');
+  if (!res.ok) throw new Error('failed to load (' + res.status + ')');
+  return res.json();
+}
+
+function renderKpis() {
+  const p = (statsData.periods && statsData.periods[currentPeriod]) || { signups: 0, active: 0, entries: 0 };
+  document.getElementById('kSignups').textContent = fmtInt(p.signups);
+  document.getElementById('kActive').textContent = fmtInt(p.active);
+  document.getElementById('kEntries').textContent = fmtInt(p.entries);
+  const label = PERIOD_LABEL[currentPeriod];
+  document.getElementById('kSignupsSub').textContent = label;
+  document.getElementById('kActiveSub').textContent = label;
+  document.getElementById('kEntriesSub').textContent = label;
+}
+
+// Small dependency-free SVG line/bar renderer - the app has no build step and
+// no chart library anywhere else, so this stays consistent with that rather
+// than pulling in a CDN chart lib for two simple time series.
+function renderLineChart(el, series, colors) {
+  const dates = Object.keys(series[0].data).sort();
+  if (!dates.length) { el.innerHTML = '<div class="empty-note">No data yet.</div>'; return; }
+  const W = 860, H = 200, padL = 34, padR = 10, padT = 10, padB = 24;
+  const innerW = W - padL - padR, innerH = H - padT - padB;
+  let maxV = 1;
+  series.forEach(s => dates.forEach(d => { maxV = Math.max(maxV, s.data[d] || 0); }));
+  const x = (i) => padL + (dates.length === 1 ? innerW / 2 : (i / (dates.length - 1)) * innerW);
+  const y = (v) => padT + innerH - (v / maxV) * innerH;
+
+  let svg = `<svg viewBox="0 0 ${W} ${H}" width="100%" style="display:block">`;
+  // gridlines
+  for (let g = 0; g <= 2; g++) {
+    const gy = padT + (innerH / 2) * g;
+    svg += `<line x1="${padL}" y1="${gy}" x2="${W - padR}" y2="${gy}" stroke="var(--rule)" stroke-width="1"/>`;
+  }
+  svg += `<text x="4" y="${padT + 4}" font-size="10">${fmtInt(maxV)}</text>`;
+  svg += `<text x="4" y="${padT + innerH + 4}" font-size="10">0</text>`;
+
+  series.forEach((s, si) => {
+    const pts = dates.map((d, i) => [x(i), y(s.data[d] || 0)]);
+    const path = pts.map((p, i) => (i === 0 ? 'M' : 'L') + p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' ');
+    svg += `<path d="${path}" fill="none" stroke="${colors[si]}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>`;
+    pts.forEach((p, i) => {
+      if (s.data[dates[i]]) {
+        svg += `<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="3" fill="${colors[si]}"><title>${dates[i]}: ${s.data[dates[i]]}</title></circle>`;
+      }
+    });
+  });
+
+  const step = Math.max(1, Math.floor(dates.length / 6));
+  dates.forEach((d, i) => {
+    if (i % step === 0 || i === dates.length - 1) {
+      svg += `<text x="${x(i).toFixed(1)}" y="${H - 6}" font-size="9" text-anchor="middle">${d.slice(5)}</text>`;
+    }
+  });
+  svg += '</svg>';
+  el.innerHTML = svg;
+}
+
+function renderCharts() {
+  const d = statsData.daily;
+  renderLineChart(
+    document.getElementById('chartBusinesses'),
+    [{ data: d.signups }, { data: d.active }],
+    ['var(--leaf)', 'var(--steel)']
+  );
+  renderLineChart(
+    document.getElementById('chartEntries'),
+    [{ data: d.entries }],
+    ['var(--flame)']
+  );
+}
+
+function setPeriod(period) {
+  currentPeriod = period;
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.period === period));
+  renderKpis();
+}
+
+async function boot(key) {
+  try {
+    statsData = await loadStats(key);
+  } catch (err) {
+    if (err.message === 'unauthorized') {
+      localStorage.removeItem(KEY_STORAGE);
+      document.getElementById('gate').style.display = '';
+      document.getElementById('dash').style.display = 'none';
+      showGateError('Wrong key.');
+      return;
+    }
+    document.getElementById('gate').style.display = '';
+    document.getElementById('dash').style.display = 'none';
+    showGateError('Could not reach the server - check your connection and try again.');
+    return;
+  }
+  document.getElementById('gate').style.display = 'none';
+  document.getElementById('dash').style.display = '';
+  document.getElementById('refreshedAt').textContent = 'Updated ' + new Date(statsData.generatedAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+  renderKpis();
+  renderCharts();
+}
+
+document.getElementById('unlockBtn').addEventListener('click', () => {
+  const key = document.getElementById('keyInput').value.trim();
+  if (!key) return;
+  localStorage.setItem(KEY_STORAGE, key);
+  boot(key);
+});
+document.getElementById('keyInput').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') document.getElementById('unlockBtn').click();
+});
+document.getElementById('refreshBtn').addEventListener('click', () => {
+  const key = localStorage.getItem(KEY_STORAGE);
+  if (key) boot(key);
+});
+document.querySelectorAll('.tab').forEach(t => t.addEventListener('click', () => setPeriod(t.dataset.period)));
+
+(function init() {
+  const saved = localStorage.getItem(KEY_STORAGE);
+  if (saved) boot(saved);
+})();
+</script>
+</body>
+</html>
