@@ -43,6 +43,10 @@ Ghana's Data Protection Commission requires organisations processing personal da
 - `Today` screen — Sales / Expenses / Customers owe me / Estimated balance, front and center on open.
 - Full history, filterable by day.
 
+## Cost — zero, permanently, not just for v1
+
+Bobby will not pay for any part of this stack (27 Aug). Every service used must be free with no card on file, on infrastructure already under his control — not a free trial, not a low usage tier that later requires billing. Transcription runs on **Cloudflare Workers AI** (`@cf/openai/whisper-large-v3-turbo`, `env.AI` binding), not OpenAI's paid Whisper API — same Cloudflare account already used for the domain and KV, free 10,000 Neurons/day, no signup, no card, verified twice independently against Cloudflare's own docs (27 Aug) before building on it. Known real risk, not hypothetical: that quota is shared across the whole account, and Cloudflare Community has multiple 2025-2026 reports of the free quota misreporting as exhausted (error 4006) even at low usage — `worker/worker.js` returns an honest "try again, or type instead" error rather than pretending, and the frontend already has a working typed-input fallback. Re-verify this before any future model swap or before Bobby ever pays for anything in this stack — don't assume a cost decision from one session still holds.
+
 ## Explicitly NOT in v1 — do not build until evidence says so
 
 - Voice input (Track B — comes after real usage exists to test against, not synthetic samples)
