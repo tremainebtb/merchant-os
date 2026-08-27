@@ -70,7 +70,9 @@ h1{font-family:"Manrope",sans-serif;font-size:1.1rem;font-weight:800;margin:8px 
 .mic-btn.listening{background:var(--amber-soft);color:var(--amber);border-color:var(--amber);border-style:solid}
 .heard-line{display:none;background:var(--amber-soft);color:var(--amber);border-radius:10px;padding:10px 12px;font-size:.84rem;margin-bottom:12px}
 .heard-line.show{display:block}
-.plan-pill{width:100%;background:var(--surface);border:1px solid var(--rule);border-radius:12px;padding:12px;font-size:.84rem;font-weight:700;color:var(--ink-soft);margin-top:22px;cursor:pointer}
+.export-btn{width:100%;background:var(--surface);border:1px solid var(--rule);border-radius:12px;padding:12px;font-size:.86rem;font-weight:700;color:var(--ink);margin-top:22px;cursor:pointer}
+.export-note{font-size:.78rem;color:var(--muted);margin-top:6px;line-height:1.4}
+.plan-pill{width:100%;background:var(--surface);border:1px solid var(--rule);border-radius:12px;padding:12px;font-size:.84rem;font-weight:700;color:var(--ink-soft);margin-top:14px;cursor:pointer}
 .plan-sheet{display:none}
 .plan-sheet.open{display:block;margin-top:14px}
 .plan-copy{font-size:.9rem;color:var(--ink-soft);margin:0 0 14px}
@@ -161,6 +163,9 @@ h1{font-family:"Manrope",sans-serif;font-size:1.1rem;font-weight:800;margin:8px 
   <div class="hist-label">Recent</div>
   <div id="history"><div class="empty">Nothing recorded yet. Add your first sale above.</div></div>
 
+  <button id="exportBtn" class="export-btn">💾 Save a backup of my records</button>
+  <div class="export-note">If this phone is lost, records only saved here go with it. This saves a copy you can keep — send it to yourself on WhatsApp.</div>
+
   <button id="planPill" class="plan-pill">Free plan · Full history is Paid</button>
 
   <div id="planSheet" class="sheet plan-sheet">
@@ -169,7 +174,7 @@ h1{font-family:"Manrope",sans-serif;font-size:1.1rem;font-weight:800;margin:8px 
     <div class="plan-price"><span class="plan-amount">GHS 99</span><span class="plan-per">/month</span></div>
     <div class="plan-pay-box">
       <div class="plan-pay-label">Send by MoMo to</div>
-      <div class="plan-pay-number">PLACEHOLDER — your MoMo number</div>
+      <div class="plan-pay-number">0209090019</div>
       <div class="plan-pay-label">Reference</div>
       <div class="plan-pay-number">Your shop name</div>
     </div>
@@ -199,6 +204,6 @@ h1{font-family:"Manrope",sans-serif;font-size:1.1rem;font-weight:800;margin:8px 
      string is what forces a fresh script fetch even before any service worker logic
      runs, independent of it. Found live 27 Aug: without this, an already-visited
      browser can keep running old code from plain HTTP cache regardless of SW strategy. -->
-<script src="app.js?v=5"></script>
+<script src="app.js?v=6"></script>
 </body>
 </html>
