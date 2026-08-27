@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&family=Work+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@600;700&display=swap">
 <style>
-/* Same design system as the landing page — one product, one identity. */
+/* Same design system as the landing page â€” one product, one identity. */
 :root{
   --paper:#F8F3EC; --surface:#FFFFFF; --ink:#221A12; --ink-soft:#5C5142; --muted:#8C8172;
   --rule:#E7DDCD; --flame:#D9541A; --flame-deep:#A83F12; --flame-soft:#FBE3D2;
@@ -88,7 +88,7 @@ h1 .tagline{font-family:"Work Sans",sans-serif;font-size:.78rem;font-weight:500;
 .plan-note{font-size:.82rem;color:var(--muted);margin-bottom:14px}
 .footer-row{max-width:480px;margin:16px auto 0;padding:0 16px 20px;display:flex;align-items:center;justify-content:center;gap:8px;position:relative}
 .gear-btn{position:absolute;right:16px;background:none;border:none;color:var(--rule);font-size:1rem;cursor:pointer;padding:6px;line-height:1}
-/* Hidden by default — not a labeled "owner only" bar sitting in view for anyone
+/* Hidden by default â€” not a labeled "owner only" bar sitting in view for anyone
    holding the phone. Only opens on a deliberate tap of the small gear, and only
    after the PIN if one is set (see openAdminBar in app.js). */
 .admin-bar{display:none;max-width:480px;margin:0 auto;padding:14px 16px 20px}
@@ -105,6 +105,17 @@ h1 .tagline{font-family:"Work Sans",sans-serif;font-size:.78rem;font-weight:500;
 .lock-sub{font-size:.86rem;color:var(--ink-soft);margin-bottom:20px}
 .lock-input{width:100%;font-family:"IBM Plex Mono",monospace;font-size:1.8rem;letter-spacing:.5em;text-align:center;padding:14px 0 14px 1em;border:1.5px solid var(--rule);border-radius:12px;background:var(--surface);color:var(--ink)}
 .lock-error{color:var(--brick);font-size:.84rem;margin-top:10px;min-height:1.2em}
+.sheet-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:2px}
+.mic-btn{flex-shrink:0;width:52px;height:52px;border-radius:100px;border:none;background:var(--brick);color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,.15)}
+.mic-btn svg{width:24px;height:24px}
+.mic-btn.recording{background:var(--leaf-deep);animation:mic-pulse 1.1s ease-in-out infinite}
+@keyframes mic-pulse{0%,100%{box-shadow:0 0 0 0 rgba(45,106,79,.45)}50%{box-shadow:0 0 0 12px rgba(45,106,79,0)}}
+.mic-status{font-size:.86rem;color:var(--ink-soft);min-height:1.3em;margin-bottom:8px}
+.mic-status.heard{color:var(--leaf-deep);font-weight:600}
+.mic-status.err{color:var(--brick);font-weight:600}
+.shopid-row{margin-top:12px}
+.shopid-row label{display:block;font-size:.72rem;color:var(--muted);margin-bottom:6px}
+.shopid-row input{width:100%;padding:10px 12px;border:1.5px solid var(--rule);border-radius:8px;background:var(--surface);color:var(--ink);font-size:.9rem}
 .sheet-btns{display:flex;gap:10px}
 .btn{flex:1;padding:13px;border-radius:10px;border:none;font-weight:700;font-size:.94rem;cursor:pointer}
 .btn-save{background:var(--leaf);color:#fff}
@@ -125,18 +136,18 @@ h1 .tagline{font-family:"Work Sans",sans-serif;font-size:.78rem;font-weight:500;
 </head>
 <body>
 <div class="wrap">
-  <div id="offlineBadge" class="offline-badge">No connection — still recording, saved on your phone.</div>
+  <div id="offlineBadge" class="offline-badge">No connection â€” still recording, saved on your phone.</div>
   <h1>CountMy<span class="tagline">Know your money</span></h1>
 
   <div class="today">
     <div class="today-top">
       <div class="today-label">Today</div>
-      <button id="hearBtn" class="hear-btn">🔊 Hear it</button>
+      <button id="hearBtn" class="hear-btn">ðŸ”Š Hear it</button>
     </div>
     <div class="today-row"><span>Sales</span><span id="tSales">0 cedis</span></div>
     <div class="today-row"><span>Expenses</span><span id="tExpenses">0 cedis</span></div>
     <div class="today-row"><span>Customers owe me</span><span id="tOwedMe">0 cedis</span></div>
-    <div class="today-row balance"><span>Sales minus expenses<small class="today-hint">— not what's owed to you, not cash count</small></span><span id="tBalance" class="balance-amt">0 cedis</span></div>
+    <div class="today-row balance"><span>Sales minus expenses<small class="today-hint">â€” not what's owed to you, not cash count</small></span><span id="tBalance" class="balance-amt">0 cedis</span></div>
   </div>
 
   <div class="actions">
@@ -159,7 +170,13 @@ h1 .tagline{font-family:"Work Sans",sans-serif;font-size:.78rem;font-weight:500;
   </div>
 
   <div id="sheet" class="sheet">
-    <h2 id="sheetTitle">Add</h2>
+    <div class="sheet-head">
+      <h2 id="sheetTitle">Add</h2>
+      <button id="micBtn" class="mic-btn" aria-label="Speak instead of typing" type="button">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3Z" stroke="currentColor" stroke-width="2"/><path d="M19 11a7 7 0 0 1-14 0M12 18v3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+    <div id="micStatus" class="mic-status"></div>
     <div id="fields"></div>
     <div id="confirmLine" class="confirm-line"></div>
     <div class="sheet-btns">
@@ -172,15 +189,15 @@ h1 .tagline{font-family:"Work Sans",sans-serif;font-size:.78rem;font-weight:500;
   <div id="history"><div class="empty">Nothing recorded yet. Add your first sale above.</div></div>
 
   <div class="safety-block">
-    <button id="exportBtn" class="export-btn">💾 Save a backup of my records</button>
-    <div class="export-note">If this phone is lost, records only saved here go with it. This saves a copy you can keep — send it to yourself on WhatsApp.</div>
+    <button id="exportBtn" class="export-btn">ðŸ’¾ Save a backup of my records</button>
+    <div class="export-note">If this phone is lost, records only saved here go with it. This saves a copy you can keep â€” send it to yourself on WhatsApp.</div>
   </div>
 
   <div class="trust-block">
-    <div class="trust-line">✓ Free — no PIN ever asked — no loans, just your records</div>
+    <div class="trust-line">âœ“ Free â€” no PIN ever asked â€” no loans, just your records</div>
   </div>
 
-  <button id="planPill" class="plan-pill">Free · last 7 days shown</button>
+  <button id="planPill" class="plan-pill">Free Â· last 7 days shown</button>
 
   <div id="planSheet" class="sheet plan-sheet">
     <h2>See your full history</h2>
@@ -190,7 +207,7 @@ h1 .tagline{font-family:"Work Sans",sans-serif;font-size:.78rem;font-weight:500;
       <div class="plan-pay-label">Send by MoMo to</div>
       <div class="plan-pay-number">0209090019</div>
       <div class="plan-pay-label">Reference</div>
-      <div class="plan-pay-number">Your shop name</div>
+      <div class="plan-pay-number" id="planPayRef">Your shop name</div>
     </div>
     <p class="plan-note">We turn on Paid the same day we see it. We never call or message asking for your PIN.</p>
     <button id="planCloseBtn" class="btn btn-cancel" style="width:100%">Close</button>
@@ -198,18 +215,22 @@ h1 .tagline{font-family:"Work Sans",sans-serif;font-size:.78rem;font-weight:500;
 </div>
 
 <div class="footer-row">
-  <footer class="site-footer">CountMy — a free tool for Ghanaian shop owners, nothing more.</footer>
-  <button id="gearBtn" class="gear-btn" aria-label="My settings">⚙</button>
+  <footer class="site-footer">CountMy â€” a free tool for Ghanaian shop owners, nothing more.</footer>
+  <button id="gearBtn" class="gear-btn" aria-label="My settings">âš™</button>
 </div>
 
 <div id="adminBar" class="admin-bar">
   <div class="admin-header">
-    <span>My settings — for you, the shop owner</span>
-    <button id="adminCloseBtn" class="admin-close">✕</button>
+    <span>My settings â€” for you, the shop owner</span>
+    <button id="adminCloseBtn" class="admin-close">âœ•</button>
   </div>
   <div style="display:flex;gap:8px">
     <button id="pinToggle" class="admin-toggle">Set a PIN</button>
     <button id="adminToggle" class="admin-toggle">I've paid</button>
+  </div>
+  <div class="shopid-row">
+    <label for="shopIdInput">Shop ID (used as the MoMo payment reference)</label>
+    <input id="shopIdInput" type="text" autocomplete="off" placeholder="e.g. mama-ama-provisions">
   </div>
 </div>
 
@@ -222,10 +243,10 @@ h1 .tagline{font-family:"Work Sans",sans-serif;font-size:.78rem;font-weight:500;
   </div>
 </div>
 
-<!-- Bump ?v= on every deploy alongside the service-worker CACHE version — this query
+<!-- Bump ?v= on every deploy alongside the service-worker CACHE version â€” this query
      string is what forces a fresh script fetch even before any service worker logic
      runs, independent of it. Found live 27 Aug: without this, an already-visited
      browser can keep running old code from plain HTTP cache regardless of SW strategy. -->
-<script src="app.js?v=11"></script>
+<script src="app.js?v=12"></script>
 </body>
 </html>
