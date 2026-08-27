@@ -307,6 +307,7 @@ function renderVoiceReview() {
     const entry = eventToEntry(ev);
     const ts = Date.now();
     await addEntry({ id: crypto.randomUUID(), type: entry.type, item: entry.item, note: entry.note, qty: entry.qty, price: entry.price, amount: entry.amount, source: 'voice', day: todayKey(ts), ts });
+    track('save_entry', { type: entry.type, source: 'voice' });
     pendingVoiceEvents.splice(idx, 1);
     renderVoiceReview();
     await render();
@@ -340,9 +341,10 @@ async function toggleMic() {
       try {
         const blob = new Blob(recordedChunks, { type: 'audio/webm' });
         const heard = await transcribeBlob(blob);
-        if (!heard.trim()) { setMicStatus('Didn\u2019t catch that \u2014 try again, or type below.', 'err'); return; }
+        if (!heard.trim()) { track('mic_error', { reason: 'no_transcript' }); setMicStatus('Didn\u2019t catch that \u2014 try again, or type below.', 'err'); return; }
         setMicStatus('Working out what happened\u2026');
         const events = await extractEvents(heard);
+        track('voice_extracted', { event_count: events.length });
         if (events.length >= 1) {
           pendingVoiceEvents = events;
           renderVoiceReview();
@@ -354,11 +356,13 @@ async function toggleMic() {
           setMicStatus(`Heard: \u201c${heard}\u201d \u2014 check the numbers below, then Save.`, 'heard');
         }
       } catch (err) {
+        track('mic_error', { reason: 'transcribe_failed' });
         setMicStatus(err.message || 'Could not hear that \u2014 try again, or type below.', 'err');
       }
     };
     mediaRecorder.start();
     btn.classList.add('recording');
+    track('mic_start');
     setMicStatus('Listening\u2026 tap again when you\u2019re done speaking.');
   } catch (err) {
     setMicStatus('Couldn\u2019t reach the microphone \u2014 check phone permission, or type below.', 'err');
@@ -461,6 +465,7 @@ async function saveEntry() {
       day: todayKey(ts),
       ts
     });
+    track('save_entry', { type: activeType, source: sheetVoiceFilled ? 'voice' : 'manual' });
     closeSheet();
     await render();
   } catch (err) {
