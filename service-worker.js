@@ -1,6 +1,6 @@
 // Bump CACHE on every deploy — this is what forces a stale phone to pick up new code.
-const CACHE = 'kym-v4';
-const ASSETS = ['./', './index.html', './app.js?v=4', './manifest.json', './icon.svg'];
+const CACHE = 'kym-v5';
+const ASSETS = ['./', './index.html', './app.js?v=5', './manifest.json', './icon.svg'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)));
