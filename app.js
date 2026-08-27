@@ -249,6 +249,23 @@ function voiceEventComplete(ev) {
 
 let pendingVoiceEvents = [];
 
+// Provenance signal Gemini/ChatGPT both asked for, after the live finding that the
+// extraction model can invent a plausible-looking number for one that was never
+// spoken: a field the model actually returned a value for is marked "AI heard
+// this - check it", visually distinct from a field the model left out, marked
+// "Didn't catch this - tap to enter" in amber. Both still require the owner's own
+// eyes and a tap before Save works - the label only tells them WHERE to look
+// first, it never changes what's allowed to save silently.
+function fieldMarkup(value, idx, key, type, extraAttrs) {
+  const has = value !== undefined && value !== '' && value !== null;
+  const cls = has ? 'ai-detected' : 'needs-input';
+  const caption = has ? 'AI heard this - check it' : "Didn't catch this - tap to enter";
+  return `<div class="field ${cls}">
+      <input type="${type}" ${extraAttrs || ''} data-idx="${idx}" data-key="${key}" value="${has ? String(value).replace(/"/g, '&quot;') : ''}" placeholder="${has ? '' : 'tap to enter'}">
+      <div class="field-caption">${caption}</div>
+    </div>`;
+}
+
 function renderVoiceReview() {
   const list = document.getElementById('voiceReviewList');
   const wrap = document.getElementById('voiceReview');
@@ -257,12 +274,18 @@ function renderVoiceReview() {
   list.innerHTML = pendingVoiceEvents.map((ev, i) => {
     const nameLabel = ev.type === 'debt_in' ? 'Customer name' : ev.type === 'debt_out' ? 'Supplier name' : 'What';
     const priceLabel = ev.type === 'sale' ? 'Price each (cedis)' : 'Amount (cedis)';
+    const ready = voiceEventComplete(ev);
     return `
       <div class="voice-card">
-        <div class="voice-card-type">${TYPE_LABEL[ev.type] || ev.type}</div>
-        <div class="field"><label>${nameLabel}</label><input type="text" data-idx="${i}" data-key="item" value="${(ev.item || '').replace(/"/g, '&quot;')}"></div>
-        ${ev.type === 'sale' ? `<div class="field"><label>How many?</label><input type="number" inputmode="decimal" data-idx="${i}" data-key="qty" value="${ev.qty || ''}"></div>` : ''}
-        <div class="field"><label>${priceLabel}</label><input type="number" inputmode="decimal" data-idx="${i}" data-key="price" value="${ev.price || ''}"></div>
+        <div class="voice-card-type">
+          <span>${TYPE_LABEL[ev.type] || ev.type}</span>
+          <span class="voice-card-status ${ready ? 'ready' : 'pending'}">${ready ? 'Ready' : 'Needs a number'}</span>
+        </div>
+        <label class="field-label">${nameLabel}</label>
+        ${fieldMarkup(ev.item, i, 'item', 'text')}
+        ${ev.type === 'sale' ? `<label class="field-label">How many?</label>${fieldMarkup(ev.qty, i, 'qty', 'number', 'inputmode="decimal"')}` : ''}
+        <label class="field-label">${priceLabel}</label>
+        ${fieldMarkup(ev.price, i, 'price', 'number', 'inputmode="decimal"')}
         <div class="voice-card-btns">
           <button class="btn btn-cancel voice-discard" data-idx="${i}">Discard</button>
           <button class="btn btn-save voice-save" data-idx="${i}">Save</button>

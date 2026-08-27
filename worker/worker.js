@@ -88,6 +88,36 @@ const EXTRACT_SYSTEM_PROMPT = `You read a rough, possibly messy speech-to-text t
 Rules: qty and price must always be plain numbers, never words or the string "unknown" - if a number genuinely was not said, omit that field entirely rather than guessing. Never invent a price or name that isn't clearly supported by the text. Ignore transcription noise words that don't fit any product (like a stray "cds" or "think" with no context).
 Respond with ONLY a raw JSON array, no prose, no markdown fences, no extra fields beyond what's listed above. If nothing extractable, respond with [].`;
 
+// Deterministic, model-independent safety layer - takes whatever the LLM returned
+// (which may be malformed, missing fields, or - live-tested 27 Aug - contain the
+// literal string "high" stuffed into a price field) and produces only
+// well-typed, bounded output. This function calls no AI and touches no network -
+// same input always gives the same output, which is what makes it unit-testable
+// on its own (see the WORKER_TESTS block below) independent of whatever the model
+// happens to say on a given day. Never trust model-reported confidence; confidence
+// here is a direct fact about the value's own type, nothing more.
+function sanitizeEvents(rawEvents) {
+  if (!Array.isArray(rawEvents)) return [];
+  const toNumOrUndefined = (v) => {
+    const n = Number(v);
+    return (typeof v !== 'object' && v !== '' && v !== null && !isNaN(n)) ? n : undefined;
+  };
+  return rawEvents
+    .filter(e => e && typeof e === 'object' && ['sale', 'expense', 'debt_in', 'debt_out'].includes(e.type))
+    .map(e => {
+      const clean = { type: e.type };
+      if (typeof e.item === 'string' && e.item.trim()) clean.item = e.item.trim().slice(0, 60);
+      if (typeof e.customer === 'string' && e.customer.trim()) clean.customer = e.customer.trim().slice(0, 60);
+      if (typeof e.supplier === 'string' && e.supplier.trim()) clean.supplier = e.supplier.trim().slice(0, 60);
+      if (typeof e.note === 'string' && e.note.trim()) clean.note = e.note.trim().slice(0, 100);
+      const qty = toNumOrUndefined(e.qty);
+      const price = toNumOrUndefined(e.price);
+      if (qty !== undefined && qty > 0) clean.qty = qty;
+      if (price !== undefined && price > 0) clean.price = price;
+      return clean;
+    });
+}
+
 async function handleExtract(request, env) {
   if (!env.AI) {
     return cors(new Response(JSON.stringify({ error: 'extraction not configured yet' }), { status: 503 }));
@@ -133,33 +163,7 @@ async function handleExtract(request, env) {
   }
   if (!Array.isArray(events)) events = [];
 
-  // The 3B model's self-reported confidence field is NOT trustworthy on its own -
-  // live-tested 27 Aug: it sometimes writes the literal string "high" INTO the
-  // price/qty fields themselves (confusing its own confidence-object shape with
-  // the actual value), which would silently put a non-numeric "amount" in front of
-  // the merchant. Confidence here is computed independently, server-side, from
-  // the actual type of each value - never from what the model claims about itself.
-  // A non-numeric price/qty is dropped entirely (not passed through as garbage)
-  // and the frontend treats a missing field as needing the merchant's input,
-  // exactly like every other entry path already does.
-  const toNumOrUndefined = (v) => {
-    const n = Number(v);
-    return (typeof v !== 'object' && v !== '' && v !== null && !isNaN(n)) ? n : undefined;
-  };
-  events = events
-    .filter(e => e && typeof e === 'object' && ['sale', 'expense', 'debt_in', 'debt_out'].includes(e.type))
-    .map(e => {
-      const clean = { type: e.type };
-      if (typeof e.item === 'string' && e.item.trim()) clean.item = e.item.trim().slice(0, 60);
-      if (typeof e.customer === 'string' && e.customer.trim()) clean.customer = e.customer.trim().slice(0, 60);
-      if (typeof e.supplier === 'string' && e.supplier.trim()) clean.supplier = e.supplier.trim().slice(0, 60);
-      if (typeof e.note === 'string' && e.note.trim()) clean.note = e.note.trim().slice(0, 100);
-      const qty = toNumOrUndefined(e.qty);
-      const price = toNumOrUndefined(e.price);
-      if (qty !== undefined && qty > 0) clean.qty = qty;
-      if (price !== undefined && price > 0) clean.price = price;
-      return clean;
-    });
+  events = sanitizeEvents(events);
   return cors(new Response(JSON.stringify({ events }), {
     headers: { 'Content-Type': 'application/json' }
   }));

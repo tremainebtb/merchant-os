@@ -120,8 +120,18 @@ h1 .tagline{font-family:"Work Sans",sans-serif;font-size:.78rem;font-weight:500;
 .voice-review.open{display:block}
 .voice-review-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;font-size:.78rem;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;font-weight:700}
 .voice-card{background:var(--surface);border:1px solid var(--rule);border-radius:14px;padding:16px;margin-bottom:10px}
-.voice-card-type{font-family:"Manrope",sans-serif;font-weight:800;font-size:.86rem;color:var(--flame-deep);margin-bottom:10px}
-.voice-card-btns{display:flex;gap:10px;margin-top:4px}
+.voice-card-type{display:flex;justify-content:space-between;align-items:center;font-family:"Manrope",sans-serif;font-weight:800;font-size:.86rem;color:var(--flame-deep);margin-bottom:10px}
+.voice-card-status{font-family:"Work Sans",sans-serif;font-weight:700;font-size:.68rem;text-transform:uppercase;letter-spacing:.04em;padding:3px 9px;border-radius:100px}
+.voice-card-status.ready{background:var(--leaf-soft);color:var(--leaf-deep)}
+.voice-card-status.pending{background:var(--amber-soft);color:var(--amber)}
+.field-label{display:block;font-size:.82rem;color:var(--ink-soft);margin-bottom:5px;font-weight:600}
+.field.ai-detected input,.field.needs-input input{width:100%;padding:12px;border-radius:10px;font-size:1rem}
+.field.ai-detected input{border:1px solid var(--rule);background:var(--paper)}
+.field.needs-input input{border:1.5px solid var(--amber);background:var(--amber-soft)}
+.field-caption{font-size:.72rem;margin-top:4px;margin-bottom:2px}
+.field.ai-detected .field-caption{color:var(--muted)}
+.field.needs-input .field-caption{color:var(--amber);font-weight:700}
+.voice-card-btns{display:flex;gap:10px;margin-top:12px}
 .voice-card-btns .btn{padding:10px}
 .sheet-btns{display:flex;gap:10px}
 .btn{flex:1;padding:13px;border-radius:10px;border:none;font-weight:700;font-size:.94rem;cursor:pointer}
