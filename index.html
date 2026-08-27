@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&family=Work+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@600;700&display=swap">
 <style>
-/* Same design system as the landing page â€” one product, one identity. */
+/* Same design system as the landing page — one product, one identity. */
 :root{
   --paper:#F8F3EC; --surface:#FFFFFF; --ink:#221A12; --ink-soft:#5C5142; --muted:#8C8172;
   --rule:#E7DDCD; --flame:#D9541A; --flame-deep:#A83F12; --flame-soft:#FBE3D2;
@@ -88,7 +88,7 @@ h1 .tagline{font-family:"Work Sans",sans-serif;font-size:.78rem;font-weight:500;
 .plan-note{font-size:.82rem;color:var(--muted);margin-bottom:14px}
 .footer-row{max-width:480px;margin:16px auto 0;padding:0 16px 20px;display:flex;align-items:center;justify-content:center;gap:8px;position:relative}
 .gear-btn{position:absolute;right:16px;background:none;border:none;color:var(--rule);font-size:1rem;cursor:pointer;padding:6px;line-height:1}
-/* Hidden by default â€” not a labeled "owner only" bar sitting in view for anyone
+/* Hidden by default — not a labeled "owner only" bar sitting in view for anyone
    holding the phone. Only opens on a deliberate tap of the small gear, and only
    after the PIN if one is set (see openAdminBar in app.js). */
 .admin-bar{display:none;max-width:480px;margin:0 auto;padding:14px 16px 20px}
@@ -136,18 +136,18 @@ h1 .tagline{font-family:"Work Sans",sans-serif;font-size:.78rem;font-weight:500;
 </head>
 <body>
 <div class="wrap">
-  <div id="offlineBadge" class="offline-badge">No connection â€” still recording, saved on your phone.</div>
+  <div id="offlineBadge" class="offline-badge">No connection — still recording, saved on your phone.</div>
   <h1>CountMy<span class="tagline">Know your money</span></h1>
 
   <div class="today">
     <div class="today-top">
       <div class="today-label">Today</div>
-      <button id="hearBtn" class="hear-btn">ðŸ”Š Hear it</button>
+      <button id="hearBtn" class="hear-btn">🔊 Hear it</button>
     </div>
     <div class="today-row"><span>Sales</span><span id="tSales">0 cedis</span></div>
     <div class="today-row"><span>Expenses</span><span id="tExpenses">0 cedis</span></div>
     <div class="today-row"><span>Customers owe me</span><span id="tOwedMe">0 cedis</span></div>
-    <div class="today-row balance"><span>Sales minus expenses<small class="today-hint">â€” not what's owed to you, not cash count</small></span><span id="tBalance" class="balance-amt">0 cedis</span></div>
+    <div class="today-row balance"><span>Sales minus expenses<small class="today-hint">— not what's owed to you, not cash count</small></span><span id="tBalance" class="balance-amt">0 cedis</span></div>
   </div>
 
   <div class="actions">
@@ -189,15 +189,15 @@ h1 .tagline{font-family:"Work Sans",sans-serif;font-size:.78rem;font-weight:500;
   <div id="history"><div class="empty">Nothing recorded yet. Add your first sale above.</div></div>
 
   <div class="safety-block">
-    <button id="exportBtn" class="export-btn">ðŸ’¾ Save a backup of my records</button>
-    <div class="export-note">If this phone is lost, records only saved here go with it. This saves a copy you can keep â€” send it to yourself on WhatsApp.</div>
+    <button id="exportBtn" class="export-btn">💾 Save a backup of my records</button>
+    <div class="export-note">If this phone is lost, records only saved here go with it. This saves a copy you can keep — send it to yourself on WhatsApp.</div>
   </div>
 
   <div class="trust-block">
-    <div class="trust-line">âœ“ Free â€” no PIN ever asked â€” no loans, just your records</div>
+    <div class="trust-line">✓ Free — no PIN ever asked — no loans, just your records</div>
   </div>
 
-  <button id="planPill" class="plan-pill">Free Â· last 7 days shown</button>
+  <button id="planPill" class="plan-pill">Free · last 7 days shown</button>
 
   <div id="planSheet" class="sheet plan-sheet">
     <h2>See your full history</h2>
@@ -215,14 +215,14 @@ h1 .tagline{font-family:"Work Sans",sans-serif;font-size:.78rem;font-weight:500;
 </div>
 
 <div class="footer-row">
-  <footer class="site-footer">CountMy â€” a free tool for Ghanaian shop owners, nothing more.</footer>
-  <button id="gearBtn" class="gear-btn" aria-label="My settings">âš™</button>
+  <footer class="site-footer">CountMy — a free tool for Ghanaian shop owners, nothing more.</footer>
+  <button id="gearBtn" class="gear-btn" aria-label="My settings">⚙</button>
 </div>
 
 <div id="adminBar" class="admin-bar">
   <div class="admin-header">
-    <span>My settings â€” for you, the shop owner</span>
-    <button id="adminCloseBtn" class="admin-close">âœ•</button>
+    <span>My settings — for you, the shop owner</span>
+    <button id="adminCloseBtn" class="admin-close">✕</button>
   </div>
   <div style="display:flex;gap:8px">
     <button id="pinToggle" class="admin-toggle">Set a PIN</button>
@@ -243,7 +243,7 @@ h1 .tagline{font-family:"Work Sans",sans-serif;font-size:.78rem;font-weight:500;
   </div>
 </div>
 
-<!-- Bump ?v= on every deploy alongside the service-worker CACHE version â€” this query
+<!-- Bump ?v= on every deploy alongside the service-worker CACHE version — this query
      string is what forces a fresh script fetch even before any service worker logic
      runs, independent of it. Found live 27 Aug: without this, an already-visited
      browser can keep running old code from plain HTTP cache regardless of SW strategy. -->
