@@ -71,8 +71,13 @@ h1 .tagline{font-family:"Work Sans",sans-serif;font-size:.78rem;font-weight:500;
 .mic-btn.listening{background:var(--amber-soft);color:var(--amber);border-color:var(--amber);border-style:solid}
 .heard-line{display:none;background:var(--amber-soft);color:var(--amber);border-radius:10px;padding:10px 12px;font-size:.84rem;margin-bottom:12px}
 .heard-line.show{display:block}
-.export-btn{width:100%;background:var(--surface);border:1px solid var(--rule);border-radius:12px;padding:12px;font-size:.86rem;font-weight:700;color:var(--ink);margin-top:22px;cursor:pointer}
-.export-note{font-size:.78rem;color:var(--muted);margin-top:6px;line-height:1.4}
+.safety-block{background:var(--surface);border:1px solid var(--rule);border-radius:14px;padding:16px;margin-top:26px}
+.export-btn{width:100%;background:var(--paper);border:1px solid var(--rule);border-radius:12px;padding:12px;font-size:.86rem;font-weight:700;color:var(--ink);cursor:pointer}
+.export-note{font-size:.78rem;color:var(--muted);margin-top:8px;line-height:1.4}
+.trust-block{background:var(--leaf-soft);border-radius:14px;padding:14px 16px;margin-top:14px}
+.trust-line{font-size:.82rem;color:var(--leaf-deep);font-weight:600;line-height:1.6}
+.plan-pay-name{font-size:.8rem;color:var(--ink-soft);font-weight:600;margin:-6px 0 10px;padding-bottom:8px;border-bottom:1px dashed var(--rule)}
+.site-footer{max-width:480px;margin:0 auto;padding:0 16px 20px;text-align:center;font-size:.74rem;color:var(--muted)}
 .plan-pill{width:100%;background:var(--surface);border:1px solid var(--rule);border-radius:12px;padding:12px;font-size:.84rem;font-weight:700;color:var(--ink-soft);margin-top:14px;cursor:pointer}
 .plan-sheet{display:none}
 .plan-sheet.open{display:block;margin-top:14px}
@@ -85,7 +90,7 @@ h1 .tagline{font-family:"Work Sans",sans-serif;font-size:.78rem;font-weight:500;
 .plan-pay-number{font-weight:800;color:var(--leaf-deep);margin-bottom:10px;font-size:.98rem}
 .plan-pay-number:last-child{margin-bottom:0}
 .plan-note{font-size:.82rem;color:var(--muted);margin-bottom:14px}
-.admin-bar{max-width:480px;margin:0 auto;padding:14px 16px 30px;display:flex;justify-content:space-between;align-items:center;border-top:1px dashed var(--rule);margin-top:10px}
+.admin-bar{max-width:480px;margin:16px auto 0;padding:14px 16px;display:flex;flex-wrap:wrap;gap:10px;justify-content:space-between;align-items:center;background:var(--rule);border-radius:14px 14px 0 0}
 .admin-bar span{font-size:.74rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-weight:700}
 .admin-toggle{background:none;border:1px solid var(--rule);color:var(--ink-soft);border-radius:100px;padding:6px 12px;font-size:.76rem;font-weight:700;cursor:pointer}
 .admin-toggle.is-paid{background:var(--leaf-soft);color:var(--leaf-deep);border-color:var(--leaf-soft)}
@@ -164,8 +169,16 @@ h1 .tagline{font-family:"Work Sans",sans-serif;font-size:.78rem;font-weight:500;
   <div class="hist-label">Recent</div>
   <div id="history"><div class="empty">Nothing recorded yet. Add your first sale above.</div></div>
 
-  <button id="exportBtn" class="export-btn">💾 Save a backup of my records</button>
-  <div class="export-note">If this phone is lost, records only saved here go with it. This saves a copy you can keep — send it to yourself on WhatsApp.</div>
+  <div class="safety-block">
+    <button id="exportBtn" class="export-btn">💾 Save a backup of my records</button>
+    <div class="export-note">If this phone is lost, records only saved here go with it. This saves a copy you can keep — send it to yourself on WhatsApp.</div>
+  </div>
+
+  <div class="trust-block">
+    <div class="trust-line">✓ Free to use — nothing is blocked to make you pay</div>
+    <div class="trust-line">✓ We never ask for your MoMo PIN or one-time code</div>
+    <div class="trust-line">✓ No loans, no investment — this only records what you tell it</div>
+  </div>
 
   <button id="planPill" class="plan-pill">Free plan · Full history is Paid</button>
 
@@ -176,26 +189,29 @@ h1 .tagline{font-family:"Work Sans",sans-serif;font-size:.78rem;font-weight:500;
     <div class="plan-pay-box">
       <div class="plan-pay-label">Send by MoMo to</div>
       <div class="plan-pay-number">0209090019</div>
+      <div class="plan-pay-name">Registered to: PLACEHOLDER — name that shows on this MoMo account</div>
       <div class="plan-pay-label">Reference</div>
       <div class="plan-pay-number">Your shop name</div>
     </div>
-    <p class="plan-note">We check for your payment and switch you to Paid the same day — no card, no app, just the transfer you already know how to do.</p>
+    <p class="plan-note">Check the name on your phone matches before you send — that's how you know it's really us. We never call or message asking for your PIN. We check for your payment and switch you to Paid the same day — no card, no app, just the transfer you already know how to do.</p>
     <button id="planCloseBtn" class="btn btn-cancel" style="width:100%">Close</button>
   </div>
 </div>
 
 <div id="adminBar" class="admin-bar">
-  <span>Owner tools</span>
+  <span>Owner only — not for customers</span>
   <div style="display:flex;gap:8px">
     <button id="pinToggle" class="admin-toggle">Set a PIN</button>
     <button id="adminToggle" class="admin-toggle">Mark this shop Paid</button>
   </div>
 </div>
 
+<footer class="site-footer">Built by Bobby Boateng, Accra — a tool for Ghanaian shop owners, nothing more.</footer>
+
 <div id="lockScreen" class="lock-screen">
   <div class="lock-box">
     <div class="lock-title">Enter PIN</div>
-    <div class="lock-sub">Someone locked this shop's numbers. Enter the 4-digit PIN to see them.</div>
+    <div class="lock-sub">This shop's owner locked these numbers. Enter your 4-digit PIN to continue.</div>
     <input id="lockInput" class="lock-input" type="tel" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off">
     <div id="lockError" class="lock-error"></div>
   </div>
@@ -205,6 +221,6 @@ h1 .tagline{font-family:"Work Sans",sans-serif;font-size:.78rem;font-weight:500;
      string is what forces a fresh script fetch even before any service worker logic
      runs, independent of it. Found live 27 Aug: without this, an already-visited
      browser can keep running old code from plain HTTP cache regardless of SW strategy. -->
-<script src="app.js?v=7"></script>
+<script src="app.js?v=8"></script>
 </body>
 </html>
