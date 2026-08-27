@@ -306,7 +306,7 @@ function renderVoiceReview() {
     if (!voiceEventComplete(ev)) { alert('Fill in the missing number(s) first.'); return; }
     const entry = eventToEntry(ev);
     const ts = Date.now();
-    await addEntry({ id: crypto.randomUUID(), type: entry.type, item: entry.item, note: entry.note, qty: entry.qty, price: entry.price, amount: entry.amount, day: todayKey(ts), ts });
+    await addEntry({ id: crypto.randomUUID(), type: entry.type, item: entry.item, note: entry.note, qty: entry.qty, price: entry.price, amount: entry.amount, source: 'voice', day: todayKey(ts), ts });
     pendingVoiceEvents.splice(idx, 1);
     renderVoiceReview();
     await render();
@@ -350,6 +350,7 @@ async function toggleMic() {
           setMicStatus(`Heard: \u201c${heard}\u201d \u2014 check each one below, then Save.`, 'heard');
         } else {
           fillFields(parseHeardText(activeType, heard));
+          sheetVoiceFilled = true;
           setMicStatus(`Heard: \u201c${heard}\u201d \u2014 check the numbers below, then Save.`, 'heard');
         }
       } catch (err) {
@@ -363,8 +364,19 @@ async function toggleMic() {
     setMicStatus('Couldn\u2019t reach the microphone \u2014 check phone permission, or type below.', 'err');
   }
 }
+// Tracks how each entry was actually created (voice vs manual) - added 27 Aug
+// per the pilot's own success metric: "how many transactions were voice vs
+// typing vs tap." Purely observational, never shown to the merchant, never
+// affects save behavior - it only tags the stored record so real usage can be
+// read back later. Reset every time a fresh sheet opens; set the moment voice
+// actually filled it, so a merchant who then edits the fields by hand still
+// correctly counts as a voice-assisted entry (the fields being editable is the
+// whole safety design, not a reason to lose the provenance signal).
+let sheetVoiceFilled = false;
+
 function openSheet(type) {
   activeType = type;
+  sheetVoiceFilled = false;
   const cfg = FIELD_CONFIG[type];
   document.getElementById('sheetTitle').textContent = cfg.title;
   const fieldsEl = document.getElementById('fields');
@@ -435,6 +447,7 @@ async function saveEntry() {
       qty: v.qty || '',
       price: v.price || '',
       amount: amount,
+      source: sheetVoiceFilled ? 'voice' : 'manual',
       day: todayKey(ts),
       ts
     });
@@ -617,13 +630,13 @@ function updatePinToggle() {
 async function exportBackup() {
   const entries = await getAllEntries();
   if (!entries.length) { alert('Nothing to back up yet.'); return; }
-  const rows = [['Date', 'Type', 'Description', 'Amount (cedis)']];
+  const rows = [['Date', 'Type', 'Description', 'Amount (cedis)', 'How it was entered']];
   const typeLabel = { sale: 'Sale', expense: 'Expense', debt_in: 'Customer owes me', debt_out: 'I owe supplier' };
   entries.slice().reverse().forEach(e => {
     const cfg = FIELD_CONFIG[e.type];
     const when = new Date(e.ts).toLocaleString('en-GH', { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' });
     const csvSafe = s => '"' + String(s).replace(/"/g, '""') + '"';
-    rows.push([when, typeLabel[e.type], csvSafe(cfg.desc(e)), e.amount]);
+    rows.push([when, typeLabel[e.type], csvSafe(cfg.desc(e)), e.amount, e.source === 'voice' ? 'Voice' : 'Typed']);
   });
   const csv = rows.map(r => r.join(',')).join('\n');
   const blob = new Blob([csv], { type: 'text/csv' });
