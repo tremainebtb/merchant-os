@@ -382,6 +382,32 @@ function updatePinToggle() {
   btn.textContent = getPin() ? '🔒 Remove PIN' : 'Set a PIN';
 }
 
+// Real answer to "what if the phone is lost" without building a sync backend —
+// a plain CSV the merchant can save, WhatsApp to themselves, or hand to anyone
+// (accountant, family) who wants to open it. No account, no server, no new cost.
+async function exportBackup() {
+  const entries = await getAllEntries();
+  if (!entries.length) { alert('Nothing to back up yet.'); return; }
+  const rows = [['Date', 'Type', 'Description', 'Amount (GHS)']];
+  const typeLabel = { sale: 'Sale', expense: 'Expense', debt_in: 'Customer owes me', debt_out: 'I owe supplier' };
+  entries.slice().reverse().forEach(e => {
+    const cfg = FIELD_CONFIG[e.type];
+    const when = new Date(e.ts).toLocaleString('en-GH', { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' });
+    const csvSafe = s => '"' + String(s).replace(/"/g, '""') + '"';
+    rows.push([when, typeLabel[e.type], csvSafe(cfg.desc(e)), e.amount]);
+  });
+  const csv = rows.map(r => r.join(',')).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `know-your-money-backup-${todayKey(Date.now())}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
 function updateOfflineBadge() {
   document.getElementById('offlineBadge').classList.toggle('show', !navigator.onLine);
 }
@@ -411,6 +437,7 @@ document.getElementById('pinToggle').addEventListener('click', () => {
   updatePinToggle();
 });
 document.getElementById('lockInput').addEventListener('input', tryUnlock);
+document.getElementById('exportBtn').addEventListener('click', exportBackup);
 window.addEventListener('online', updateOfflineBadge);
 window.addEventListener('offline', updateOfflineBadge);
 // Lock whenever the tab comes back into view — covers "handed the phone to a

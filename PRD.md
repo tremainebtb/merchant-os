@@ -1,4 +1,4 @@
-# Merchant OS — Product Requirements (source of truth)
+# Know Your Money — Product Requirements (source of truth)
 
 Last updated: 2026-08-27. This file, not chat history, is the record of what's decided.
 
@@ -6,6 +6,16 @@ Last updated: 2026-08-27. This file, not chat history, is the record of what's d
 
 A ledger a Ghanaian shop owner opens once a day. Not "inventory management." Not "AI bookkeeping."
 **"Know your money."**
+
+The product name and the business name are the same thing: **Know Your Money.** Deliberately not a separate invented brand — see the naming research in the earlier landing-page work: real Ghanaian commerce products (Bumpa, Catlog, Pocketi, Kippa) use short, functional names, not constructed African-sounding ones. Introducing a second name here would only break platform consistency for no evidenced benefit.
+
+## Scope-creep rule — permanent, not optional
+
+**No infrastructure gets built solely because an advisor (human or AI) recommends it.** Each architectural expansion needs one of: observed user demand (a real pilot merchant hit the limit), a demonstrated reliability/security failure (reproduced, not hypothetical), or a clear regulatory requirement. This project now runs advice through three AI systems (Claude, ChatGPT, Gemini) — the risk isn't bad code, it's three confident AIs agreeing on something nobody asked for. Cloud sync, a full backend, and an automated Playwright/Cypress harness were all proposed and declined on 27 Aug on exactly this basis: zero real users had hit the limits they'd solve.
+
+## Known pre-scale gate, not urgent for a private pilot
+
+Ghana's Data Protection Commission requires organisations processing personal data to register (low fee, ~GHS120 for small operators) and meet basic technical/organisational safeguards. A 5-person private pilot with people Bobby knows directly is a materially different risk than public commercial launch. **This must happen before any public marketing or launch beyond known pilot contacts — flagged now so it doesn't get forgotten, not blocking the pilot itself.**
 
 ## Engineering rule — permanent, not optional
 
