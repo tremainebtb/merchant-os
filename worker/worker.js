@@ -55,7 +55,8 @@ async function handleTranscribe(request, env) {
   let result;
   try {
     result = await env.AI.run('@cf/openai/whisper-large-v3-turbo', {
-      audio: base64Audio
+      audio: base64Audio,
+      language: 'en'
     });
   } catch (err) {
     // Covers the daily-quota-exhausted case (real, documented risk on the free tier)
