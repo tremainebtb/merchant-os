@@ -49,6 +49,7 @@ h1{font-family:"Manrope",sans-serif;font-size:1.1rem;font-weight:800;margin:8px 
 .today-row.balance{border-top:1px solid var(--rule);margin-top:6px;padding-top:12px}
 .today-row.balance span:first-child{color:var(--ink);font-weight:700}
 .today-row.balance span:last-child{font-size:1.5rem}
+.today-hint{display:block;font-weight:400;font-size:.72rem;color:var(--muted);margin-top:1px}
 .actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:20px}
 .act-btn{font-family:"Manrope",sans-serif;border:none;border-radius:14px;padding:14px 10px;font-weight:700;font-size:.92rem;cursor:pointer;text-align:left;color:#fff;display:flex;align-items:center;gap:10px}
 .act-icon{flex:none;width:26px;height:26px}
@@ -88,6 +89,8 @@ h1{font-family:"Manrope",sans-serif;font-size:1.1rem;font-weight:800;margin:8px 
 .sheet-btns{display:flex;gap:10px}
 .btn{flex:1;padding:13px;border-radius:10px;border:none;font-weight:700;font-size:.94rem;cursor:pointer}
 .btn-save{background:var(--leaf);color:#fff}
+.btn-save:disabled{opacity:.6;cursor:default}
+.remind-btn{display:inline-block;margin-top:4px;font-size:.76rem;font-weight:700;color:var(--leaf-deep);background:var(--leaf-soft);padding:4px 9px;border-radius:100px;text-decoration:none}
 .btn-cancel{background:var(--rule);color:var(--ink)}
 .hist-label{font-size:.72rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:700;margin:20px 0 10px}
 .hist-item{display:flex;justify-content:space-between;padding:11px 0;border-bottom:1px solid var(--rule);font-size:.9rem}
@@ -114,7 +117,7 @@ h1{font-family:"Manrope",sans-serif;font-size:1.1rem;font-weight:800;margin:8px 
     <div class="today-row"><span>Sales</span><span id="tSales">GHS 0</span></div>
     <div class="today-row"><span>Expenses</span><span id="tExpenses">GHS 0</span></div>
     <div class="today-row"><span>Customers owe me</span><span id="tOwedMe">GHS 0</span></div>
-    <div class="today-row balance"><span>Balance</span><span id="tBalance" class="balance-amt">GHS 0</span></div>
+    <div class="today-row balance"><span>Sales minus expenses<small class="today-hint">— not what's owed to you, not cash count</small></span><span id="tBalance" class="balance-amt">GHS 0</span></div>
   </div>
 
   <div class="actions">
