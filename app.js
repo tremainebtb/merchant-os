@@ -157,12 +157,24 @@ function wordsToNumber(text) {
   });
 }
 
-const FILLER = /\b(a|an|the|for|of|on|to|me|i|owe|owes|he|she|they|it|at|each|cedis|cedi|ghs|sold|spent|bought|paid|is|was|and)\b/gi;
+// Two separate noise sources, handled in order: (1) real spoken disfluencies -
+// "um", "ehm", "I think", "like" - people actually say these; (2) STT artifacts -
+// free Workers AI Whisper sometimes mishears "cedis" as "cds" or similar short
+// garbled tokens, which are meaningless leftovers, not real words. Strip both
+// before showing the owner anything, since neither belongs in an item name.
+const DISFLUENCY = /\b(um+|uh+|erm+|ehm+|hmm+|like|actually|basically|so|yeah|yep|okay|ok|please|thanks|thank you|hello|hi|today|i think|i mean|you know|kind of|sort of)\b/gi;
+const FILLER = /\b(a|an|the|for|of|on|to|me|i|owe|owes|he|she|they|it|at|each|cedis|cedi|ghs|cds|cd|sold|spent|bought|paid|is|was|and)\b/gi;
 
 function parseHeardText(type, raw) {
   const text = wordsToNumber(raw);
   const numbers = (text.match(/\d+(\.\d+)?/g) || []).map(Number);
-  const cleaned = text.replace(/\d+(\.\d+)?/g, ' ').replace(FILLER, ' ').replace(/\s+/g, ' ').trim();
+  const cleaned = text
+    .replace(/\d+(\.\d+)?/g, ' ')
+    .replace(DISFLUENCY, ' ')
+    .replace(FILLER, ' ')
+    .replace(/[.,!?]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
   const v = {};
   if (type === 'sale') {
     if (numbers.length >= 2) { v.qty = numbers[0]; v.price = numbers[1]; }
@@ -241,7 +253,7 @@ function openSheet(type) {
   `).join('');
   fieldsEl.querySelectorAll('input').forEach(inp => inp.addEventListener('input', updateConfirm));
   document.getElementById('confirmLine').classList.remove('show');
-  setMicStatus('');
+  setMicStatus('Tap the mic and say ONE item and its price, then check the numbers before saving.');
   document.getElementById('sheet').classList.add('open');
   document.getElementById('sheet').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   fieldsEl.querySelector('input').focus();
