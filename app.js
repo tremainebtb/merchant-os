@@ -366,16 +366,29 @@ function showLock() {
   setTimeout(() => input.focus(), 50);
 }
 
+let pendingAdminReveal = false;
+
 function tryUnlock() {
   const input = document.getElementById('lockInput');
   if (input.value.length !== 4) return;
   if (input.value === getPin()) {
     document.getElementById('lockScreen').classList.remove('show');
+    if (pendingAdminReveal) { pendingAdminReveal = false; document.getElementById('adminBar').classList.add('open'); }
   } else {
     document.getElementById('lockError').textContent = 'Wrong PIN — try again.';
     input.value = '';
   }
 }
+
+// The gear is deliberately unlabeled and tiny — not a bar sitting in view for
+// anyone holding the phone. If a PIN is set, opening owner settings requires it,
+// same as viewing history — someone glancing at the phone shouldn't be able to
+// toggle billing state or change the PIN without knowing it.
+function openAdminBar() {
+  if (getPin()) { pendingAdminReveal = true; showLock(); }
+  else { document.getElementById('adminBar').classList.add('open'); }
+}
+function closeAdminBar() { document.getElementById('adminBar').classList.remove('open'); }
 
 function updatePinToggle() {
   const btn = document.getElementById('pinToggle');
@@ -422,6 +435,8 @@ document.getElementById('hearBtn').addEventListener('click', speakToday);
 if (!('speechSynthesis' in window)) document.getElementById('hearBtn').style.display = 'none';
 document.getElementById('planPill').addEventListener('click', () => document.getElementById('planSheet').classList.add('open'));
 document.getElementById('planCloseBtn').addEventListener('click', () => document.getElementById('planSheet').classList.remove('open'));
+document.getElementById('gearBtn').addEventListener('click', openAdminBar);
+document.getElementById('adminCloseBtn').addEventListener('click', closeAdminBar);
 document.getElementById('adminToggle').addEventListener('click', async () => {
   setPaid(!isPaid());
   await render();
