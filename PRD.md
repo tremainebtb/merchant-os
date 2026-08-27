@@ -1,4 +1,4 @@
-# Know Your Money — Product Requirements (source of truth)
+# CountMy — Product Requirements (source of truth)
 
 Last updated: 2026-08-27. This file, not chat history, is the record of what's decided.
 
@@ -7,7 +7,20 @@ Last updated: 2026-08-27. This file, not chat history, is the record of what's d
 A ledger a Ghanaian shop owner opens once a day. Not "inventory management." Not "AI bookkeeping."
 **"Know your money."**
 
-The product name and the business name are the same thing: **Know Your Money.** Deliberately not a separate invented brand — see the naming research in the earlier landing-page work: real Ghanaian commerce products (Bumpa, Catlog, Pocketi, Kippa) use short, functional names, not constructed African-sounding ones. Introducing a second name here would only break platform consistency for no evidenced benefit.
+## Naming — locked, with the real trail that got here (27 Aug)
+
+**Brand name: CountMy** (countmy.app confirmed available via direct RDAP registry lookup, not inference). **"Know your money" survives as the tagline**, not the site name — it's still good, tested UX copy, just can't be the dominant title/domain.
+
+Why it changed: the original plan named the product "Know Your Money" outright. Checked only *after* being asked directly whether that had been verified — it hadn't, and shouldn't have been called "locked" before it was. Real findings from that check:
+- **knowyourmoney.co.uk** is a 20-year-old, NerdWallet-owned UK financial comparison site (~400K visits/month) — a small Ghanaian bookkeeping app would never be findable under a colliding name.
+- **knowyourmoney.app** is a separate live personal-finance product, in the same category.
+- A live US trademark on the exact phrase exists (cancelled/dead, but shows the phrase has real trademark history in financial services); UK/Ghana trademark registers weren't directly queryable and were flagged as a genuine gap, not assumed clear.
+
+Backup candidates generated afterward (Owey, Balanzo, Zamu, Countio, Sumzy) were each checked and each failed — either a direct product conflict (Countio vs. Counto, Sumzy vs. Sumly) or, more usefully, a lesson caught by directly querying domain registries (RDAP) rather than trusting "no search hits = available": **owey.com and owey.app were both already registered**, despite an earlier pass reporting no conflict found — absence of search hits is not the same as confirmed availability, and every domain claim after this point was checked by direct registry query, not inferred.
+
+Also tried and rejected: **"Sika"** (the real Twi word for money) as a brand root — domain-available, but a targeted check found it's already the single most reused word in Ghanaian fintech branding (SikaPay, SikaCash, Sika Credit, Sikaflow, the award-winning Naa Sika, and others going back a decade). Also rejected on a second, self-caught error: candidates using "kobo" (Nigerian currency) and "duka" (Swahili for shop) were geographically wrong for a Ghana-specific product — the same borrowed-region mistake flagged earlier in this project, caught before shipping this time.
+
+**The general lesson, not just this one decision:** local-language/local-currency words feel authentic but are exactly where founders already reach first — they're the most contested naming space, not the safest. A plain, functional, geography-neutral name (matching how Bumpa/Catlog/Pocketi/Kippa are actually built — short invented-or-plain words, not local-language claims) is both lower-conflict and scales past Ghana into other African markets and beyond without needing a rename later.
 
 ## Scope-creep rule — permanent, not optional
 
