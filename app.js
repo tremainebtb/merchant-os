@@ -59,9 +59,9 @@ const FIELD_CONFIG = {
     confirm: v => {
       const total = (Number(v.qty) || 0) * (Number(v.price) || 0);
       if (!v.item || !v.qty || !v.price) return '';
-      return `${v.qty} × ${v.item} at ${fmt(v.price)} = ${fmt(total)}`;
+      return `${v.qty} Ã— ${v.item} at ${fmt(v.price)} = ${fmt(total)}`;
     },
-    desc: v => `${v.qty} × ${v.item}`,
+    desc: v => `${v.qty} Ã— ${v.item}`,
     amountSign: 1
   },
   expense: {
@@ -73,7 +73,7 @@ const FIELD_CONFIG = {
     compute: v => Number(v.price) || 0,
     confirm: v => {
       if (!v.item || !v.price) return '';
-      return `${v.item} — ${fmt(v.price)}`;
+      return `${v.item} â€” ${fmt(v.price)}`;
     },
     desc: v => v.item,
     amountSign: -1
@@ -90,7 +90,7 @@ const FIELD_CONFIG = {
       if (!v.item || !v.price) return '';
       return `${v.item} owes you ${fmt(v.price)}`;
     },
-    desc: v => v.item + (v.note ? ' — ' + v.note : ''),
+    desc: v => v.item + (v.note ? ' â€” ' + v.note : ''),
     amountSign: 1,
     isDebt: true
   },
@@ -106,7 +106,7 @@ const FIELD_CONFIG = {
       if (!v.item || !v.price) return '';
       return `You owe ${v.item} ${fmt(v.price)}`;
     },
-    desc: v => v.item + (v.note ? ' — ' + v.note : ''),
+    desc: v => v.item + (v.note ? ' â€” ' + v.note : ''),
     amountSign: -1,
     isDebt: true
   }
@@ -114,12 +114,120 @@ const FIELD_CONFIG = {
 
 let activeType = null;
 
-// Voice input (Web Speech API) was tried and removed 27 Aug after real-device testing —
-// broken on iOS Safari (partial/unreliable support, worse in installed-PWA context) and
-// unreliable on Android Chrome on weak mobile data (it's cloud-based, not on-device) —
-// exactly the network conditions this product's real users have. A confidently-broken
-// "Listening..." state is worse than not offering voice at all. If voice comes back, it
-// needs a real hosted transcription service, not the browser's native API.
+const API_BASE = 'https://countmy-api.boatengbobby.workers.dev';
+
+// Voice v1 (Web Speech API) was removed 27 Aug after real-device testing â€” broken on
+// iOS Safari and unreliable on Android Chrome on weak mobile data (it ran fully
+// on-device via the browser, no server, so a bad phone or a bad signal broke it with
+// no fallback). Voice v2 (below) fixes the actual cause, not just the symptom: record
+// raw audio with MediaRecorder (broadly supported on both platforms) and send it to a
+// real hosted transcription service (OpenAI Whisper, via the countmy-api Worker) â€”
+// same job, a server doing the hard part instead of the phone. This is the product's
+// core differentiator for shop owners who don't reliably read or type English â€”
+// voice is the primary path, typing is the fallback, not the other way round.
+let mediaRecorder = null;
+let recordedChunks = [];
+
+function micSupported() {
+  return !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.MediaRecorder);
+}
+
+function setMicStatus(text, cls) {
+  const el = document.getElementById('micStatus');
+  el.textContent = text;
+  el.className = 'mic-status' + (cls ? ' ' + cls : '');
+}
+
+// Deliberately simple, not NLP: pulls every number out of what was heard, and treats
+// whatever text is left (after stripping filler words) as the item/name. Good enough
+// for "five bags of rice at ten cedis each" or "Ama owes me fifty cedis for soap" â€”
+// exactly the short, spoken-number sentences a shop owner actually says. Never
+// auto-saves â€” this only fills the same fields typing would, so the owner still sees
+// and confirms the number before it's written, same as every other entry path.
+const NUMBER_WORDS = { one:1,two:2,three:3,four:4,five:5,six:6,seven:7,eight:8,nine:9,ten:10,
+  eleven:11,twelve:12,thirteen:13,fourteen:14,fifteen:15,twenty:20,thirty:30,forty:40,fifty:50,
+  sixty:60,seventy:70,eighty:80,ninety:90,hundred:100 };
+
+const NUMBER_WORD_RE = new RegExp('\\b(?:' + Object.keys(NUMBER_WORDS).join('|') + ')(?:[\\s-]+(?:' + Object.keys(NUMBER_WORDS).join('|') + '))*\\b', 'gi');
+
+function wordsToNumber(text) {
+  return text.replace(NUMBER_WORD_RE, (phrase) => {
+    const total = phrase.toLowerCase().split(/[\s-]+/).reduce((sum, w) => sum + (NUMBER_WORDS[w] || 0), 0);
+    return String(total);
+  });
+}
+
+const FILLER = /\b(a|an|the|for|of|on|to|me|i|owe|owes|he|she|they|it|at|each|cedis|cedi|ghs|sold|spent|bought|paid|is|was|and)\b/gi;
+
+function parseHeardText(type, raw) {
+  const text = wordsToNumber(raw);
+  const numbers = (text.match(/\d+(\.\d+)?/g) || []).map(Number);
+  const cleaned = text.replace(/\d+(\.\d+)?/g, ' ').replace(FILLER, ' ').replace(/\s+/g, ' ').trim();
+  const v = {};
+  if (type === 'sale') {
+    if (numbers.length >= 2) { v.qty = numbers[0]; v.price = numbers[1]; }
+    else if (numbers.length === 1) { v.price = numbers[0]; v.qty = 1; }
+    v.item = cleaned;
+  } else {
+    if (numbers.length >= 1) v.price = numbers[0];
+    v.item = cleaned;
+  }
+  return v;
+}
+
+function fillFields(values) {
+  Object.keys(values).forEach(key => {
+    const inp = document.querySelector(`#fields input[data-key="${key}"]`);
+    if (inp && values[key] !== undefined && values[key] !== '') inp.value = values[key];
+  });
+  updateConfirm();
+}
+
+async function transcribeBlob(blob) {
+  const form = new FormData();
+  form.append('audio', blob, 'voice.webm');
+  const res = await fetch(`${API_BASE}/transcribe`, { method: 'POST', body: form });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'Could not hear that â€” try again');
+  return data.text || '';
+}
+
+async function toggleMic() {
+  const btn = document.getElementById('micBtn');
+  if (!micSupported()) {
+    setMicStatus('Voice isnâ€™t available on this phone/browser â€” please type instead.', 'err');
+    return;
+  }
+  if (mediaRecorder && mediaRecorder.state === 'recording') {
+    mediaRecorder.stop();
+    return;
+  }
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    recordedChunks = [];
+    mediaRecorder = new MediaRecorder(stream);
+    mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) recordedChunks.push(e.data); };
+    mediaRecorder.onstop = async () => {
+      stream.getTracks().forEach(t => t.stop());
+      btn.classList.remove('recording');
+      setMicStatus('Listening to what you saidâ€¦');
+      try {
+        const blob = new Blob(recordedChunks, { type: 'audio/webm' });
+        const heard = await transcribeBlob(blob);
+        if (!heard.trim()) { setMicStatus('Didnâ€™t catch that â€” try again, or type below.', 'err'); return; }
+        fillFields(parseHeardText(activeType, heard));
+        setMicStatus(`Heard: â€œ${heard}â€ â€” check the numbers below, then Save.`, 'heard');
+      } catch (err) {
+        setMicStatus(err.message || 'Could not hear that â€” try again, or type below.', 'err');
+      }
+    };
+    mediaRecorder.start();
+    btn.classList.add('recording');
+    setMicStatus('Listeningâ€¦ tap again when youâ€™re done speaking.');
+  } catch (err) {
+    setMicStatus('Couldnâ€™t reach the microphone â€” check phone permission, or type below.', 'err');
+  }
+}
 function openSheet(type) {
   activeType = type;
   const cfg = FIELD_CONFIG[type];
@@ -133,6 +241,7 @@ function openSheet(type) {
   `).join('');
   fieldsEl.querySelectorAll('input').forEach(inp => inp.addEventListener('input', updateConfirm));
   document.getElementById('confirmLine').classList.remove('show');
+  setMicStatus('');
   document.getElementById('sheet').classList.add('open');
   document.getElementById('sheet').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   fieldsEl.querySelector('input').focus();
@@ -140,6 +249,7 @@ function openSheet(type) {
 
 function closeSheet() {
   document.getElementById('sheet').classList.remove('open');
+  if (mediaRecorder && mediaRecorder.state === 'recording') mediaRecorder.stop();
   activeType = null;
 }
 
@@ -154,7 +264,7 @@ function updateConfirm() {
   const v = readValues();
   const line = cfg.confirm(v);
   const el = document.getElementById('confirmLine');
-  if (line) { el.textContent = line + ' — correct?'; el.classList.add('show'); }
+  if (line) { el.textContent = line + ' â€” correct?'; el.classList.add('show'); }
   else { el.classList.remove('show'); }
 }
 
@@ -172,12 +282,12 @@ async function saveEntry() {
   saving = true;
   const saveBtn = document.getElementById('saveBtn');
   saveBtn.disabled = true;
-  saveBtn.textContent = 'Saving…';
+  saveBtn.textContent = 'Savingâ€¦';
   const ts = Date.now();
-  // Client-generated id, not IndexedDB autoIncrement — this is the idempotency key.
+  // Client-generated id, not IndexedDB autoIncrement â€” this is the idempotency key.
   // Defense in depth beyond the button-disable above: if this same save ever got
   // dispatched twice (a future sync retry, a bug), the store rejects the duplicate
-  // key instead of silently creating a second transaction. Kept simple deliberately —
+  // key instead of silently creating a second transaction. Kept simple deliberately â€”
   // no backend to reconcile against yet, so this only protects the local device today,
   // but the id shape is what a future sync layer would need anyway.
   const id = crypto.randomUUID();
@@ -197,7 +307,7 @@ async function saveEntry() {
     await render();
   } catch (err) {
     if (err && err.name === 'ConstraintError') {
-      // Same id already saved — treat as already-done, not a failure.
+      // Same id already saved â€” treat as already-done, not a failure.
       closeSheet();
       await render();
     } else {
@@ -210,17 +320,44 @@ async function saveEntry() {
   }
 }
 
-// Manual plan state — no billing backend yet, by design (see PRD: sync deferred).
-// Owner-only toggle; not meant for the merchant to see or touch.
-function isPaid() { return localStorage.getItem('kym_paid') === '1'; }
+// Plan state now has a real source of truth (countmy-api / KV â€” Bobby, the CEO, flips
+// a shop's status directly in the Cloudflare dashboard, no admin UI needed: see
+// worker/worker.js). The local toggle below still exists as an offline fallback only â€”
+// if the shop has no Shop ID set, or the phone is offline, or the backend can't be
+// reached, this falls back to the same local self-report as before rather than
+// blocking. Cached last-known-good result so a paid shop doesn't flicker back to
+// Free the moment it goes offline.
+function getShopId() { return (localStorage.getItem('kym_shop_id') || '').trim(); }
+function setShopId(id) { localStorage.setItem('kym_shop_id', (id || '').trim()); }
+function isPaid() {
+  const cached = localStorage.getItem('kym_paid_backend');
+  if (cached !== null) return cached === '1';
+  return localStorage.getItem('kym_paid') === '1';
+}
 function setPaid(v) { localStorage.setItem('kym_paid', v ? '1' : '0'); }
+
+async function refreshPaidStatus() {
+  const shop = getShopId();
+  if (!shop || !navigator.onLine) return;
+  try {
+    const res = await fetch(`${API_BASE}/status?shop=${encodeURIComponent(shop)}`);
+    if (!res.ok) return;
+    const data = await res.json();
+    localStorage.setItem('kym_paid_backend', data.paid ? '1' : '0');
+    await render();
+  } catch (err) { /* offline or unreachable â€” keep last-known-good, don't block */ }
+}
 
 function renderAdmin() {
   const btn = document.getElementById('adminToggle');
   const paid = isPaid();
-  btn.textContent = paid ? '✓ Paid — tap to undo' : "I've paid";
+  btn.textContent = paid ? 'âœ“ Paid â€” tap to undo' : "I've paid";
   btn.classList.toggle('is-paid', paid);
-  document.getElementById('planPill').textContent = paid ? 'Paid · full history unlocked' : 'Free · last 7 days shown';
+  document.getElementById('planPill').textContent = paid ? 'Paid Â· full history unlocked' : 'Free Â· last 7 days shown';
+  const ref = document.getElementById('planPayRef');
+  if (ref) ref.textContent = getShopId() || 'Your shop name';
+  const shopInput = document.getElementById('shopIdInput');
+  if (shopInput && document.activeElement !== shopInput) shopInput.value = getShopId();
 }
 
 async function render() {
@@ -254,7 +391,7 @@ async function render() {
   const hiddenCount = entries.length - visible.length;
   histEl.innerHTML = visible.slice(0, 30).map(e => {
     const cfg = FIELD_CONFIG[e.type];
-    const sign = cfg.amountSign > 0 ? '+' : '−';
+    const sign = cfg.amountSign > 0 ? '+' : 'âˆ’';
     const cls = cfg.amountSign > 0 ? 'pos' : 'neg';
     const when = new Date(e.ts).toLocaleString('en-GH', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
     const remind = e.type === 'debt_in'
@@ -264,21 +401,21 @@ async function render() {
       <div class="desc">${cfg.desc(e)}<small>${when}</small>${remind}</div>
       <div class="amt ${cls}">${sign}${fmt(e.amount)}</div>
     </div>`;
-  }).join('') + (hiddenCount > 0 ? `<div class="empty">${hiddenCount} older entr${hiddenCount === 1 ? 'y' : 'ies'} — go Paid to see your full history</div>` : '');
+  }).join('') + (hiddenCount > 0 ? `<div class="empty">${hiddenCount} older entr${hiddenCount === 1 ? 'y' : 'ies'} â€” go Paid to see your full history</div>` : '');
 }
 
 // Reads today's numbers aloud. Evidence for this over text-only: Viamo's Ghana voice
-// campaign reached ~37,000 customers with weekly voice calls — those who engaged with
+// campaign reached ~37,000 customers with weekly voice calls â€” those who engaged with
 // 6+ of 10 calls saw mobile savings balances nearly double. Numbers, spoken, drive
-// behaviour for people who don't reliably read English prose. English-only for now —
+// behaviour for people who don't reliably read English prose. English-only for now â€”
 // a Twi/Pidgin voice would need real translation + testing with real shop owners
 // first, not an invented script.
 function speakToday() {
   if (!('speechSynthesis' in window)) return;
   const t = window._kymToday || { sales: 0, expenses: 0, owedMe: 0, balance: 0 };
-  // Matches the on-screen labels word for word — hearing something different from
+  // Matches the on-screen labels word for word â€” hearing something different from
   // what's on the screen is confusing, not helpful. Short, plain sentences, slow
-  // pace — this is read aloud, not read silently.
+  // pace â€” this is read aloud, not read silently.
   const text = `Today. Sales: ${fmt(t.sales)}. Expenses: ${fmt(t.expenses)}. `
     + `Customers owe you: ${fmt(t.owedMe)}. Sales minus expenses: ${fmt(t.balance)}.`;
   const utter = new SpeechSynthesisUtterance(text);
@@ -291,11 +428,11 @@ function speakToday() {
 }
 
 // Real, evidence-backed threat this closes: Ghanaian shop owners routinely hand
-// their phone to a customer to show a product photo on WhatsApp — the customer can
+// their phone to a customer to show a product photo on WhatsApp â€” the customer can
 // then swipe back and see the shop's daily revenue. This is a screen-lock deterrent,
 // not real security: the PIN is stored in plain localStorage, no encryption, nothing
 // server-side. Honest about that limit, not pretending it's more than it is. Optional
-// and off by default — no forced registration wall.
+// and off by default â€” no forced registration wall.
 function getPin() { return localStorage.getItem('kym_pin') || ''; }
 function setPin(p) { if (p) localStorage.setItem('kym_pin', p); else localStorage.removeItem('kym_pin'); }
 
@@ -319,14 +456,14 @@ function tryUnlock() {
     document.getElementById('lockScreen').classList.remove('show');
     if (pendingAdminReveal) { pendingAdminReveal = false; document.getElementById('adminBar').classList.add('open'); }
   } else {
-    document.getElementById('lockError').textContent = 'Wrong PIN — try again.';
+    document.getElementById('lockError').textContent = 'Wrong PIN â€” try again.';
     input.value = '';
   }
 }
 
-// The gear is deliberately unlabeled and tiny — not a bar sitting in view for
+// The gear is deliberately unlabeled and tiny â€” not a bar sitting in view for
 // anyone holding the phone. If a PIN is set, opening owner settings requires it,
-// same as viewing history — someone glancing at the phone shouldn't be able to
+// same as viewing history â€” someone glancing at the phone shouldn't be able to
 // toggle billing state or change the PIN without knowing it.
 function openAdminBar() {
   if (getPin()) { pendingAdminReveal = true; showLock(); }
@@ -336,10 +473,10 @@ function closeAdminBar() { document.getElementById('adminBar').classList.remove(
 
 function updatePinToggle() {
   const btn = document.getElementById('pinToggle');
-  btn.textContent = getPin() ? '🔒 Remove PIN' : 'Set a PIN';
+  btn.textContent = getPin() ? 'ðŸ”’ Remove PIN' : 'Set a PIN';
 }
 
-// Real answer to "what if the phone is lost" without building a sync backend —
+// Real answer to "what if the phone is lost" without building a sync backend â€”
 // a plain CSV the merchant can save, WhatsApp to themselves, or hand to anyone
 // (accountant, family) who wants to open it. No account, no server, no new cost.
 async function exportBackup() {
@@ -396,9 +533,16 @@ document.getElementById('pinToggle').addEventListener('click', () => {
 });
 document.getElementById('lockInput').addEventListener('input', tryUnlock);
 document.getElementById('exportBtn').addEventListener('click', exportBackup);
-window.addEventListener('online', updateOfflineBadge);
+document.getElementById('micBtn').addEventListener('click', toggleMic);
+if (!micSupported()) document.getElementById('micBtn').style.display = 'none';
+document.getElementById('shopIdInput').addEventListener('change', async (e) => {
+  setShopId(e.target.value);
+  await refreshPaidStatus();
+  await render();
+});
+window.addEventListener('online', () => { updateOfflineBadge(); refreshPaidStatus(); });
 window.addEventListener('offline', updateOfflineBadge);
-// Lock whenever the tab comes back into view — covers "handed the phone to a
+// Lock whenever the tab comes back into view â€” covers "handed the phone to a
 // customer, they swiped back to the browser" and "phone was asleep in a pocket."
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible') showLock();
@@ -410,6 +554,7 @@ document.addEventListener('visibilitychange', () => {
   updatePinToggle();
   showLock();
   await render();
+  refreshPaidStatus();
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('service-worker.js').catch(() => {});
   }
