@@ -44,6 +44,22 @@ h1{font-size:1.1rem;font-weight:800;margin:8px 0 16px}
 .mic-btn.listening{background:var(--amber-soft);color:var(--amber);border-color:var(--amber);border-style:solid}
 .heard-line{display:none;background:var(--amber-soft);color:var(--amber);border-radius:10px;padding:10px 12px;font-size:.84rem;margin-bottom:12px}
 .heard-line.show{display:block}
+.plan-pill{width:100%;background:var(--surface);border:1px solid var(--rule);border-radius:12px;padding:12px;font-size:.84rem;font-weight:700;color:var(--ink-soft);margin-top:22px;cursor:pointer}
+.plan-sheet{display:none}
+.plan-sheet.open{display:block;margin-top:14px}
+.plan-copy{font-size:.9rem;color:var(--ink-soft);margin:0 0 14px}
+.plan-price{margin-bottom:16px}
+.plan-amount{font-size:1.6rem;font-weight:800}
+.plan-per{color:var(--muted);font-size:.85rem;margin-left:4px}
+.plan-pay-box{background:var(--green-soft);border-radius:12px;padding:14px;margin-bottom:12px}
+.plan-pay-label{font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;color:var(--green-deep);font-weight:700;margin-bottom:2px}
+.plan-pay-number{font-weight:800;color:var(--green-deep);margin-bottom:10px;font-size:.98rem}
+.plan-pay-number:last-child{margin-bottom:0}
+.plan-note{font-size:.82rem;color:var(--muted);margin-bottom:14px}
+.admin-bar{max-width:480px;margin:0 auto;padding:14px 16px 30px;display:flex;justify-content:space-between;align-items:center;border-top:1px dashed var(--rule);margin-top:10px}
+.admin-bar span{font-size:.74rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-weight:700}
+.admin-toggle{background:none;border:1px solid var(--rule);color:var(--ink-soft);border-radius:100px;padding:6px 12px;font-size:.76rem;font-weight:700;cursor:pointer}
+.admin-toggle.is-paid{background:var(--green-soft);color:var(--green-deep);border-color:var(--green-soft)}
 .sheet-btns{display:flex;gap:10px}
 .btn{flex:1;padding:13px;border-radius:10px;border:none;font-weight:700;font-size:.94rem;cursor:pointer}
 .btn-save{background:var(--green);color:#fff}
@@ -94,6 +110,27 @@ h1{font-size:1.1rem;font-weight:800;margin:8px 0 16px}
 
   <div class="hist-label">Recent</div>
   <div id="history"><div class="empty">Nothing recorded yet. Add your first sale above.</div></div>
+
+  <button id="planPill" class="plan-pill">Free plan · Full history is Paid</button>
+
+  <div id="planSheet" class="sheet plan-sheet">
+    <h2>Keep your full history</h2>
+    <p class="plan-copy">Free shows your last 7 days. Paid keeps everything, forever, and unlocks export.</p>
+    <div class="plan-price"><span class="plan-amount">GHS 99</span><span class="plan-per">/month</span></div>
+    <div class="plan-pay-box">
+      <div class="plan-pay-label">Send by MoMo to</div>
+      <div class="plan-pay-number">PLACEHOLDER — your MoMo number</div>
+      <div class="plan-pay-label">Reference</div>
+      <div class="plan-pay-number">Your shop name</div>
+    </div>
+    <p class="plan-note">We check for your payment and switch you to Paid the same day — no card, no app, just the transfer you already know how to do.</p>
+    <button id="planCloseBtn" class="btn btn-cancel" style="width:100%">Close</button>
+  </div>
+</div>
+
+<div id="adminBar" class="admin-bar">
+  <span>Owner tools</span>
+  <button id="adminToggle" class="admin-toggle">Mark this shop Paid</button>
 </div>
 <script src="app.js"></script>
 </body>

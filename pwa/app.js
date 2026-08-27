@@ -233,10 +233,24 @@ async function saveEntry() {
   await render();
 }
 
+// Manual plan state — no billing backend yet, by design (see PRD: sync deferred).
+// Owner-only toggle; not meant for the merchant to see or touch.
+function isPaid() { return localStorage.getItem('kym_paid') === '1'; }
+function setPaid(v) { localStorage.setItem('kym_paid', v ? '1' : '0'); }
+
+function renderAdmin() {
+  const btn = document.getElementById('adminToggle');
+  const paid = isPaid();
+  btn.textContent = paid ? '✓ Paid — tap to reset to Free' : 'Mark this shop Paid';
+  btn.classList.toggle('is-paid', paid);
+  document.getElementById('planPill').textContent = paid ? 'Paid plan · Full history unlocked' : 'Free plan · Full history is Paid';
+}
+
 async function render() {
   const entries = await getAllEntries();
   const today = todayKey(Date.now());
   const todayEntries = entries.filter(e => e.day === today);
+  renderAdmin();
 
   const sales = todayEntries.filter(e => e.type === 'sale').reduce((s, e) => s + e.amount, 0);
   const expenses = todayEntries.filter(e => e.type === 'expense').reduce((s, e) => s + e.amount, 0);
@@ -254,7 +268,10 @@ async function render() {
     histEl.innerHTML = '<div class="empty">Nothing recorded yet. Add your first sale above.</div>';
     return;
   }
-  histEl.innerHTML = entries.slice(0, 30).map(e => {
+  const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
+  const visible = isPaid() ? entries : entries.filter(e => e.ts >= cutoff);
+  const hiddenCount = entries.length - visible.length;
+  histEl.innerHTML = visible.slice(0, 30).map(e => {
     const cfg = FIELD_CONFIG[e.type];
     const sign = cfg.amountSign > 0 ? '+' : '−';
     const cls = cfg.amountSign > 0 ? 'pos' : 'neg';
@@ -263,7 +280,7 @@ async function render() {
       <div class="desc">${cfg.desc(e)}<small>${when}</small></div>
       <div class="amt ${cls}">${sign}${fmt(e.amount)}</div>
     </div>`;
-  }).join('');
+  }).join('') + (hiddenCount > 0 ? `<div class="empty">${hiddenCount} older entr${hiddenCount === 1 ? 'y' : 'ies'} — go Paid to see your full history</div>` : '');
 }
 
 function updateOfflineBadge() {
@@ -276,6 +293,12 @@ document.querySelectorAll('.act-btn').forEach(btn => {
 document.getElementById('cancelBtn').addEventListener('click', closeSheet);
 document.getElementById('saveBtn').addEventListener('click', saveEntry);
 document.getElementById('micBtn').addEventListener('click', startVoice);
+document.getElementById('planPill').addEventListener('click', () => document.getElementById('planSheet').classList.add('open'));
+document.getElementById('planCloseBtn').addEventListener('click', () => document.getElementById('planSheet').classList.remove('open'));
+document.getElementById('adminToggle').addEventListener('click', async () => {
+  setPaid(!isPaid());
+  await render();
+});
 window.addEventListener('online', updateOfflineBadge);
 window.addEventListener('offline', updateOfflineBadge);
 
