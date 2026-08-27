@@ -80,24 +80,63 @@ async function handleTranscribe(request, env) {
 // the merchant to re-verify a whole clean-looking-but-possibly-wrong entry. This is
 // still "never silently create a financial record" - it just moves the confirmation
 // burden to exactly the fields that need it, not the whole line.
+// Evidence-span architecture, added 27 Aug after a live test proved the model can
+// fabricate whole transactions: given one ambiguous sentence about a single
+// amount, it invented five entirely fictional items (pencils, a phone, water, a
+// cake, a book) that were never spoken. A type-only sanitizer cannot catch that -
+// "GHS 5000" is a perfectly valid number, just one nobody said. So every field
+// the model returns must now also carry the exact transcript substring it claims
+// to be based on, and the sanitizer independently verifies that substring
+// actually occurs in the real transcript before trusting the field. No evidence
+// found in the transcript = field dropped, exactly like a missing field, and an
+// event with zero verified fields is discarded outright before it ever reaches
+// the merchant. The model can still get a NUMBER wrong (misreading "one fifty" as
+// 50 is a transcription/parsing error, not a fabrication) - evidence-checking
+// targets fabrication specifically, not every possible error; the review UI is
+// still what catches a wrong-but-grounded number.
 const EXTRACT_SYSTEM_PROMPT = `You read a rough, possibly messy speech-to-text transcript from a Ghanaian shop owner describing what happened in their shop today, in English (sometimes mixed with Twi words or mistranscribed words like "cds" for "cedis"). Extract every distinct business event as a JSON array. Each event is one of these types:
-- "sale": the owner sold something. Fields: type, item (string), qty (number, default 1 if not said), price (number - price PER UNIT in cedis).
-- "expense": the owner spent money on something. Fields: type, item (string), price (number - total amount in cedis).
-- "debt_in": a customer owes the owner money. Fields: type, customer (string, the person's name), price (number - amount owed in cedis), note (optional string, what for).
-- "debt_out": the owner owes a supplier money. Fields: type, supplier (string, the person/business name), price (number - amount owed in cedis), note (optional string).
-Rules: qty and price must always be plain numbers, never words or the string "unknown" - if a number genuinely was not said, omit that field entirely rather than guessing. Never invent a price or name that isn't clearly supported by the text. Ignore transcription noise words that don't fit any product (like a stray "cds" or "think" with no context).
-Respond with ONLY a raw JSON array, no prose, no markdown fences, no extra fields beyond what's listed above. If nothing extractable, respond with [].`;
+- "sale": the owner sold something. Fields: type, item, qty, and EITHER price (per-unit price in cedis, only if a per-unit price was actually spoken) OR total (the total amount actually spoken, if only a total was said - e.g. "2 bags for 300" has qty 2 and total 300, NOT price 150 - never do the division yourself).
+- "expense": the owner spent money on something. Fields: type, item, price (total amount in cedis).
+- "debt_in": a customer owes the owner money. Fields: type, customer (the person's name), price (amount owed in cedis), note (optional, what for).
+- "debt_out": the owner owes a supplier money. Fields: type, supplier (the person/business name), price (amount owed in cedis), note (optional).
+CRITICAL RULE: every field except "type" must be an object of the form {"value": ..., "evidence": "..."}, where "evidence" is the EXACT short substring copied word-for-word from the transcript that this value is based on (e.g. evidence "three" for qty 3, evidence "300" for total 300, evidence "Kwame" for customer). NEVER invent evidence text for a number you calculated yourself (like a divided-out per-unit price) - only use evidence for words that were ACTUALLY spoken. If you cannot point to actual words in the transcript supporting a field, DO NOT include that field at all - do not guess, do not use general knowledge about typical prices. qty, price, and total "value" must be plain numbers. Ignore transcription noise words that don't fit any product (like a stray "cds" or "think" with no context) - do not turn noise into a fabricated item.
+Respond with ONLY a raw JSON array, no prose, no markdown fences, no extra fields beyond what's listed above. If nothing extractable, respond with [].
+Example: [{"type":"sale","item":{"value":"rice","evidence":"rice"},"qty":{"value":5,"evidence":"five"},"price":{"value":10,"evidence":"ten cedis"}}, {"type":"sale","item":{"value":"bags","evidence":"bags"},"qty":{"value":2,"evidence":"two"},"total":{"value":300,"evidence":"300"}}]`;
 
-// Deterministic, model-independent safety layer - takes whatever the LLM returned
-// (which may be malformed, missing fields, or - live-tested 27 Aug - contain the
-// literal string "high" stuffed into a price field) and produces only
-// well-typed, bounded output. This function calls no AI and touches no network -
-// same input always gives the same output, which is what makes it unit-testable
-// on its own (see the WORKER_TESTS block below) independent of whatever the model
-// happens to say on a given day. Never trust model-reported confidence; confidence
-// here is a direct fact about the value's own type, nothing more.
-function sanitizeEvents(rawEvents) {
+// Deterministic, model-independent safety layer - takes whatever the LLM
+// returned (which may be malformed, missing fields, contain the literal string
+// "high" stuffed into a price field, or - the case this exists to catch -
+// invent an entire transaction with no basis in what was actually said) and
+// produces only well-typed, EVIDENCE-VERIFIED, bounded output. This function
+// calls no AI and touches no network - same input always gives the same output,
+// which is what makes it unit-testable on its own, independent of whatever the
+// model happens to say on a given day. Never trust model-reported confidence;
+// confidence here is a fact about the value's own type AND whether its claimed
+// evidence is real, nothing the model merely asserts about itself.
+function normalizeForMatch(s) {
+  return String(s).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+}
+
+// A field's evidence must be a real, boundedly-short substring of the actual
+// transcript - not empty (an unsupported guess), and not suspiciously long
+// (a model handing back the whole transcript as "evidence" for everything would
+// trivially pass a naive substring check otherwise).
+function evidenceVerified(evidence, transcriptNorm) {
+  if (typeof evidence !== 'string') return false;
+  const norm = normalizeForMatch(evidence);
+  if (!norm || norm.length > 40) return false;
+  return transcriptNorm.includes(norm);
+}
+
+function fieldValue(raw, transcriptNorm) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return undefined;
+  if (!evidenceVerified(raw.evidence, transcriptNorm)) return undefined;
+  return raw.value;
+}
+
+function sanitizeEvents(rawEvents, transcript) {
   if (!Array.isArray(rawEvents)) return [];
+  const transcriptNorm = normalizeForMatch(transcript || '');
   const toNumOrUndefined = (v) => {
     const n = Number(v);
     return (typeof v !== 'object' && v !== '' && v !== null && !isNaN(n)) ? n : undefined;
@@ -106,16 +145,42 @@ function sanitizeEvents(rawEvents) {
     .filter(e => e && typeof e === 'object' && ['sale', 'expense', 'debt_in', 'debt_out'].includes(e.type))
     .map(e => {
       const clean = { type: e.type };
-      if (typeof e.item === 'string' && e.item.trim()) clean.item = e.item.trim().slice(0, 60);
-      if (typeof e.customer === 'string' && e.customer.trim()) clean.customer = e.customer.trim().slice(0, 60);
-      if (typeof e.supplier === 'string' && e.supplier.trim()) clean.supplier = e.supplier.trim().slice(0, 60);
-      if (typeof e.note === 'string' && e.note.trim()) clean.note = e.note.trim().slice(0, 100);
-      const qty = toNumOrUndefined(e.qty);
-      const price = toNumOrUndefined(e.price);
+      const item = fieldValue(e.item, transcriptNorm);
+      const customer = fieldValue(e.customer, transcriptNorm);
+      const supplier = fieldValue(e.supplier, transcriptNorm);
+      const note = fieldValue(e.note, transcriptNorm);
+      const qty = toNumOrUndefined(fieldValue(e.qty, transcriptNorm));
+      let price = toNumOrUndefined(fieldValue(e.price, transcriptNorm));
+      // "total" exists ONLY for sale events, and ONLY as a spoken amount divided
+      // by an ALSO-verified qty - deterministically, in our own code, never by
+      // trusting the model's own division. This is what fixes "2 bags for 300":
+      // the model can ground "300" in real evidence (it was actually said), but
+      // it can never ground "150" in evidence (nobody said "one fifty"), so
+      // asking the model to hand back a pre-computed per-unit price forced it to
+      // fabricate evidence text for a number that was never spoken. Computing it
+      // here instead means the model only ever has to point at real words.
+      if (price === undefined && e.type === 'sale' && qty !== undefined && qty > 0) {
+        const total = toNumOrUndefined(fieldValue(e.total, transcriptNorm));
+        if (total !== undefined && total > 0) price = total / qty;
+      }
+      if (typeof item === 'string' && item.trim()) clean.item = item.trim().slice(0, 60);
+      if (typeof customer === 'string' && customer.trim()) clean.customer = customer.trim().slice(0, 60);
+      if (typeof supplier === 'string' && supplier.trim()) clean.supplier = supplier.trim().slice(0, 60);
+      if (typeof note === 'string' && note.trim()) clean.note = note.trim().slice(0, 100);
       if (qty !== undefined && qty > 0) clean.qty = qty;
       if (price !== undefined && price > 0) clean.price = price;
       return clean;
-    });
+    })
+    // An event with NO verified identity (item/customer/supplier ALL failed
+    // evidence-checking, or were never provided) is dropped outright, even if it
+    // came with a verified-looking price - a real digit like "5000" genuinely
+    // spoken elsewhere in the transcript can still get attached to a completely
+    // fabricated item ("pencils") that has no basis at all. This is exactly what
+    // killed the live-observed fabrication (5 fictional items from one ambiguous
+    // sentence about a single amount) without discarding the legitimate partial
+    // case - "Kwame took shirts" with no price still survives with item verified,
+    // surfacing correctly as "needs a number" rather than vanishing.
+    .filter(clean => clean.item || clean.customer || clean.supplier);
 }
 
 async function handleExtract(request, env) {
@@ -163,7 +228,7 @@ async function handleExtract(request, env) {
   }
   if (!Array.isArray(events)) events = [];
 
-  events = sanitizeEvents(events);
+  events = sanitizeEvents(events, text);
   return cors(new Response(JSON.stringify({ events }), {
     headers: { 'Content-Type': 'application/json' }
   }));
