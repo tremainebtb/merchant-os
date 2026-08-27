@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
-<title>Know Your Money</title>
+<title>CountMy</title>
 <meta name="theme-color" content="#D9541A">
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
@@ -35,7 +35,8 @@
 *{box-sizing:border-box}
 body{margin:0;background:var(--paper);color:var(--ink);font-family:"Work Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;line-height:1.4}
 .wrap{max-width:480px;margin:0 auto;padding:16px 16px 40px}
-h1{font-family:"Manrope",sans-serif;font-size:1.1rem;font-weight:800;margin:8px 0 16px}
+h1{font-family:"Manrope",sans-serif;font-size:1.3rem;font-weight:800;margin:8px 0 16px;display:flex;align-items:baseline;gap:8px}
+h1 .tagline{font-family:"Work Sans",sans-serif;font-size:.78rem;font-weight:500;color:var(--muted);text-transform:none}
 .today{background:var(--surface);border:1px solid var(--rule);border-radius:16px;padding:18px;margin-bottom:16px}
 .today-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
 .today-label{font-size:.72rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:700}
@@ -116,7 +117,7 @@ h1{font-family:"Manrope",sans-serif;font-size:1.1rem;font-weight:800;margin:8px 
 <body>
 <div class="wrap">
   <div id="offlineBadge" class="offline-badge">No connection — still recording, saved on your phone.</div>
-  <h1>Know Your Money</h1>
+  <h1>CountMy<span class="tagline">Know your money</span></h1>
 
   <div class="today">
     <div class="today-top">
@@ -204,6 +205,6 @@ h1{font-family:"Manrope",sans-serif;font-size:1.1rem;font-weight:800;margin:8px 
      string is what forces a fresh script fetch even before any service worker logic
      runs, independent of it. Found live 27 Aug: without this, an already-visited
      browser can keep running old code from plain HTTP cache regardless of SW strategy. -->
-<script src="app.js?v=6"></script>
+<script src="app.js?v=7"></script>
 </body>
 </html>

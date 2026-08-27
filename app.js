@@ -401,7 +401,7 @@ async function exportBackup() {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `know-your-money-backup-${todayKey(Date.now())}.csv`;
+  a.download = `countmy-backup-${todayKey(Date.now())}.csv`;
   document.body.appendChild(a);
   a.click();
   a.remove();
