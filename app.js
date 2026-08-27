@@ -213,24 +213,40 @@ function updateConfirm() {
   else { el.classList.remove('show'); }
 }
 
+let saving = false;
+
+// Guards against the real failure mode a rapid double-tap or a frozen-feeling
+// screen causes: the same sale logged twice. Button is disabled the instant
+// it's tapped, not after the write finishes.
 async function saveEntry() {
+  if (saving) return;
   const cfg = FIELD_CONFIG[activeType];
   const v = readValues();
   const amount = cfg.compute(v);
   if (!amount || !v.item) return;
+  saving = true;
+  const saveBtn = document.getElementById('saveBtn');
+  saveBtn.disabled = true;
+  saveBtn.textContent = 'Saving…';
   const ts = Date.now();
-  await addEntry({
-    type: activeType,
-    item: v.item,
-    note: v.note || '',
-    qty: v.qty || '',
-    price: v.price || '',
-    amount: amount,
-    day: todayKey(ts),
-    ts
-  });
-  closeSheet();
-  await render();
+  try {
+    await addEntry({
+      type: activeType,
+      item: v.item,
+      note: v.note || '',
+      qty: v.qty || '',
+      price: v.price || '',
+      amount: amount,
+      day: todayKey(ts),
+      ts
+    });
+    closeSheet();
+    await render();
+  } finally {
+    saving = false;
+    saveBtn.disabled = false;
+    saveBtn.textContent = 'Save';
+  }
 }
 
 // Manual plan state — no billing backend yet, by design (see PRD: sync deferred).
@@ -280,8 +296,11 @@ async function render() {
     const sign = cfg.amountSign > 0 ? '+' : '−';
     const cls = cfg.amountSign > 0 ? 'pos' : 'neg';
     const when = new Date(e.ts).toLocaleString('en-GH', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
+    const remind = e.type === 'debt_in'
+      ? `<a class="remind-btn" target="_blank" rel="noopener" href="https://wa.me/?text=${encodeURIComponent(`Hello ${e.item}, your balance is ${fmt(e.amount)}${e.note ? ' for ' + e.note : ''}. Please send by MoMo when you can. Thank you.`)}">Remind on WhatsApp</a>`
+      : '';
     return `<div class="hist-item">
-      <div class="desc">${cfg.desc(e)}<small>${when}</small></div>
+      <div class="desc">${cfg.desc(e)}<small>${when}</small>${remind}</div>
       <div class="amt ${cls}">${sign}${fmt(e.amount)}</div>
     </div>`;
   }).join('') + (hiddenCount > 0 ? `<div class="empty">${hiddenCount} older entr${hiddenCount === 1 ? 'y' : 'ies'} — go Paid to see your full history</div>` : '');
