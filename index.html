@@ -67,10 +67,6 @@ h1 .tagline{font-family:"Work Sans",sans-serif;font-size:.78rem;font-weight:500;
 .field input{width:100%;padding:12px;border:1px solid var(--rule);border-radius:10px;font-size:1rem;background:var(--paper)}
 .confirm-line{background:var(--leaf-soft);color:var(--leaf-deep);border-radius:10px;padding:12px;font-size:.92rem;margin-bottom:14px;font-weight:600;display:none}
 .confirm-line.show{display:block}
-.mic-btn{width:100%;border:1px dashed var(--rule);background:var(--paper);color:var(--ink-soft);border-radius:10px;padding:11px;font-weight:700;font-size:.88rem;margin-bottom:10px;cursor:pointer}
-.mic-btn.listening{background:var(--amber-soft);color:var(--amber);border-color:var(--amber);border-style:solid}
-.heard-line{display:none;background:var(--amber-soft);color:var(--amber);border-radius:10px;padding:10px 12px;font-size:.84rem;margin-bottom:12px}
-.heard-line.show{display:block}
 .safety-block{background:var(--surface);border:1px solid var(--rule);border-radius:14px;padding:16px;margin-top:26px}
 .export-btn{width:100%;background:var(--paper);border:1px solid var(--rule);border-radius:12px;padding:12px;font-size:.86rem;font-weight:700;color:var(--ink);cursor:pointer}
 .export-note{font-size:.78rem;color:var(--muted);margin-top:8px;line-height:1.4}
@@ -137,10 +133,10 @@ h1 .tagline{font-family:"Work Sans",sans-serif;font-size:.78rem;font-weight:500;
       <div class="today-label">Today</div>
       <button id="hearBtn" class="hear-btn">🔊 Hear it</button>
     </div>
-    <div class="today-row"><span>Sales</span><span id="tSales">GHS 0</span></div>
-    <div class="today-row"><span>Expenses</span><span id="tExpenses">GHS 0</span></div>
-    <div class="today-row"><span>Customers owe me</span><span id="tOwedMe">GHS 0</span></div>
-    <div class="today-row balance"><span>Sales minus expenses<small class="today-hint">— not what's owed to you, not cash count</small></span><span id="tBalance" class="balance-amt">GHS 0</span></div>
+    <div class="today-row"><span>Sales</span><span id="tSales">0 cedis</span></div>
+    <div class="today-row"><span>Expenses</span><span id="tExpenses">0 cedis</span></div>
+    <div class="today-row"><span>Customers owe me</span><span id="tOwedMe">0 cedis</span></div>
+    <div class="today-row balance"><span>Sales minus expenses<small class="today-hint">— not what's owed to you, not cash count</small></span><span id="tBalance" class="balance-amt">0 cedis</span></div>
   </div>
 
   <div class="actions">
@@ -164,8 +160,6 @@ h1 .tagline{font-family:"Work Sans",sans-serif;font-size:.78rem;font-weight:500;
 
   <div id="sheet" class="sheet">
     <h2 id="sheetTitle">Add</h2>
-    <button id="micBtn" class="mic-btn">🎤 Speak instead</button>
-    <div id="heardLine" class="heard-line"></div>
     <div id="fields"></div>
     <div id="confirmLine" class="confirm-line"></div>
     <div class="sheet-btns">
@@ -183,41 +177,39 @@ h1 .tagline{font-family:"Work Sans",sans-serif;font-size:.78rem;font-weight:500;
   </div>
 
   <div class="trust-block">
-    <div class="trust-line">✓ Free to use — nothing is blocked to make you pay</div>
-    <div class="trust-line">✓ We never ask for your MoMo PIN or one-time code</div>
-    <div class="trust-line">✓ No loans, no investment — this only records what you tell it</div>
+    <div class="trust-line">✓ Free — no PIN ever asked — no loans, just your records</div>
   </div>
 
-  <button id="planPill" class="plan-pill">Free plan · Full history is Paid</button>
+  <button id="planPill" class="plan-pill">Free · last 7 days shown</button>
 
   <div id="planSheet" class="sheet plan-sheet">
-    <h2>Keep your full history</h2>
-    <p class="plan-copy">Free shows your last 7 days. Paid keeps everything, forever, and unlocks export.</p>
-    <div class="plan-price"><span class="plan-amount">GHS 99</span><span class="plan-per">/month</span></div>
+    <h2>See your full history</h2>
+    <p class="plan-copy">Free shows the last 7 days. Pay to keep everything, forever.</p>
+    <div class="plan-price"><span class="plan-amount">99 cedis</span><span class="plan-per">/month</span></div>
     <div class="plan-pay-box">
       <div class="plan-pay-label">Send by MoMo to</div>
       <div class="plan-pay-number">0209090019</div>
       <div class="plan-pay-label">Reference</div>
       <div class="plan-pay-number">Your shop name</div>
     </div>
-    <p class="plan-note">We never call or message asking for your PIN. We check for your payment and switch you to Paid the same day — no card, no app, just the transfer you already know how to do.</p>
+    <p class="plan-note">We turn on Paid the same day we see it. We never call or message asking for your PIN.</p>
     <button id="planCloseBtn" class="btn btn-cancel" style="width:100%">Close</button>
   </div>
 </div>
 
 <div class="footer-row">
   <footer class="site-footer">CountMy — a free tool for Ghanaian shop owners, nothing more.</footer>
-  <button id="gearBtn" class="gear-btn" aria-label="Owner settings">⚙</button>
+  <button id="gearBtn" class="gear-btn" aria-label="My settings">⚙</button>
 </div>
 
 <div id="adminBar" class="admin-bar">
   <div class="admin-header">
-    <span>Owner settings</span>
+    <span>My settings — for you, the shop owner</span>
     <button id="adminCloseBtn" class="admin-close">✕</button>
   </div>
   <div style="display:flex;gap:8px">
     <button id="pinToggle" class="admin-toggle">Set a PIN</button>
-    <button id="adminToggle" class="admin-toggle">Mark this shop Paid</button>
+    <button id="adminToggle" class="admin-toggle">I've paid</button>
   </div>
 </div>
 

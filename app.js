@@ -44,7 +44,7 @@ function getAllEntries() {
 
 function fmt(n) {
   const v = Number(n) || 0;
-  return 'GHS ' + v.toLocaleString('en-GH', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+  return v.toLocaleString('en-GH', { minimumFractionDigits: 0, maximumFractionDigits: 2 }) + ' cedis';
 }
 
 const FIELD_CONFIG = {
@@ -53,7 +53,7 @@ const FIELD_CONFIG = {
     fields: [
       { key: 'item', label: 'What did you sell?', type: 'text' },
       { key: 'qty', label: 'How many?', type: 'number' },
-      { key: 'price', label: 'Price each (GHS)', type: 'number' }
+      { key: 'price', label: 'Price each (cedis)', type: 'number' }
     ],
     compute: v => (Number(v.qty) || 0) * (Number(v.price) || 0),
     confirm: v => {
@@ -68,7 +68,7 @@ const FIELD_CONFIG = {
     title: 'Add expense',
     fields: [
       { key: 'item', label: 'What did you spend on?', type: 'text' },
-      { key: 'price', label: 'Amount (GHS)', type: 'number' }
+      { key: 'price', label: 'Amount (cedis)', type: 'number' }
     ],
     compute: v => Number(v.price) || 0,
     confirm: v => {
@@ -82,7 +82,7 @@ const FIELD_CONFIG = {
     title: 'Customer owes me',
     fields: [
       { key: 'item', label: 'Customer name', type: 'text' },
-      { key: 'price', label: 'Amount they owe (GHS)', type: 'number' },
+      { key: 'price', label: 'Amount they owe (cedis)', type: 'number' },
       { key: 'note', label: 'What for (optional)', type: 'text' }
     ],
     compute: v => Number(v.price) || 0,
@@ -98,7 +98,7 @@ const FIELD_CONFIG = {
     title: 'I owe supplier',
     fields: [
       { key: 'item', label: 'Supplier name', type: 'text' },
-      { key: 'price', label: 'Amount you owe (GHS)', type: 'number' },
+      { key: 'price', label: 'Amount you owe (cedis)', type: 'number' },
       { key: 'note', label: 'What for (optional)', type: 'text' }
     ],
     compute: v => Number(v.price) || 0,
@@ -114,37 +114,12 @@ const FIELD_CONFIG = {
 
 let activeType = null;
 
-const SpeechAPI = window.SpeechRecognition || window.webkitSpeechRecognition;
-
-function fillFields(values) {
-  document.querySelectorAll('#fields input').forEach(inp => {
-    if (values[inp.dataset.key] !== undefined && values[inp.dataset.key] !== '') {
-      inp.value = values[inp.dataset.key];
-    }
-  });
-  updateConfirm();
-}
-
-// Rough heuristic — never trusted blindly. It only ever pre-fills the form;
-// the owner still sees the confirm line and taps Save themselves.
-function parseSpeech(type, text) {
-  const numbers = (text.match(/\d+(\.\d+)?/g) || []).map(Number);
-  const words = text
-    .replace(/\d+(\.\d+)?/g, ' ')
-    .replace(/\b(for|at|each|ghs|cedis|cedi|gh|and|owes?|me|owe|him|her|them)\b/gi, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-
-  if (type === 'sale') {
-    const qty = numbers.length >= 2 ? numbers[0] : (numbers.length === 1 ? 1 : '');
-    const price = numbers.length >= 2 ? numbers[numbers.length - 1] : (numbers[0] || '');
-    return { item: words || '', qty: qty || '', price: price || '' };
-  }
-  // expense, debt_in, debt_out all share: name/what = words, price = last number
-  const price = numbers.length ? numbers[numbers.length - 1] : '';
-  return { item: words || '', price: price || '' };
-}
-
+// Voice input (Web Speech API) was tried and removed 27 Aug after real-device testing —
+// broken on iOS Safari (partial/unreliable support, worse in installed-PWA context) and
+// unreliable on Android Chrome on weak mobile data (it's cloud-based, not on-device) —
+// exactly the network conditions this product's real users have. A confidently-broken
+// "Listening..." state is worse than not offering voice at all. If voice comes back, it
+// needs a real hosted transcription service, not the browser's native API.
 function openSheet(type) {
   activeType = type;
   const cfg = FIELD_CONFIG[type];
@@ -157,43 +132,10 @@ function openSheet(type) {
     </div>
   `).join('');
   fieldsEl.querySelectorAll('input').forEach(inp => inp.addEventListener('input', updateConfirm));
-  document.getElementById('heardLine').classList.remove('show');
-  document.getElementById('heardLine').textContent = '';
-  document.getElementById('micBtn').classList.remove('listening');
-  document.getElementById('micBtn').style.display = SpeechAPI ? '' : 'none';
   document.getElementById('confirmLine').classList.remove('show');
   document.getElementById('sheet').classList.add('open');
   document.getElementById('sheet').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   fieldsEl.querySelector('input').focus();
-}
-
-let recognition = null;
-
-function startVoice() {
-  if (!SpeechAPI) return;
-  const micBtn = document.getElementById('micBtn');
-  const heardLine = document.getElementById('heardLine');
-  recognition = new SpeechAPI();
-  recognition.lang = 'en-GH';
-  recognition.interimResults = false;
-  recognition.maxAlternatives = 1;
-  micBtn.classList.add('listening');
-  micBtn.textContent = '🎙️ Listening…';
-  recognition.onresult = (e) => {
-    const text = e.results[0][0].transcript;
-    heardLine.textContent = `Heard: "${text}" — check the fields below`;
-    heardLine.classList.add('show');
-    fillFields(parseSpeech(activeType, text));
-  };
-  recognition.onerror = () => {
-    heardLine.textContent = 'Didn’t catch that — type it instead, or tap the mic to try again.';
-    heardLine.classList.add('show');
-  };
-  recognition.onend = () => {
-    micBtn.classList.remove('listening');
-    micBtn.textContent = '🎤 Speak instead';
-  };
-  recognition.start();
 }
 
 function closeSheet() {
@@ -276,9 +218,9 @@ function setPaid(v) { localStorage.setItem('kym_paid', v ? '1' : '0'); }
 function renderAdmin() {
   const btn = document.getElementById('adminToggle');
   const paid = isPaid();
-  btn.textContent = paid ? '✓ Paid — tap to reset to Free' : 'Mark this shop Paid';
+  btn.textContent = paid ? '✓ Paid — tap to undo' : "I've paid";
   btn.classList.toggle('is-paid', paid);
-  document.getElementById('planPill').textContent = paid ? 'Paid plan · Full history unlocked' : 'Free plan · Full history is Paid';
+  document.getElementById('planPill').textContent = paid ? 'Paid · full history unlocked' : 'Free · last 7 days shown';
 }
 
 async function render() {
@@ -334,11 +276,13 @@ async function render() {
 function speakToday() {
   if (!('speechSynthesis' in window)) return;
   const t = window._kymToday || { sales: 0, expenses: 0, owedMe: 0, balance: 0 };
-  const sign = t.balance >= 0 ? 'You are up' : 'You are down';
-  const text = `Today. Sales, ${fmt(t.sales)}. Expenses, ${fmt(t.expenses)}. `
-    + `Customers owe you ${fmt(t.owedMe)}. ${sign} ${fmt(Math.abs(t.balance))}.`;
+  // Matches the on-screen labels word for word — hearing something different from
+  // what's on the screen is confusing, not helpful. Short, plain sentences, slow
+  // pace — this is read aloud, not read silently.
+  const text = `Today. Sales: ${fmt(t.sales)}. Expenses: ${fmt(t.expenses)}. `
+    + `Customers owe you: ${fmt(t.owedMe)}. Sales minus expenses: ${fmt(t.balance)}.`;
   const utter = new SpeechSynthesisUtterance(text);
-  utter.rate = 0.92;
+  utter.rate = 0.8;
   const btn = document.getElementById('hearBtn');
   utter.onstart = () => btn.classList.add('speaking');
   utter.onend = () => btn.classList.remove('speaking');
@@ -401,7 +345,7 @@ function updatePinToggle() {
 async function exportBackup() {
   const entries = await getAllEntries();
   if (!entries.length) { alert('Nothing to back up yet.'); return; }
-  const rows = [['Date', 'Type', 'Description', 'Amount (GHS)']];
+  const rows = [['Date', 'Type', 'Description', 'Amount (cedis)']];
   const typeLabel = { sale: 'Sale', expense: 'Expense', debt_in: 'Customer owes me', debt_out: 'I owe supplier' };
   entries.slice().reverse().forEach(e => {
     const cfg = FIELD_CONFIG[e.type];
@@ -430,7 +374,6 @@ document.querySelectorAll('.act-btn').forEach(btn => {
 });
 document.getElementById('cancelBtn').addEventListener('click', closeSheet);
 document.getElementById('saveBtn').addEventListener('click', saveEntry);
-document.getElementById('micBtn').addEventListener('click', startVoice);
 document.getElementById('hearBtn').addEventListener('click', speakToday);
 if (!('speechSynthesis' in window)) document.getElementById('hearBtn').style.display = 'none';
 document.getElementById('planPill').addEventListener('click', () => document.getElementById('planSheet').classList.add('open'));
