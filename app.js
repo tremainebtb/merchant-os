@@ -261,7 +261,7 @@ function fieldMarkup(value, idx, key, type, extraAttrs) {
   const cls = has ? 'ai-detected' : 'needs-input';
   const caption = has ? 'AI heard this - check it' : "Didn't catch this - tap to enter";
   return `<div class="field ${cls}">
-      <input type="${type}" ${extraAttrs || ''} data-idx="${idx}" data-key="${key}" value="${has ? String(value).replace(/"/g, '&quot;') : ''}" placeholder="${has ? '' : 'tap to enter'}">
+      <input type="${type}" ${extraAttrs || ''} data-idx="${idx}" data-key="${key}" value="${has ? String(value).replace(/"/g, '&quot;') : ''}" placeholder="${has ? '' : 'tap to enter'}" data-clarity-mask="True">
       <div class="field-caption">${caption}</div>
     </div>`;
 }
@@ -374,7 +374,17 @@ async function toggleMic() {
 // whole safety design, not a reason to lose the provenance signal).
 let sheetVoiceFilled = false;
 
+// GA4 events, added 27 Aug for the Silent Alpha - deliberately structural only:
+// which button, which type, which input method. NEVER an item name, price,
+// customer name, or amount - the whole point of the pilot's own analytics is to
+// watch usage patterns, not to duplicate the financial ledger inside Google's
+// servers. Safe no-op if GA4 was never configured (see index.html).
+function track(event, params) {
+  if (window.gtag) window.gtag('event', event, params || {});
+}
+
 function openSheet(type) {
+  track('open_sheet', { type });
   activeType = type;
   sheetVoiceFilled = false;
   const cfg = FIELD_CONFIG[type];
@@ -383,7 +393,7 @@ function openSheet(type) {
   fieldsEl.innerHTML = cfg.fields.map(f => `
     <div class="field">
       <label>${f.label}</label>
-      <input type="${f.type}" inputmode="${f.type === 'number' ? 'decimal' : 'text'}" data-key="${f.key}" autocomplete="off">
+      <input type="${f.type}" inputmode="${f.type === 'number' ? 'decimal' : 'text'}" data-key="${f.key}" autocomplete="off" data-clarity-mask="True">
     </div>
   `).join('');
   fieldsEl.querySelectorAll('input').forEach(inp => inp.addEventListener('input', updateConfirm));
@@ -546,8 +556,8 @@ async function render() {
       ? `<a class="remind-btn" target="_blank" rel="noopener" href="https://wa.me/?text=${encodeURIComponent(`Hello ${e.item}, your balance is ${fmt(e.amount)}${e.note ? ' for ' + e.note : ''}. Please send by MoMo when you can. Thank you.`)}">Remind on WhatsApp</a>`
       : '';
     return `<div class="hist-item">
-      <div class="desc">${cfg.desc(e)}<small>${when}</small>${remind}</div>
-      <div class="amt ${cls}">${sign}${fmt(e.amount)}</div>
+      <div class="desc" data-clarity-mask="True">${cfg.desc(e)}<small>${when}</small>${remind}</div>
+      <div class="amt ${cls}" data-clarity-mask="True">${sign}${fmt(e.amount)}</div>
     </div>`;
   }).join('') + (hiddenCount > 0 ? `<div class="empty">${hiddenCount} older entr${hiddenCount === 1 ? 'y' : 'ies'} \u2014 go Paid to see your full history</div>` : '');
 }

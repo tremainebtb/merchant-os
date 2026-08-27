@@ -161,10 +161,10 @@ h1 .tagline{font-family:"Work Sans",sans-serif;font-size:.78rem;font-weight:500;
       <div class="today-label">Today</div>
       <button id="hearBtn" class="hear-btn">&#x1F50A; Hear it</button>
     </div>
-    <div class="today-row"><span>Sales</span><span id="tSales">0 cedis</span></div>
-    <div class="today-row"><span>Expenses</span><span id="tExpenses">0 cedis</span></div>
-    <div class="today-row"><span>Customers owe me</span><span id="tOwedMe">0 cedis</span></div>
-    <div class="today-row balance"><span>Sales minus expenses<small class="today-hint">&#x2014; not what's owed to you, not cash count</small></span><span id="tBalance" class="balance-amt">0 cedis</span></div>
+    <div class="today-row"><span>Sales</span><span id="tSales" data-clarity-mask="True">0 cedis</span></div>
+    <div class="today-row"><span>Expenses</span><span id="tExpenses" data-clarity-mask="True">0 cedis</span></div>
+    <div class="today-row"><span>Customers owe me</span><span id="tOwedMe" data-clarity-mask="True">0 cedis</span></div>
+    <div class="today-row balance"><span>Sales minus expenses<small class="today-hint">&#x2014; not what's owed to you, not cash count</small></span><span id="tBalance" class="balance-amt" data-clarity-mask="True">0 cedis</span></div>
   </div>
 
   <div class="actions">
@@ -195,7 +195,7 @@ h1 .tagline{font-family:"Work Sans",sans-serif;font-size:.78rem;font-weight:500;
     </div>
     <div id="micStatus" class="mic-status"></div>
     <div id="fields"></div>
-    <div id="confirmLine" class="confirm-line"></div>
+    <div id="confirmLine" class="confirm-line" data-clarity-mask="True"></div>
     <div class="sheet-btns">
       <button class="btn btn-cancel" id="cancelBtn">Cancel</button>
       <button class="btn btn-save" id="saveBtn">Save</button>
@@ -232,7 +232,7 @@ h1 .tagline{font-family:"Work Sans",sans-serif;font-size:.78rem;font-weight:500;
       <div class="plan-pay-label">Send by MoMo to</div>
       <div class="plan-pay-number">0209090019</div>
       <div class="plan-pay-label">Reference</div>
-      <div class="plan-pay-number" id="planPayRef">Your shop name</div>
+      <div class="plan-pay-number" id="planPayRef" data-clarity-mask="True">Your shop name</div>
     </div>
     <p class="plan-note">We turn on Paid the same day we see it. We never call or message asking for your PIN.</p>
     <button id="planCloseBtn" class="btn btn-cancel" style="width:100%">Close</button>
@@ -255,7 +255,7 @@ h1 .tagline{font-family:"Work Sans",sans-serif;font-size:.78rem;font-weight:500;
   </div>
   <div class="shopid-row">
     <label for="shopIdInput">Shop ID (used as the MoMo payment reference)</label>
-    <input id="shopIdInput" type="text" autocomplete="off" placeholder="e.g. mama-ama-provisions">
+    <input id="shopIdInput" type="text" autocomplete="off" placeholder="e.g. mama-ama-provisions" data-clarity-mask="True">
   </div>
 </div>
 
@@ -263,7 +263,7 @@ h1 .tagline{font-family:"Work Sans",sans-serif;font-size:.78rem;font-weight:500;
   <div class="lock-box">
     <div class="lock-title">Enter PIN</div>
     <div class="lock-sub">This shop's owner locked these numbers. Enter your 4-digit PIN to continue.</div>
-    <input id="lockInput" class="lock-input" type="tel" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off">
+    <input id="lockInput" class="lock-input" type="tel" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off" data-clarity-mask="True">
     <div id="lockError" class="lock-error"></div>
   </div>
 </div>
@@ -273,5 +273,40 @@ h1 .tagline{font-family:"Work Sans",sans-serif;font-size:.78rem;font-weight:500;
      runs, independent of it. Found live 27 Aug: without this, an already-visited
      browser can keep running old code from plain HTTP cache regardless of SW strategy. -->
 <script src="app.js?v=13"></script>
+
+<!-- Analytics for the Silent Alpha pilot only (27 Aug) - added to observe real
+     merchant behavior (what they tap first, voice vs manual usage), NOT to
+     collect financial data. Both IDs are placeholders until Bobby creates the
+     free GA4 property and Clarity project himself (account creation is his to
+     do, not something done on his behalf) - this whole block is inert with the
+     placeholder values in place, both SDKs no-op safely on a blank/invalid ID.
+     GA4 only ever receives page views and structural button-click events (which
+     TYPE of button, e.g. "add_sale_click") - never an item name, price, or
+     customer name. Clarity's own dashboard is configured to mask financial
+     content, and every element showing a real cedis figure or a name also
+     carries data-clarity-mask="True" directly as defense-in-depth, regardless
+     of whatever Clarity's own default masking behavior turns out to be. -->
+<script>
+  // The only two lines that need editing once Bobby sends the real IDs.
+  window.GA4_ID = 'G-XXXXXXXXXX';
+  window.CLARITY_ID = 'XXXXXXXXXX';
+
+  if (window.GA4_ID.indexOf('XXXXXXXXXX') === -1) {
+    var gaScript = document.createElement('script');
+    gaScript.async = true;
+    gaScript.src = 'https://www.googletagmanager.com/gtag/js?id=' + window.GA4_ID;
+    document.head.appendChild(gaScript);
+    window.dataLayer = window.dataLayer || [];
+    window.gtag = function(){ window.dataLayer.push(arguments); };
+    window.gtag('js', new Date());
+    window.gtag('config', window.GA4_ID, { anonymize_ip: true });
+  }
+  (function(c,l,a,r,i,t,y){
+    if (!i || i.indexOf('XXXXXXXXXX') !== -1) return;
+    c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
+    t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;
+    y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
+  })(window, document, "clarity", "script", window.CLARITY_ID);
+</script>
 </body>
 </html>
