@@ -69,6 +69,102 @@ async function handleTranscribe(request, env) {
   }));
 }
 
+// Stage 2 of the voice pipeline, added 27 Aug after real-device testing showed the
+// old approach - regex-clean the raw transcript, fill ONE sheet - breaks the moment
+// a merchant speaks naturally (multiple sales in one breath, "cds" instead of
+// "cedis", numbers the transcript never captured). This does NOT fix transcription
+// accuracy (Whisper still mishears what it mishears) - it fixes what happens AFTER:
+// a free Workers AI text model reads the raw transcript and proposes one or more
+// structured transactions, each field marked confident or not-confident. The
+// frontend then confirms only the fields marked not-confident, instead of asking
+// the merchant to re-verify a whole clean-looking-but-possibly-wrong entry. This is
+// still "never silently create a financial record" - it just moves the confirmation
+// burden to exactly the fields that need it, not the whole line.
+const EXTRACT_SYSTEM_PROMPT = `You read a rough, possibly messy speech-to-text transcript from a Ghanaian shop owner describing what happened in their shop today, in English (sometimes mixed with Twi words or mistranscribed words like "cds" for "cedis"). Extract every distinct business event as a JSON array. Each event is one of these types:
+- "sale": the owner sold something. Fields: type, item (string), qty (number, default 1 if not said), price (number - price PER UNIT in cedis).
+- "expense": the owner spent money on something. Fields: type, item (string), price (number - total amount in cedis).
+- "debt_in": a customer owes the owner money. Fields: type, customer (string, the person's name), price (number - amount owed in cedis), note (optional string, what for).
+- "debt_out": the owner owes a supplier money. Fields: type, supplier (string, the person/business name), price (number - amount owed in cedis), note (optional string).
+Rules: qty and price must always be plain numbers, never words or the string "unknown" - if a number genuinely was not said, omit that field entirely rather than guessing. Never invent a price or name that isn't clearly supported by the text. Ignore transcription noise words that don't fit any product (like a stray "cds" or "think" with no context).
+Respond with ONLY a raw JSON array, no prose, no markdown fences, no extra fields beyond what's listed above. If nothing extractable, respond with [].`;
+
+async function handleExtract(request, env) {
+  if (!env.AI) {
+    return cors(new Response(JSON.stringify({ error: 'extraction not configured yet' }), { status: 503 }));
+  }
+  let body;
+  try { body = await request.json(); } catch (e) {
+    return cors(new Response(JSON.stringify({ error: 'invalid request' }), { status: 400 }));
+  }
+  const text = (body && body.text || '').trim();
+  if (!text) return cors(new Response(JSON.stringify({ error: 'no text received' }), { status: 400 }));
+
+  let result;
+  try {
+    result = await env.AI.run('@cf/meta/llama-3.2-3b-instruct', {
+      messages: [
+        { role: 'system', content: EXTRACT_SYSTEM_PROMPT },
+        { role: 'user', content: text }
+      ],
+      max_tokens: 700
+    });
+  } catch (err) {
+    return cors(new Response(JSON.stringify({ error: 'extraction unavailable right now - try again, or fill in manually', detail: String(err).slice(0, 200) }), { status: 502 }));
+  }
+
+  // llama-3.2-3b-instruct's response comes back through Workers AI's OpenAI-
+  // compatible endpoint with .response ALREADY parsed into the array (verified
+  // live, 27 Aug, via a debug dump of the raw result) - NOT a text string needing
+  // regex extraction. Still handle the string case defensively (a different model,
+  // or a future Workers AI change, could return raw text instead) so a parse
+  // failure here can never crash the request, only fall back to "nothing
+  // extracted" - the merchant can still fill fields in manually either way.
+  let events = [];
+  const respField = result && result.response;
+  if (Array.isArray(respField)) {
+    events = respField;
+  } else if (typeof respField === 'string') {
+    try {
+      const jsonMatch = respField.match(/\[[\s\S]*\]/);
+      events = jsonMatch ? JSON.parse(jsonMatch[0]) : [];
+    } catch (e) {
+      events = [];
+    }
+  }
+  if (!Array.isArray(events)) events = [];
+
+  // The 3B model's self-reported confidence field is NOT trustworthy on its own -
+  // live-tested 27 Aug: it sometimes writes the literal string "high" INTO the
+  // price/qty fields themselves (confusing its own confidence-object shape with
+  // the actual value), which would silently put a non-numeric "amount" in front of
+  // the merchant. Confidence here is computed independently, server-side, from
+  // the actual type of each value - never from what the model claims about itself.
+  // A non-numeric price/qty is dropped entirely (not passed through as garbage)
+  // and the frontend treats a missing field as needing the merchant's input,
+  // exactly like every other entry path already does.
+  const toNumOrUndefined = (v) => {
+    const n = Number(v);
+    return (typeof v !== 'object' && v !== '' && v !== null && !isNaN(n)) ? n : undefined;
+  };
+  events = events
+    .filter(e => e && typeof e === 'object' && ['sale', 'expense', 'debt_in', 'debt_out'].includes(e.type))
+    .map(e => {
+      const clean = { type: e.type };
+      if (typeof e.item === 'string' && e.item.trim()) clean.item = e.item.trim().slice(0, 60);
+      if (typeof e.customer === 'string' && e.customer.trim()) clean.customer = e.customer.trim().slice(0, 60);
+      if (typeof e.supplier === 'string' && e.supplier.trim()) clean.supplier = e.supplier.trim().slice(0, 60);
+      if (typeof e.note === 'string' && e.note.trim()) clean.note = e.note.trim().slice(0, 100);
+      const qty = toNumOrUndefined(e.qty);
+      const price = toNumOrUndefined(e.price);
+      if (qty !== undefined && qty > 0) clean.qty = qty;
+      if (price !== undefined && price > 0) clean.price = price;
+      return clean;
+    });
+  return cors(new Response(JSON.stringify({ events }), {
+    headers: { 'Content-Type': 'application/json' }
+  }));
+}
+
 export default {
   async fetch(request, env) {
     if (request.method === 'OPTIONS') {
@@ -76,8 +172,16 @@ export default {
     }
     const url = new URL(request.url);
     try {
-      if (url.pathname === '/status' && request.method === 'GET') return handleStatus(request, env);
-      if (url.pathname === '/transcribe' && request.method === 'POST') return handleTranscribe(request, env);
+      // await, not a bare return - live-tested 27 Aug: returning a handler's promise
+      // directly (`return handleExtract(...)`) hands it back to the caller BEFORE
+      // this try/catch has a chance to see a rejection, so a throw inside the
+      // handler (outside ITS own internal try/catch) becomes an unhandled
+      // rejection and a hard Cloudflare error 1101, completely bypassing this
+      // catch block. Awaiting closes that hole for every route, not just the one
+      // that happened to hit it first.
+      if (url.pathname === '/status' && request.method === 'GET') return await handleStatus(request, env);
+      if (url.pathname === '/transcribe' && request.method === 'POST') return await handleTranscribe(request, env);
+      if (url.pathname === '/extract' && request.method === 'POST') return await handleExtract(request, env);
       return cors(new Response('Not found', { status: 404 }));
     } catch (err) {
       return cors(new Response(JSON.stringify({ error: 'server error', detail: String(err) }), { status: 500 }));

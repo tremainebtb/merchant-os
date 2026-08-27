@@ -204,6 +204,97 @@ async function transcribeBlob(blob) {
   return data.text || '';
 }
 
+// Stage 2 of voice, added 27 Aug: a real merchant speaking naturally describes
+// several things in one breath ("I sold three shoes... Kwame took two shirts...
+// I spent 50 on transport"). The old approach forced them into one item per
+// recording. This calls a free Workers AI text model (see worker.js) to split
+// one messy transcript into several structured events. It is NOT trustworthy on
+// its own - live-tested 27 Aug: it can invent a plausible-looking price for an
+// amount that was never actually said. That is exactly why every extracted field
+// is shown to the owner, editable, before anything saves - see showVoiceReview().
+// Network failure or an empty result falls back to the old single-field-fill path
+// (parseHeardText below) rather than leaving the owner stuck.
+async function extractEvents(text) {
+  const res = await fetch(`${API_BASE}/extract`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text })
+  });
+  if (!res.ok) return [];
+  const data = await res.json().catch(() => ({}));
+  return Array.isArray(data.events) ? data.events : [];
+}
+
+const TYPE_LABEL = { sale: 'Sale', expense: 'Expense', debt_in: 'Customer owes me', debt_out: 'I owe supplier' };
+
+// Turns one extracted event into the same shape addEntry() expects, computing
+// the amount ourselves from the (already type-checked, by the Worker) qty/price -
+// never trusting a pre-computed "total" from the model, since that's one more
+// number it could get wrong independent of the two the owner can actually verify.
+function eventToEntry(ev) {
+  const type = ev.type;
+  const item = ev.item || ev.customer || ev.supplier || '';
+  const qty = type === 'sale' ? (ev.qty || 1) : '';
+  const price = ev.price || '';
+  const amount = type === 'sale' ? (Number(qty) || 0) * (Number(price) || 0) : (Number(price) || 0);
+  return { type, item, note: ev.note || '', qty, price, amount };
+}
+
+function voiceEventComplete(ev) {
+  if (!ev.item) return false;
+  if (!ev.price || Number(ev.price) <= 0) return false;
+  if (ev.type === 'sale' && (!ev.qty || Number(ev.qty) <= 0)) return false;
+  return true;
+}
+
+let pendingVoiceEvents = [];
+
+function renderVoiceReview() {
+  const list = document.getElementById('voiceReviewList');
+  const wrap = document.getElementById('voiceReview');
+  if (!pendingVoiceEvents.length) { wrap.classList.remove('open'); return; }
+  wrap.classList.add('open');
+  list.innerHTML = pendingVoiceEvents.map((ev, i) => {
+    const nameLabel = ev.type === 'debt_in' ? 'Customer name' : ev.type === 'debt_out' ? 'Supplier name' : 'What';
+    const priceLabel = ev.type === 'sale' ? 'Price each (cedis)' : 'Amount (cedis)';
+    return `
+      <div class="voice-card">
+        <div class="voice-card-type">${TYPE_LABEL[ev.type] || ev.type}</div>
+        <div class="field"><label>${nameLabel}</label><input type="text" data-idx="${i}" data-key="item" value="${(ev.item || '').replace(/"/g, '&quot;')}"></div>
+        ${ev.type === 'sale' ? `<div class="field"><label>How many?</label><input type="number" inputmode="decimal" data-idx="${i}" data-key="qty" value="${ev.qty || ''}"></div>` : ''}
+        <div class="field"><label>${priceLabel}</label><input type="number" inputmode="decimal" data-idx="${i}" data-key="price" value="${ev.price || ''}"></div>
+        <div class="voice-card-btns">
+          <button class="btn btn-cancel voice-discard" data-idx="${i}">Discard</button>
+          <button class="btn btn-save voice-save" data-idx="${i}">Save</button>
+        </div>
+      </div>`;
+  }).join('');
+  list.querySelectorAll('input').forEach(inp => inp.addEventListener('input', (e) => {
+    const { idx, key } = e.target.dataset;
+    pendingVoiceEvents[idx][key] = e.target.value;
+  }));
+  list.querySelectorAll('.voice-discard').forEach(btn => btn.addEventListener('click', (e) => {
+    pendingVoiceEvents.splice(Number(e.target.dataset.idx), 1);
+    renderVoiceReview();
+  }));
+  list.querySelectorAll('.voice-save').forEach(btn => btn.addEventListener('click', async (e) => {
+    const idx = Number(e.target.dataset.idx);
+    const ev = pendingVoiceEvents[idx];
+    if (!voiceEventComplete(ev)) { alert('Fill in the missing number(s) first.'); return; }
+    const entry = eventToEntry(ev);
+    const ts = Date.now();
+    await addEntry({ id: crypto.randomUUID(), type: entry.type, item: entry.item, note: entry.note, qty: entry.qty, price: entry.price, amount: entry.amount, day: todayKey(ts), ts });
+    pendingVoiceEvents.splice(idx, 1);
+    renderVoiceReview();
+    await render();
+  }));
+}
+
+document.getElementById('voiceReviewCloseBtn').addEventListener('click', () => {
+  pendingVoiceEvents = [];
+  renderVoiceReview();
+});
+
 async function toggleMic() {
   const btn = document.getElementById('micBtn');
   if (!micSupported()) {
@@ -227,8 +318,17 @@ async function toggleMic() {
         const blob = new Blob(recordedChunks, { type: 'audio/webm' });
         const heard = await transcribeBlob(blob);
         if (!heard.trim()) { setMicStatus('Didn\u2019t catch that \u2014 try again, or type below.', 'err'); return; }
-        fillFields(parseHeardText(activeType, heard));
-        setMicStatus(`Heard: \u201c${heard}\u201d \u2014 check the numbers below, then Save.`, 'heard');
+        setMicStatus('Working out what happened\u2026');
+        const events = await extractEvents(heard);
+        if (events.length >= 1) {
+          pendingVoiceEvents = events;
+          renderVoiceReview();
+          closeSheet();
+          setMicStatus(`Heard: \u201c${heard}\u201d \u2014 check each one below, then Save.`, 'heard');
+        } else {
+          fillFields(parseHeardText(activeType, heard));
+          setMicStatus(`Heard: \u201c${heard}\u201d \u2014 check the numbers below, then Save.`, 'heard');
+        }
       } catch (err) {
         setMicStatus(err.message || 'Could not hear that \u2014 try again, or type below.', 'err');
       }
