@@ -24,9 +24,12 @@ function todayKey(ts) {
 function addEntry(entry) {
   return new Promise((resolve, reject) => {
     const tx = db.transaction(STORE, 'readwrite');
-    tx.objectStore(STORE).add(entry);
+    const req = tx.objectStore(STORE).add(entry);
+    let reqError = null;
+    req.onerror = (e) => { reqError = req.error; e.preventDefault(); tx.abort(); };
     tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
+    tx.onerror = () => reject(reqError || tx.error || new Error('addEntry failed'));
+    tx.onabort = () => reject(reqError || tx.error || new Error('addEntry aborted'));
   });
 }
 
@@ -229,8 +232,16 @@ async function saveEntry() {
   saveBtn.disabled = true;
   saveBtn.textContent = 'Saving…';
   const ts = Date.now();
+  // Client-generated id, not IndexedDB autoIncrement — this is the idempotency key.
+  // Defense in depth beyond the button-disable above: if this same save ever got
+  // dispatched twice (a future sync retry, a bug), the store rejects the duplicate
+  // key instead of silently creating a second transaction. Kept simple deliberately —
+  // no backend to reconcile against yet, so this only protects the local device today,
+  // but the id shape is what a future sync layer would need anyway.
+  const id = crypto.randomUUID();
   try {
     await addEntry({
+      id,
       type: activeType,
       item: v.item,
       note: v.note || '',
@@ -242,6 +253,14 @@ async function saveEntry() {
     });
     closeSheet();
     await render();
+  } catch (err) {
+    if (err && err.name === 'ConstraintError') {
+      // Same id already saved — treat as already-done, not a failure.
+      closeSheet();
+      await render();
+    } else {
+      throw err;
+    }
   } finally {
     saving = false;
     saveBtn.disabled = false;
@@ -327,6 +346,42 @@ function speakToday() {
   speechSynthesis.speak(utter);
 }
 
+// Real, evidence-backed threat this closes: Ghanaian shop owners routinely hand
+// their phone to a customer to show a product photo on WhatsApp — the customer can
+// then swipe back and see the shop's daily revenue. This is a screen-lock deterrent,
+// not real security: the PIN is stored in plain localStorage, no encryption, nothing
+// server-side. Honest about that limit, not pretending it's more than it is. Optional
+// and off by default — no forced registration wall.
+function getPin() { return localStorage.getItem('kym_pin') || ''; }
+function setPin(p) { if (p) localStorage.setItem('kym_pin', p); else localStorage.removeItem('kym_pin'); }
+
+function showLock() {
+  const pin = getPin();
+  if (!pin) return;
+  const lock = document.getElementById('lockScreen');
+  lock.classList.add('show');
+  const input = document.getElementById('lockInput');
+  input.value = '';
+  document.getElementById('lockError').textContent = '';
+  setTimeout(() => input.focus(), 50);
+}
+
+function tryUnlock() {
+  const input = document.getElementById('lockInput');
+  if (input.value.length !== 4) return;
+  if (input.value === getPin()) {
+    document.getElementById('lockScreen').classList.remove('show');
+  } else {
+    document.getElementById('lockError').textContent = 'Wrong PIN — try again.';
+    input.value = '';
+  }
+}
+
+function updatePinToggle() {
+  const btn = document.getElementById('pinToggle');
+  btn.textContent = getPin() ? '🔒 Remove PIN' : 'Set a PIN';
+}
+
 function updateOfflineBadge() {
   document.getElementById('offlineBadge').classList.toggle('show', !navigator.onLine);
 }
@@ -345,12 +400,30 @@ document.getElementById('adminToggle').addEventListener('click', async () => {
   setPaid(!isPaid());
   await render();
 });
+document.getElementById('pinToggle').addEventListener('click', () => {
+  if (getPin()) {
+    setPin('');
+  } else {
+    const p = prompt('Set a 4-digit PIN. You will need it to open this shop\'s numbers again.');
+    if (p && /^\d{4}$/.test(p)) setPin(p);
+    else if (p) alert('PIN must be exactly 4 digits.');
+  }
+  updatePinToggle();
+});
+document.getElementById('lockInput').addEventListener('input', tryUnlock);
 window.addEventListener('online', updateOfflineBadge);
 window.addEventListener('offline', updateOfflineBadge);
+// Lock whenever the tab comes back into view — covers "handed the phone to a
+// customer, they swiped back to the browser" and "phone was asleep in a pocket."
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') showLock();
+});
 
 (async function init() {
   db = await openDB();
   updateOfflineBadge();
+  updatePinToggle();
+  showLock();
   await render();
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('service-worker.js').catch(() => {});
