@@ -4,41 +4,66 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
 <title>Know Your Money</title>
-<meta name="theme-color" content="#0F6A3D">
+<meta name="theme-color" content="#D9541A">
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&family=Work+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@600;700&display=swap">
 <style>
+/* Same design system as the landing page — one product, one identity. */
 :root{
-  --paper:#F7F4EE; --surface:#FFFFFF; --ink:#1D2420; --ink-soft:#57604F; --muted:#8A9080;
-  --rule:#E2DDCE; --green:#0F6A3D; --green-deep:#0B4E2C; --green-soft:#E3F1E8;
-  --red:#B3401E; --red-soft:#FBE6DC; --amber:#9C6B12; --amber-soft:#FBEFD9;
+  --paper:#F8F3EC; --surface:#FFFFFF; --ink:#221A12; --ink-soft:#5C5142; --muted:#8C8172;
+  --rule:#E7DDCD; --flame:#D9541A; --flame-deep:#A83F12; --flame-soft:#FBE3D2;
+  --leaf:#1B7A43; --leaf-deep:#125C32; --leaf-soft:#E1F2E7;
+  --brick:#A83F2E; --brick-soft:#F6E1DC; --amber:#9C6B12; --amber-soft:#FBEFD9;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#161009; --surface:#1F1810; --ink:#F3EBDF; --ink-soft:#CDBFA9; --muted:#93876F;
+    --rule:#372B1D; --flame:#F0713A; --flame-deep:#F79764; --flame-soft:#3A2415;
+    --leaf:#4CC585; --leaf-deep:#6FD79E; --leaf-soft:#15301F;
+    --brick:#E08670; --brick-soft:#3A1F17; --amber:#E0B25C; --amber-soft:#2E2411;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#161009; --surface:#1F1810; --ink:#F3EBDF; --ink-soft:#CDBFA9; --muted:#93876F;
+  --rule:#372B1D; --flame:#F0713A; --flame-deep:#F79764; --flame-soft:#3A2415;
+  --leaf:#4CC585; --leaf-deep:#6FD79E; --leaf-soft:#15301F;
+  --brick:#E08670; --brick-soft:#3A1F17; --amber:#E0B25C; --amber-soft:#2E2411;
 }
 *{box-sizing:border-box}
-body{margin:0;background:var(--paper);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;line-height:1.4}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:"Work Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;line-height:1.4}
 .wrap{max-width:480px;margin:0 auto;padding:16px 16px 40px}
-h1{font-size:1.1rem;font-weight:800;margin:8px 0 16px}
+h1{font-family:"Manrope",sans-serif;font-size:1.1rem;font-weight:800;margin:8px 0 16px}
 .today{background:var(--surface);border:1px solid var(--rule);border-radius:16px;padding:18px;margin-bottom:16px}
-.today-label{font-size:.72rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:700;margin-bottom:12px}
+.today-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+.today-label{font-size:.72rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:700}
+.hear-btn{font-family:"Manrope",sans-serif;background:var(--flame-soft);color:var(--flame-deep);border:none;border-radius:100px;padding:6px 12px;font-size:.78rem;font-weight:700;cursor:pointer}
+.hear-btn.speaking{background:var(--flame);color:#fff}
+.balance-amt.pos{color:var(--leaf-deep)}
+.balance-amt.neg{color:var(--brick)}
 .today-row{display:flex;justify-content:space-between;align-items:center;padding:7px 0}
 .today-row span:first-child{color:var(--ink-soft);font-size:.92rem}
-.today-row span:last-child{font-weight:700;font-variant-numeric:tabular-nums}
+.today-row span:last-child{font-family:"IBM Plex Mono",monospace;font-weight:700;font-variant-numeric:tabular-nums}
 .today-row.balance{border-top:1px solid var(--rule);margin-top:6px;padding-top:12px}
 .today-row.balance span:first-child{color:var(--ink);font-weight:700}
-.today-row.balance span:last-child{font-size:1.3rem;color:var(--green-deep)}
+.today-row.balance span:last-child{font-size:1.5rem}
 .actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:20px}
-.act-btn{border:none;border-radius:14px;padding:16px 10px;font-weight:700;font-size:.92rem;cursor:pointer;text-align:left;color:#fff}
+.act-btn{font-family:"Manrope",sans-serif;border:none;border-radius:14px;padding:14px 10px;font-weight:700;font-size:.92rem;cursor:pointer;text-align:left;color:#fff;display:flex;align-items:center;gap:10px}
+.act-icon{flex:none;width:26px;height:26px}
 .act-btn small{display:block;font-weight:500;font-size:.72rem;opacity:.85;margin-top:2px}
-.act-sale{background:var(--green)}
-.act-expense{background:var(--red)}
+.act-sale{background:var(--leaf)}
+.act-expense{background:var(--brick)}
 .act-owe-me{background:var(--amber)}
 .act-owe-supplier{background:#5C5347}
 .sheet{background:var(--surface);border:1px solid var(--rule);border-radius:16px;padding:18px;margin-bottom:20px;display:none}
 .sheet.open{display:block}
-.sheet h2{font-size:1rem;margin:0 0 14px}
+.sheet h2{font-family:"Manrope",sans-serif;font-size:1rem;margin:0 0 14px}
 .field{margin-bottom:12px}
 .field label{display:block;font-size:.82rem;color:var(--ink-soft);margin-bottom:5px;font-weight:600}
 .field input{width:100%;padding:12px;border:1px solid var(--rule);border-radius:10px;font-size:1rem;background:var(--paper)}
-.confirm-line{background:var(--green-soft);color:var(--green-deep);border-radius:10px;padding:12px;font-size:.92rem;margin-bottom:14px;font-weight:600;display:none}
+.confirm-line{background:var(--leaf-soft);color:var(--leaf-deep);border-radius:10px;padding:12px;font-size:.92rem;margin-bottom:14px;font-weight:600;display:none}
 .confirm-line.show{display:block}
 .mic-btn{width:100%;border:1px dashed var(--rule);background:var(--paper);color:var(--ink-soft);border-radius:10px;padding:11px;font-weight:700;font-size:.88rem;margin-bottom:10px;cursor:pointer}
 .mic-btn.listening{background:var(--amber-soft);color:var(--amber);border-color:var(--amber);border-style:solid}
@@ -51,26 +76,26 @@ h1{font-size:1.1rem;font-weight:800;margin:8px 0 16px}
 .plan-price{margin-bottom:16px}
 .plan-amount{font-size:1.6rem;font-weight:800}
 .plan-per{color:var(--muted);font-size:.85rem;margin-left:4px}
-.plan-pay-box{background:var(--green-soft);border-radius:12px;padding:14px;margin-bottom:12px}
-.plan-pay-label{font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;color:var(--green-deep);font-weight:700;margin-bottom:2px}
-.plan-pay-number{font-weight:800;color:var(--green-deep);margin-bottom:10px;font-size:.98rem}
+.plan-pay-box{background:var(--leaf-soft);border-radius:12px;padding:14px;margin-bottom:12px}
+.plan-pay-label{font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;color:var(--leaf-deep);font-weight:700;margin-bottom:2px}
+.plan-pay-number{font-weight:800;color:var(--leaf-deep);margin-bottom:10px;font-size:.98rem}
 .plan-pay-number:last-child{margin-bottom:0}
 .plan-note{font-size:.82rem;color:var(--muted);margin-bottom:14px}
 .admin-bar{max-width:480px;margin:0 auto;padding:14px 16px 30px;display:flex;justify-content:space-between;align-items:center;border-top:1px dashed var(--rule);margin-top:10px}
 .admin-bar span{font-size:.74rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-weight:700}
 .admin-toggle{background:none;border:1px solid var(--rule);color:var(--ink-soft);border-radius:100px;padding:6px 12px;font-size:.76rem;font-weight:700;cursor:pointer}
-.admin-toggle.is-paid{background:var(--green-soft);color:var(--green-deep);border-color:var(--green-soft)}
+.admin-toggle.is-paid{background:var(--leaf-soft);color:var(--leaf-deep);border-color:var(--leaf-soft)}
 .sheet-btns{display:flex;gap:10px}
 .btn{flex:1;padding:13px;border-radius:10px;border:none;font-weight:700;font-size:.94rem;cursor:pointer}
-.btn-save{background:var(--green);color:#fff}
+.btn-save{background:var(--leaf);color:#fff}
 .btn-cancel{background:var(--rule);color:var(--ink)}
 .hist-label{font-size:.72rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:700;margin:20px 0 10px}
 .hist-item{display:flex;justify-content:space-between;padding:11px 0;border-bottom:1px solid var(--rule);font-size:.9rem}
 .hist-item .desc{color:var(--ink)}
 .hist-item .desc small{display:block;color:var(--muted);font-size:.76rem}
-.hist-item .amt{font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}
-.amt.pos{color:var(--green-deep)}
-.amt.neg{color:var(--red)}
+.hist-item .amt{font-family:"IBM Plex Mono",monospace;font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}
+.amt.pos{color:var(--leaf-deep)}
+.amt.neg{color:var(--brick)}
 .empty{color:var(--muted);font-size:.88rem;text-align:center;padding:24px 0}
 .offline-badge{display:none;background:var(--amber-soft);color:var(--amber);font-size:.78rem;font-weight:700;padding:8px 12px;border-radius:10px;margin-bottom:14px}
 .offline-badge.show{display:block}
@@ -82,18 +107,33 @@ h1{font-size:1.1rem;font-weight:800;margin:8px 0 16px}
   <h1>Know Your Money</h1>
 
   <div class="today">
-    <div class="today-label">Today</div>
+    <div class="today-top">
+      <div class="today-label">Today</div>
+      <button id="hearBtn" class="hear-btn">🔊 Hear it</button>
+    </div>
     <div class="today-row"><span>Sales</span><span id="tSales">GHS 0</span></div>
     <div class="today-row"><span>Expenses</span><span id="tExpenses">GHS 0</span></div>
     <div class="today-row"><span>Customers owe me</span><span id="tOwedMe">GHS 0</span></div>
-    <div class="today-row balance"><span>Balance</span><span id="tBalance">GHS 0</span></div>
+    <div class="today-row balance"><span>Balance</span><span id="tBalance" class="balance-amt">GHS 0</span></div>
   </div>
 
   <div class="actions">
-    <button class="act-btn act-sale" data-type="sale">+ Sale<small>Item, qty, price</small></button>
-    <button class="act-btn act-expense" data-type="expense">+ Expense<small>What you spent</small></button>
-    <button class="act-btn act-owe-me" data-type="debt_in">Customer owes me<small>Track who owes you</small></button>
-    <button class="act-btn act-owe-supplier" data-type="debt_out">I owe supplier<small>Track what you owe</small></button>
+    <button class="act-btn act-sale" data-type="sale">
+      <svg class="act-icon" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/><path d="M12 7v10M9 9.5c0-1 1-1.8 3-1.8s3 .8 3 1.8-1 1.5-3 1.5-3 .5-3 1.5 1 1.8 3 1.8 3-.8 3-1.8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+      <span>+ Sale<small>Item, qty, price</small></span>
+    </button>
+    <button class="act-btn act-expense" data-type="expense">
+      <svg class="act-icon" viewBox="0 0 24 24" fill="none"><rect x="4" y="7" width="16" height="12" rx="2" stroke="currentColor" stroke-width="2"/><path d="M8 7V5.5A2.5 2.5 0 0110.5 3h3A2.5 2.5 0 0116 5.5V7M9 13h6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      <span>+ Expense<small>What you spent</small></span>
+    </button>
+    <button class="act-btn act-owe-me" data-type="debt_in">
+      <svg class="act-icon" viewBox="0 0 24 24" fill="none"><circle cx="9" cy="8" r="3" stroke="currentColor" stroke-width="2"/><path d="M3 20c0-3.3 2.7-5.5 6-5.5S15 16.7 15 20" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M17 8l3 3-3 3M20 11h-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span>Customer owes me<small>Track who owes you</small></span>
+    </button>
+    <button class="act-btn act-owe-supplier" data-type="debt_out">
+      <svg class="act-icon" viewBox="0 0 24 24" fill="none"><circle cx="9" cy="8" r="3" stroke="currentColor" stroke-width="2"/><path d="M3 20c0-3.3 2.7-5.5 6-5.5S15 16.7 15 20" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M20 8l-3 3 3 3M17 11h7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span>I owe supplier<small>Track what you owe</small></span>
+    </button>
   </div>
 
   <div id="sheet" class="sheet">

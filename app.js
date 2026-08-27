@@ -261,7 +261,11 @@ async function render() {
   document.getElementById('tSales').textContent = fmt(sales);
   document.getElementById('tExpenses').textContent = fmt(expenses);
   document.getElementById('tOwedMe').textContent = fmt(owedMe);
-  document.getElementById('tBalance').textContent = fmt(balance);
+  const balanceEl = document.getElementById('tBalance');
+  balanceEl.textContent = fmt(balance);
+  balanceEl.classList.toggle('pos', balance >= 0);
+  balanceEl.classList.toggle('neg', balance < 0);
+  window._kymToday = { sales, expenses, owedMe, balance };
 
   const histEl = document.getElementById('history');
   if (!entries.length) {
@@ -283,6 +287,27 @@ async function render() {
   }).join('') + (hiddenCount > 0 ? `<div class="empty">${hiddenCount} older entr${hiddenCount === 1 ? 'y' : 'ies'} — go Paid to see your full history</div>` : '');
 }
 
+// Reads today's numbers aloud. Evidence for this over text-only: Viamo's Ghana voice
+// campaign reached ~37,000 customers with weekly voice calls — those who engaged with
+// 6+ of 10 calls saw mobile savings balances nearly double. Numbers, spoken, drive
+// behaviour for people who don't reliably read English prose. English-only for now —
+// a Twi/Pidgin voice would need real translation + testing with real shop owners
+// first, not an invented script.
+function speakToday() {
+  if (!('speechSynthesis' in window)) return;
+  const t = window._kymToday || { sales: 0, expenses: 0, owedMe: 0, balance: 0 };
+  const sign = t.balance >= 0 ? 'You are up' : 'You are down';
+  const text = `Today. Sales, ${fmt(t.sales)}. Expenses, ${fmt(t.expenses)}. `
+    + `Customers owe you ${fmt(t.owedMe)}. ${sign} ${fmt(Math.abs(t.balance))}.`;
+  const utter = new SpeechSynthesisUtterance(text);
+  utter.rate = 0.92;
+  const btn = document.getElementById('hearBtn');
+  utter.onstart = () => btn.classList.add('speaking');
+  utter.onend = () => btn.classList.remove('speaking');
+  speechSynthesis.cancel();
+  speechSynthesis.speak(utter);
+}
+
 function updateOfflineBadge() {
   document.getElementById('offlineBadge').classList.toggle('show', !navigator.onLine);
 }
@@ -293,6 +318,8 @@ document.querySelectorAll('.act-btn').forEach(btn => {
 document.getElementById('cancelBtn').addEventListener('click', closeSheet);
 document.getElementById('saveBtn').addEventListener('click', saveEntry);
 document.getElementById('micBtn').addEventListener('click', startVoice);
+document.getElementById('hearBtn').addEventListener('click', speakToday);
+if (!('speechSynthesis' in window)) document.getElementById('hearBtn').style.display = 'none';
 document.getElementById('planPill').addEventListener('click', () => document.getElementById('planSheet').classList.add('open'));
 document.getElementById('planCloseBtn').addEventListener('click', () => document.getElementById('planSheet').classList.remove('open'));
 document.getElementById('adminToggle').addEventListener('click', async () => {
