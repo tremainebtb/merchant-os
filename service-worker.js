@@ -1,6 +1,6 @@
-// Bump CACHE on every deploy — this is what forces a stale phone to pick up new code.
-const CACHE = 'kym-v11';
-const ASSETS = ['./', './index.html', './app.js?v=11', './manifest.json', './icon.svg'];
+// Bump CACHE on every deploy â€” this is what forces a stale phone to pick up new code.
+const CACHE = 'kym-v12';
+const ASSETS = ['./', './index.html', './app.js?v=12', './manifest.json', './icon.svg'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)));
@@ -18,7 +18,7 @@ self.addEventListener('activate', e => {
 // version), falling back to cache only when offline. This is what makes offline work
 // WITHOUT trapping people on old code once they have signal again.
 //
-// {cache:'no-store'} here is load-bearing — without it, this "network-first" fetch
+// {cache:'no-store'} here is load-bearing â€” without it, this "network-first" fetch
 // can still be silently satisfied by the BROWSER's own plain HTTP cache underneath,
 // which defeats the whole point (found live, 27 Aug: two real deploys never reached
 // an already-visited browser because of exactly this).
