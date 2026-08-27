@@ -114,12 +114,120 @@ const FIELD_CONFIG = {
 
 let activeType = null;
 
-// Voice input (Web Speech API) was tried and removed 27 Aug after real-device testing —
-// broken on iOS Safari (partial/unreliable support, worse in installed-PWA context) and
-// unreliable on Android Chrome on weak mobile data (it's cloud-based, not on-device) —
-// exactly the network conditions this product's real users have. A confidently-broken
-// "Listening..." state is worse than not offering voice at all. If voice comes back, it
-// needs a real hosted transcription service, not the browser's native API.
+const API_BASE = 'https://countmy-api.boatengbobby.workers.dev';
+
+// Voice v1 (Web Speech API) was removed 27 Aug after real-device testing — broken on
+// iOS Safari and unreliable on Android Chrome on weak mobile data (it ran fully
+// on-device via the browser, no server, so a bad phone or a bad signal broke it with
+// no fallback). Voice v2 (below) fixes the actual cause, not just the symptom: record
+// raw audio with MediaRecorder (broadly supported on both platforms) and send it to a
+// real hosted transcription service (OpenAI Whisper, via the countmy-api Worker) —
+// same job, a server doing the hard part instead of the phone. This is the product's
+// core differentiator for shop owners who don't reliably read or type English —
+// voice is the primary path, typing is the fallback, not the other way round.
+let mediaRecorder = null;
+let recordedChunks = [];
+
+function micSupported() {
+  return !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.MediaRecorder);
+}
+
+function setMicStatus(text, cls) {
+  const el = document.getElementById('micStatus');
+  el.textContent = text;
+  el.className = 'mic-status' + (cls ? ' ' + cls : '');
+}
+
+// Deliberately simple, not NLP: pulls every number out of what was heard, and treats
+// whatever text is left (after stripping filler words) as the item/name. Good enough
+// for "five bags of rice at ten cedis each" or "Ama owes me fifty cedis for soap" —
+// exactly the short, spoken-number sentences a shop owner actually says. Never
+// auto-saves — this only fills the same fields typing would, so the owner still sees
+// and confirms the number before it's written, same as every other entry path.
+const NUMBER_WORDS = { one:1,two:2,three:3,four:4,five:5,six:6,seven:7,eight:8,nine:9,ten:10,
+  eleven:11,twelve:12,thirteen:13,fourteen:14,fifteen:15,twenty:20,thirty:30,forty:40,fifty:50,
+  sixty:60,seventy:70,eighty:80,ninety:90,hundred:100 };
+
+const NUMBER_WORD_RE = new RegExp('\\b(?:' + Object.keys(NUMBER_WORDS).join('|') + ')(?:[\\s-]+(?:' + Object.keys(NUMBER_WORDS).join('|') + '))*\\b', 'gi');
+
+function wordsToNumber(text) {
+  return text.replace(NUMBER_WORD_RE, (phrase) => {
+    const total = phrase.toLowerCase().split(/[\s-]+/).reduce((sum, w) => sum + (NUMBER_WORDS[w] || 0), 0);
+    return String(total);
+  });
+}
+
+const FILLER = /\b(a|an|the|for|of|on|to|me|i|owe|owes|he|she|they|it|at|each|cedis|cedi|ghs|sold|spent|bought|paid|is|was|and)\b/gi;
+
+function parseHeardText(type, raw) {
+  const text = wordsToNumber(raw);
+  const numbers = (text.match(/\d+(\.\d+)?/g) || []).map(Number);
+  const cleaned = text.replace(/\d+(\.\d+)?/g, ' ').replace(FILLER, ' ').replace(/\s+/g, ' ').trim();
+  const v = {};
+  if (type === 'sale') {
+    if (numbers.length >= 2) { v.qty = numbers[0]; v.price = numbers[1]; }
+    else if (numbers.length === 1) { v.price = numbers[0]; v.qty = 1; }
+    v.item = cleaned;
+  } else {
+    if (numbers.length >= 1) v.price = numbers[0];
+    v.item = cleaned;
+  }
+  return v;
+}
+
+function fillFields(values) {
+  Object.keys(values).forEach(key => {
+    const inp = document.querySelector(`#fields input[data-key="${key}"]`);
+    if (inp && values[key] !== undefined && values[key] !== '') inp.value = values[key];
+  });
+  updateConfirm();
+}
+
+async function transcribeBlob(blob) {
+  const form = new FormData();
+  form.append('audio', blob, 'voice.webm');
+  const res = await fetch(`${API_BASE}/transcribe`, { method: 'POST', body: form });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'Could not hear that — try again');
+  return data.text || '';
+}
+
+async function toggleMic() {
+  const btn = document.getElementById('micBtn');
+  if (!micSupported()) {
+    setMicStatus('Voice isn’t available on this phone/browser — please type instead.', 'err');
+    return;
+  }
+  if (mediaRecorder && mediaRecorder.state === 'recording') {
+    mediaRecorder.stop();
+    return;
+  }
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    recordedChunks = [];
+    mediaRecorder = new MediaRecorder(stream);
+    mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) recordedChunks.push(e.data); };
+    mediaRecorder.onstop = async () => {
+      stream.getTracks().forEach(t => t.stop());
+      btn.classList.remove('recording');
+      setMicStatus('Listening to what you said…');
+      try {
+        const blob = new Blob(recordedChunks, { type: 'audio/webm' });
+        const heard = await transcribeBlob(blob);
+        if (!heard.trim()) { setMicStatus('Didn’t catch that — try again, or type below.', 'err'); return; }
+        fillFields(parseHeardText(activeType, heard));
+        setMicStatus(`Heard: “${heard}” — check the numbers below, then Save.`, 'heard');
+      } catch (err) {
+        setMicStatus(err.message || 'Could not hear that — try again, or type below.', 'err');
+      }
+    };
+    mediaRecorder.start();
+    btn.classList.add('recording');
+    setMicStatus('Listening… tap again when you’re done speaking.');
+  } catch (err) {
+    setMicStatus('Couldn’t reach the microphone — check phone permission, or type below.', 'err');
+  }
+}
 function openSheet(type) {
   activeType = type;
   const cfg = FIELD_CONFIG[type];
@@ -133,6 +241,7 @@ function openSheet(type) {
   `).join('');
   fieldsEl.querySelectorAll('input').forEach(inp => inp.addEventListener('input', updateConfirm));
   document.getElementById('confirmLine').classList.remove('show');
+  setMicStatus('');
   document.getElementById('sheet').classList.add('open');
   document.getElementById('sheet').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   fieldsEl.querySelector('input').focus();
@@ -140,6 +249,7 @@ function openSheet(type) {
 
 function closeSheet() {
   document.getElementById('sheet').classList.remove('open');
+  if (mediaRecorder && mediaRecorder.state === 'recording') mediaRecorder.stop();
   activeType = null;
 }
 
@@ -210,10 +320,33 @@ async function saveEntry() {
   }
 }
 
-// Manual plan state — no billing backend yet, by design (see PRD: sync deferred).
-// Owner-only toggle; not meant for the merchant to see or touch.
-function isPaid() { return localStorage.getItem('kym_paid') === '1'; }
+// Plan state now has a real source of truth (countmy-api / KV — Bobby, the CEO, flips
+// a shop's status directly in the Cloudflare dashboard, no admin UI needed: see
+// worker/worker.js). The local toggle below still exists as an offline fallback only —
+// if the shop has no Shop ID set, or the phone is offline, or the backend can't be
+// reached, this falls back to the same local self-report as before rather than
+// blocking. Cached last-known-good result so a paid shop doesn't flicker back to
+// Free the moment it goes offline.
+function getShopId() { return (localStorage.getItem('kym_shop_id') || '').trim(); }
+function setShopId(id) { localStorage.setItem('kym_shop_id', (id || '').trim()); }
+function isPaid() {
+  const cached = localStorage.getItem('kym_paid_backend');
+  if (cached !== null) return cached === '1';
+  return localStorage.getItem('kym_paid') === '1';
+}
 function setPaid(v) { localStorage.setItem('kym_paid', v ? '1' : '0'); }
+
+async function refreshPaidStatus() {
+  const shop = getShopId();
+  if (!shop || !navigator.onLine) return;
+  try {
+    const res = await fetch(`${API_BASE}/status?shop=${encodeURIComponent(shop)}`);
+    if (!res.ok) return;
+    const data = await res.json();
+    localStorage.setItem('kym_paid_backend', data.paid ? '1' : '0');
+    await render();
+  } catch (err) { /* offline or unreachable — keep last-known-good, don't block */ }
+}
 
 function renderAdmin() {
   const btn = document.getElementById('adminToggle');
@@ -221,6 +354,10 @@ function renderAdmin() {
   btn.textContent = paid ? '✓ Paid — tap to undo' : "I've paid";
   btn.classList.toggle('is-paid', paid);
   document.getElementById('planPill').textContent = paid ? 'Paid · full history unlocked' : 'Free · last 7 days shown';
+  const ref = document.getElementById('planPayRef');
+  if (ref) ref.textContent = getShopId() || 'Your shop name';
+  const shopInput = document.getElementById('shopIdInput');
+  if (shopInput && document.activeElement !== shopInput) shopInput.value = getShopId();
 }
 
 async function render() {
@@ -396,7 +533,14 @@ document.getElementById('pinToggle').addEventListener('click', () => {
 });
 document.getElementById('lockInput').addEventListener('input', tryUnlock);
 document.getElementById('exportBtn').addEventListener('click', exportBackup);
-window.addEventListener('online', updateOfflineBadge);
+document.getElementById('micBtn').addEventListener('click', toggleMic);
+if (!micSupported()) document.getElementById('micBtn').style.display = 'none';
+document.getElementById('shopIdInput').addEventListener('change', async (e) => {
+  setShopId(e.target.value);
+  await refreshPaidStatus();
+  await render();
+});
+window.addEventListener('online', () => { updateOfflineBadge(); refreshPaidStatus(); });
 window.addEventListener('offline', updateOfflineBadge);
 // Lock whenever the tab comes back into view — covers "handed the phone to a
 // customer, they swiped back to the browser" and "phone was asleep in a pocket."
@@ -410,6 +554,7 @@ document.addEventListener('visibilitychange', () => {
   updatePinToggle();
   showLock();
   await render();
+  refreshPaidStatus();
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('service-worker.js').catch(() => {});
   }
