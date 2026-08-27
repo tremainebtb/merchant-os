@@ -7,6 +7,10 @@ Last updated: 2026-08-27. This file, not chat history, is the record of what's d
 A ledger a Ghanaian shop owner opens once a day. Not "inventory management." Not "AI bookkeeping."
 **"Know your money."**
 
+## Engineering rule — permanent, not optional
+
+**Never mark a fix or deploy complete based on source inspection, commit status, or build success alone. Verify the deployed behaviour live, by actually exercising it, before calling it done.** Confirmed necessary in practice, not theoretical: on 27 Aug, two real deploys landed cleanly on GitHub (commit history clean, file content correct) but silently never reached an already-visited browser — a service worker "network-first" fetch was still quietly satisfied by the browser's own HTTP cache underneath. Caught only because the fix was re-tested against a browser that had already loaded the old version, not a fresh one. A fresh-browser-only test would have produced a false green result. Same logic on every subsequent check: even after fixing that, a plain page navigation once still silently served a stale document until a hard/forced reload was used — the lesson generalizes past this one bug: assume caching (service worker, browser HTTP cache, or the navigation itself) can lie about whether a fix actually shipped, and verify with a forced fresh load against a previously-visited client, not just a clean one.
+
 ## Core loop (v1 — build this week)
 
 - `+ Sale` — item, quantity, price. Total auto-calculated.
