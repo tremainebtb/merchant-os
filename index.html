@@ -90,8 +90,16 @@ h1 .tagline{font-family:"Work Sans",sans-serif;font-size:.78rem;font-weight:500;
 .plan-pay-number{font-weight:800;color:var(--leaf-deep);margin-bottom:10px;font-size:.98rem}
 .plan-pay-number:last-child{margin-bottom:0}
 .plan-note{font-size:.82rem;color:var(--muted);margin-bottom:14px}
-.admin-bar{max-width:480px;margin:16px auto 0;padding:14px 16px;display:flex;flex-wrap:wrap;gap:10px;justify-content:space-between;align-items:center;background:var(--rule);border-radius:14px 14px 0 0}
-.admin-bar span{font-size:.74rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-weight:700}
+.footer-row{max-width:480px;margin:16px auto 0;padding:0 16px 20px;display:flex;align-items:center;justify-content:center;gap:8px;position:relative}
+.gear-btn{position:absolute;right:16px;background:none;border:none;color:var(--rule);font-size:1rem;cursor:pointer;padding:6px;line-height:1}
+/* Hidden by default — not a labeled "owner only" bar sitting in view for anyone
+   holding the phone. Only opens on a deliberate tap of the small gear, and only
+   after the PIN if one is set (see openAdminBar in app.js). */
+.admin-bar{display:none;max-width:480px;margin:0 auto;padding:14px 16px 20px}
+.admin-bar.open{display:block}
+.admin-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.admin-header span{font-size:.74rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-weight:700}
+.admin-close{background:none;border:none;color:var(--muted);font-size:1rem;cursor:pointer;padding:4px}
 .admin-toggle{background:none;border:1px solid var(--rule);color:var(--ink-soft);border-radius:100px;padding:6px 12px;font-size:.76rem;font-weight:700;cursor:pointer}
 .admin-toggle.is-paid{background:var(--leaf-soft);color:var(--leaf-deep);border-color:var(--leaf-soft)}
 .lock-screen{display:none;position:fixed;inset:0;background:var(--paper);z-index:200;align-items:center;justify-content:center;padding:20px}
@@ -197,15 +205,21 @@ h1 .tagline{font-family:"Work Sans",sans-serif;font-size:.78rem;font-weight:500;
   </div>
 </div>
 
+<div class="footer-row">
+  <footer class="site-footer">CountMy — a free tool for Ghanaian shop owners, nothing more.</footer>
+  <button id="gearBtn" class="gear-btn" aria-label="Owner settings">⚙</button>
+</div>
+
 <div id="adminBar" class="admin-bar">
-  <span>Owner only — not for customers</span>
+  <div class="admin-header">
+    <span>Owner settings</span>
+    <button id="adminCloseBtn" class="admin-close">✕</button>
+  </div>
   <div style="display:flex;gap:8px">
     <button id="pinToggle" class="admin-toggle">Set a PIN</button>
     <button id="adminToggle" class="admin-toggle">Mark this shop Paid</button>
   </div>
 </div>
-
-<footer class="site-footer">CountMy — a free tool for Ghanaian shop owners, nothing more.</footer>
 
 <div id="lockScreen" class="lock-screen">
   <div class="lock-box">
@@ -220,6 +234,6 @@ h1 .tagline{font-family:"Work Sans",sans-serif;font-size:.78rem;font-weight:500;
      string is what forces a fresh script fetch even before any service worker logic
      runs, independent of it. Found live 27 Aug: without this, an already-visited
      browser can keep running old code from plain HTTP cache regardless of SW strategy. -->
-<script src="app.js?v=9"></script>
+<script src="app.js?v=10"></script>
 </body>
 </html>
