@@ -53,8 +53,15 @@
 *{box-sizing:border-box}
 body{margin:0;background:var(--paper);color:var(--ink);font-family:"Work Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;line-height:1.4}
 .wrap{max-width:480px;margin:0 auto;padding:16px 16px 40px}
-h1{font-family:"Manrope",sans-serif;font-size:1.3rem;font-weight:800;margin:8px 0 16px;display:flex;align-items:baseline;gap:8px}
-h1 .tagline{font-family:"Work Sans",sans-serif;font-size:.78rem;font-weight:500;color:var(--muted);text-transform:none}
+/* Real feedback from 6 first-time users in the actual target age group (60s-70s):
+   every one of them looked at the old page - brand name big, "Know your money"
+   small underneath - and said some version of "I don't know what this is,"
+   even after it was explained to them out loud. The brand name told them
+   nothing about what to do or why; the plain-language sentence below is what
+   Bobby was actually saying out loud to explain it, now living on the page
+   itself instead of depending on him being there to say it. */
+.brand-row{font-family:"Manrope",sans-serif;font-size:.82rem;font-weight:700;color:var(--muted);letter-spacing:.02em;margin:8px 0 6px}
+.pitch{font-family:"Manrope",sans-serif;font-size:1.2rem;font-weight:800;line-height:1.4;margin:0 0 18px;color:var(--ink)}
 .today{background:var(--surface);border:1px solid var(--rule);border-radius:16px;padding:18px;margin-bottom:16px}
 .today-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
 .today-label{font-size:.72rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:700}
@@ -162,7 +169,8 @@ input[type="number"]{-moz-appearance:textfield}
 <body>
 <div class="wrap">
   <div id="offlineBadge" class="offline-badge">No connection &#x2014; still recording, saved on your phone.</div>
-  <h1>CountMy<span class="tagline">Know your money</span></h1>
+  <div class="brand-row">CountMy</div>
+  <h1 class="pitch">Sold something today? Spent money? Tap a button below &#x2014; CountMy remembers it, so you don't have to.</h1>
 
   <div class="today">
     <div class="today-top">
