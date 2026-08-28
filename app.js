@@ -132,10 +132,11 @@ function micSupported() {
   return !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.MediaRecorder);
 }
 
-function setMicStatus(text, cls) {
-  const el = document.getElementById('micStatus');
+function setMicStatus(text, cls, statusId) {
+  const el = document.getElementById(statusId || 'micStatus');
+  const base = statusId === 'homeMicStatus' ? 'home-mic-status' : 'mic-status';
   el.textContent = text;
-  el.className = 'mic-status' + (cls ? ' ' + cls : '');
+  el.className = base + (cls ? ' ' + cls : '');
 }
 
 // Deliberately simple, not NLP: pulls every number out of what was heard, and treats
@@ -320,10 +321,20 @@ document.getElementById('voiceReviewCloseBtn').addEventListener('click', () => {
   renderVoiceReview();
 });
 
-async function toggleMic() {
-  const btn = document.getElementById('micBtn');
+// Shared by two buttons now: the one inside an already-open Add Sale/Expense
+// sheet (activeType set, statusId 'micStatus'), and the big "Tap and speak"
+// button on the home screen itself (no sheet open, activeType null, statusId
+// 'homeMicStatus'). Both go through the exact same record -> transcribe ->
+// extract pipeline, because extractEvents() already classifies sale vs
+// expense vs debt on its own from what was actually said - it never needed
+// activeType to work. activeType is only used below as a fallback for the
+// rare case extraction finds nothing at all, and only when a sheet is
+// actually open to fall back into.
+async function toggleMic(btn, statusId) {
+  btn = btn || document.getElementById('micBtn');
+  statusId = statusId || 'micStatus';
   if (!micSupported()) {
-    setMicStatus('Voice isn\u2019t available on this phone/browser \u2014 please type instead.', 'err');
+    setMicStatus('Voice isn\u2019t available on this phone/browser \u2014 please type instead.', 'err', statusId);
     return;
   }
   if (mediaRecorder && mediaRecorder.state === 'recording') {
@@ -338,35 +349,37 @@ async function toggleMic() {
     mediaRecorder.onstop = async () => {
       stream.getTracks().forEach(t => t.stop());
       btn.classList.remove('recording');
-      setMicStatus('Listening to what you said\u2026');
+      setMicStatus('Listening to what you said\u2026', null, statusId);
       try {
         const blob = new Blob(recordedChunks, { type: 'audio/webm' });
         const heard = await transcribeBlob(blob);
-        if (!heard.trim()) { track('mic_error', { reason: 'no_transcript' }); setMicStatus('Didn\u2019t catch that \u2014 try again, or type below.', 'err'); return; }
-        setMicStatus('Working out what happened\u2026');
+        if (!heard.trim()) { track('mic_error', { reason: 'no_transcript' }); setMicStatus('Didn\u2019t catch that \u2014 try again.', 'err', statusId); return; }
+        setMicStatus('Working out what happened\u2026', null, statusId);
         const events = await extractEvents(heard);
         track('voice_extracted', { event_count: events.length });
         if (events.length >= 1) {
           pendingVoiceEvents = events;
           renderVoiceReview();
           closeSheet();
-          setMicStatus(`Heard: \u201c${heard}\u201d \u2014 check each one below, then Save.`, 'heard');
-        } else {
+          setMicStatus(`Heard: \u201c${heard}\u201d \u2014 check each one below, then Save.`, 'heard', statusId);
+        } else if (activeType) {
           fillFields(parseHeardText(activeType, heard));
           sheetVoiceFilled = true;
-          setMicStatus(`Heard: \u201c${heard}\u201d \u2014 check the numbers below, then Save.`, 'heard');
+          setMicStatus(`Heard: \u201c${heard}\u201d \u2014 check the numbers below, then Save.`, 'heard', statusId);
+        } else {
+          setMicStatus(`Heard: \u201c${heard}\u201d \u2014 but couldn\u2019t work out what happened. Try again, saying an amount in cedis.`, 'err', statusId);
         }
       } catch (err) {
         track('mic_error', { reason: 'transcribe_failed' });
-        setMicStatus(err.message || 'Could not hear that \u2014 try again, or type below.', 'err');
+        setMicStatus(err.message || 'Could not hear that \u2014 try again.', 'err', statusId);
       }
     };
     mediaRecorder.start();
     btn.classList.add('recording');
     track('mic_start');
-    setMicStatus('Listening\u2026 tap again when you\u2019re done speaking.');
+    setMicStatus('Listening\u2026 tap again when you\u2019re done speaking.', null, statusId);
   } catch (err) {
-    setMicStatus('Couldn\u2019t reach the microphone \u2014 check phone permission, or type below.', 'err');
+    setMicStatus('Couldn\u2019t reach the microphone \u2014 check phone permission.', 'err', statusId);
   }
 }
 // Tracks how each entry was actually created (voice vs manual) - added 27 Aug
@@ -655,8 +668,16 @@ if (!('speechSynthesis' in window)) document.getElementById('hearBtn').style.dis
 document.getElementById('planPill').addEventListener('click', () => document.getElementById('planSheet').classList.add('open'));
 document.getElementById('planCloseBtn').addEventListener('click', () => document.getElementById('planSheet').classList.remove('open'));
 document.getElementById('exportBtn').addEventListener('click', exportBackup);
-document.getElementById('micBtn').addEventListener('click', toggleMic);
-if (!micSupported()) document.getElementById('micBtn').style.display = 'none';
+document.getElementById('micBtn').addEventListener('click', () => toggleMic(document.getElementById('micBtn'), 'micStatus'));
+document.getElementById('homeMicBtn').addEventListener('click', () => {
+  track('open_sheet', { type: 'home_mic' });
+  toggleMic(document.getElementById('homeMicBtn'), 'homeMicStatus');
+});
+if (!micSupported()) {
+  document.getElementById('micBtn').style.display = 'none';
+  document.getElementById('homeMicBtn').style.display = 'none';
+  document.querySelector('.or-row').style.display = 'none';
+}
 document.getElementById('shopIdInput').addEventListener('change', async (e) => {
   setShopId(e.target.value);
   ping('open');
