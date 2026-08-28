@@ -575,18 +575,29 @@ function track(event, params) {
   if (window.gtag) window.gtag('event', event, params || {});
 }
 
-// Sent only when a Shop ID is set - this is how Bobby, as owner, counts
-// distinct businesses and usage over time from server logs. Only a one-way
-// hash of the shop id and an event type ever leaves this call - never an
-// item, price, customer name, or the shop id itself in plain text (the
-// Worker hashes it before it touches storage). Fire-and-forget: never
-// blocks the UI, never retried, silently no-ops offline or on any failure -
-// this is a directional usage signal, not a source of truth for the
-// merchant's own ledger, which stays local per PRD.
+// Real gap found 28 Aug: tracking only ever fired once someone typed a Shop
+// ID in Settings - a real tester (a parent, a pilot shop owner) who never
+// touched that field was completely invisible to the owner dashboard, with
+// no error and no way to tell usage was happening at all. Fixed by always
+// having SOME id to ping with: a random id generated once per device and
+// kept in localStorage if no Shop ID is set. It carries no more information
+// than "device #N came back" - same one-way hash on the Worker side, same
+// no-item/no-price/no-name payload as before, nothing new about who someone
+// is. Setting a real Shop ID (e.g. "mum") still upgrades that from an
+// anonymous device to one the owner can look up by name via /admin/shop.
+function getDeviceId() {
+  let id = localStorage.getItem('kym_device_id');
+  if (!id) {
+    id = 'anon-' + crypto.randomUUID();
+    localStorage.setItem('kym_device_id', id);
+  }
+  return id;
+}
+
 function ping(eventType) {
   if (window.KYM_IS_OWNER_DEVICE) return; // see the ?owner=1 flag set in index.html
-  const shop = getShopId();
-  if (!shop || !navigator.onLine) return;
+  const shop = getShopId() || getDeviceId();
+  if (!navigator.onLine) return;
   fetch(`${API_BASE}/ping`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
