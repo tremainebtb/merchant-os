@@ -553,7 +553,25 @@ async function toggleMic(btn, statusId) {
     track('mic_start');
     setMicStatus('Listening\u2026 tap again when you\u2019re done speaking.', null, statusId);
   } catch (err) {
-    setMicStatus('Couldn\u2019t reach the microphone \u2014 check phone permission.', 'err', statusId);
+    // Real Clarity finding, 28 Aug: a real user hit this and got stuck - the
+    // old message ("check phone permission") assumes someone can read it AND
+    // already knows what a browser permission is and how to change one,
+    // neither of which holds for this audience. Split by the real cause and
+    // say it out loud too, since a text-only fix instruction is useless to
+    // someone who can't read it in the first place.
+    const msg = err.name === 'NotAllowedError'
+      ? 'This phone said no to the microphone. Go to your phone\u2019s Settings, find CountMy or your browser, and turn the microphone on. Or just type instead.'
+      : err.name === 'NotFoundError'
+      ? 'This phone/browser has no microphone available. Please type instead.'
+      : 'Couldn\u2019t reach the microphone \u2014 please type instead.';
+    setMicStatus(msg, 'err', statusId);
+    if ('speechSynthesis' in window) {
+      const utter = new SpeechSynthesisUtterance(msg);
+      utter.rate = 0.8;
+      speechSynthesis.cancel();
+      speechSynthesis.speak(utter);
+    }
+    track('mic_error', { reason: err.name || 'getusermedia_failed' });
   }
 }
 // Tracks how each entry was actually created (voice vs manual) - added 27 Aug
@@ -869,6 +887,46 @@ document.getElementById('shopIdInput').addEventListener('change', async (e) => {
 });
 window.addEventListener('online', () => { updateOfflineBadge(); refreshPaidStatus(); });
 window.addEventListener('offline', updateOfflineBadge);
+
+// Real Clarity finding, 28 Aug: a real user repeatedly tapped this badge with
+// zero response (it used to be pointer-events:none). Give the tap real
+// meaning instead of removing it - re-check connectivity and say the result
+// out loud in words, not just leave the same static line sitting there.
+document.getElementById('offlineBadge').addEventListener('click', function () {
+  if (navigator.onLine) {
+    this.textContent = 'Back online now - your records are safe.';
+    setTimeout(updateOfflineBadge, 2500);
+  } else {
+    this.textContent = 'Still no connection - don\'t worry, everything you add is saved on your phone.';
+  }
+});
+
+// Real Clarity finding, 28 Aug: multiple real users tapped the Today numbers
+// (Sales/Expenses/Customers owe me) expecting something to happen - dead
+// clicks, zero response. In a money app, tapping a total to see what's
+// behind it is the single most natural gesture there is. Rather than build a
+// new filter UI (more surface area to learn, against the "less confusion"
+// goal), reuse the exact pattern already proven for "Hear it": speak the
+// number aloud (works for someone who can't read it) and jump straight to
+// the real list of entries underneath, so the tap now does something real.
+document.querySelectorAll('.today-row.tappable').forEach(row => {
+  row.addEventListener('click', () => {
+    const label = row.getAttribute('data-speak');
+    const valueEl = row.querySelector('span[data-clarity-mask]');
+    const value = valueEl ? valueEl.textContent : '';
+    if ('speechSynthesis' in window) {
+      const utter = new SpeechSynthesisUtterance(`${label}: ${value}.`);
+      utter.rate = 0.8;
+      speechSynthesis.cancel();
+      speechSynthesis.speak(utter);
+    }
+    const histEl = document.getElementById('history');
+    histEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    histEl.classList.remove('history-flash');
+    void histEl.offsetWidth; // restart the animation if it just played
+    histEl.classList.add('history-flash');
+  });
+});
 // Re-render whenever the tab comes back into view - the real bug this fixes:
 // a shop owner who locks their phone at night with the app already open and
 // reopens it the next morning (without a full app close) was seeing yesterday's
@@ -889,3 +947,5 @@ document.addEventListener('visibilitychange', () => {
     navigator.serviceWorker.register('service-worker.js').catch(() => {});
   }
 })();
+
+// CANARY_TEST_12345

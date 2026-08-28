@@ -88,6 +88,11 @@ body{margin:0;background:var(--paper);color:var(--ink);font-family:"Work Sans",-
 .balance-amt.pos{color:var(--leaf-deep)}
 .balance-amt.neg{color:var(--brick)}
 .today-row{display:flex;justify-content:space-between;align-items:center;padding:7px 0}
+.today-row.tappable{cursor:pointer;border-radius:8px;margin:0 -8px;padding:7px 8px;transition:background .12s}
+.today-row.tappable:active{background:var(--flame-soft)}
+.today-row.balance.tappable:active{background:var(--leaf-soft)}
+.history-flash{animation:history-flash 1.1s ease-out}
+@keyframes history-flash{0%{background:var(--flame-soft)}100%{background:transparent}}
 .today-row span:first-child{color:var(--ink-soft);font-size:1.02rem}
 .today-row span:last-child{font-family:"IBM Plex Mono",monospace;font-weight:700;font-variant-numeric:tabular-nums}
 .today-row.balance{border-top:1px solid var(--rule);margin-top:6px;padding-top:12px}
@@ -187,8 +192,9 @@ input[type="number"]{-moz-appearance:textfield}
    recordings showed people repeatedly tapping this expecting something to
    happen, because it looked exactly like every other rounded colored control
    on the page. A plain left-border strip reads as a status line, not a control. */
-.offline-badge{display:none;background:none;border-left:3px solid var(--amber);color:var(--amber);font-size:.78rem;font-weight:700;padding:6px 0 6px 10px;margin-bottom:14px;pointer-events:none}
+.offline-badge{display:none;width:100%;background:none;border:none;border-left:3px solid var(--amber);color:var(--amber);font-family:inherit;font-size:.78rem;font-weight:700;text-align:left;padding:6px 0 6px 10px;margin-bottom:14px;cursor:pointer}
 .offline-badge.show{display:block}
+.offline-badge:active{background:var(--amber-soft)}
 /* Real, ground-truth input from the founder: an estimated 80% of the actual
    target audience (market traders his mother and aunts' age) never had
    formal schooling and cannot read or write. No amount of bigger, clearer
@@ -222,7 +228,12 @@ input[type="number"]{-moz-appearance:textfield}
 </head>
 <body>
 <div class="wrap">
-  <div id="offlineBadge" class="offline-badge">No connection &#x2014; still recording, saved on your phone.</div>
+  <!-- Real Clarity finding, 28 Aug: users tapped this repeatedly with zero
+       response - it looked like a button (rounded, colored, sits at the top)
+       but was a static div. A worried first-time user tapping something
+       labelled "No connection" and getting silence reads as broken, not
+       reassuring. Now a real button: tapping it re-checks and says so. -->
+  <button id="offlineBadge" type="button" class="offline-badge">No connection &#x2014; still recording, saved on your phone. Tap to check again.</button>
   <div class="brand-row">CountMy</div>
   <h1 class="pitch">Sold something today? Spent money? Speak it, or tap a button &#x2014; CountMy remembers it, so you don't have to.</h1>
 
@@ -231,10 +242,10 @@ input[type="number"]{-moz-appearance:textfield}
       <div class="today-label">Today</div>
       <button id="hearBtn" class="hear-btn">&#x1F50A; Hear it</button>
     </div>
-    <div class="today-row"><span>Sales</span><span id="tSales" data-clarity-mask="True">0 cedis</span></div>
-    <div class="today-row"><span>Expenses</span><span id="tExpenses" data-clarity-mask="True">0 cedis</span></div>
-    <div class="today-row"><span>Customers owe me</span><span id="tOwedMe" data-clarity-mask="True">0 cedis</span></div>
-    <div class="today-row balance"><span>Sales minus expenses<small class="today-hint">&#x2014; not what's owed to you, not cash count</small></span><span id="tBalance" class="balance-amt" data-clarity-mask="True">0 cedis</span></div>
+    <div class="today-row tappable" data-speak="Sales"><span>Sales</span><span id="tSales" data-clarity-mask="True">0 cedis</span></div>
+    <div class="today-row tappable" data-speak="Expenses"><span>Expenses</span><span id="tExpenses" data-clarity-mask="True">0 cedis</span></div>
+    <div class="today-row tappable" data-speak="Customers owe you"><span>Customers owe me</span><span id="tOwedMe" data-clarity-mask="True">0 cedis</span></div>
+    <div class="today-row balance tappable" data-speak="Sales minus expenses"><span>Sales minus expenses<small class="today-hint">&#x2014; not what's owed to you, not cash count</small></span><span id="tBalance" class="balance-amt" data-clarity-mask="True">0 cedis</span></div>
   </div>
 
   <button id="homeMicBtn" class="home-mic-btn" type="button" aria-label="Tap and speak what happened">
@@ -335,7 +346,7 @@ input[type="number"]{-moz-appearance:textfield}
      string is what forces a fresh script fetch even before any service worker logic
      runs, independent of it. Found live 27 Aug: without this, an already-visited
      browser can keep running old code from plain HTTP cache regardless of SW strategy. -->
-<script src="app.js?v=19"></script>
+<script src="app.js?v=20"></script>
 
 <!-- Analytics for the Silent Alpha pilot only (27 Aug) - added to observe real
      merchant behavior (what they tap first, voice vs manual usage), NOT to
