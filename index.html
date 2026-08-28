@@ -51,7 +51,13 @@
   --brick:#E08670; --brick-soft:#3A1F17; --amber:#E0B25C; --amber-soft:#2E2411;
 }
 *{box-sizing:border-box}
-body{margin:0;background:var(--paper);color:var(--ink);font-family:"Work Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;line-height:1.4}
+/* Base size bumped from the 16px browser default - real feedback (mum, five
+   aunties, all 60s-70s, several without formal schooling) said the app read
+   as "complicated" before anyone even reached a button. Small text is a tax
+   on top of everything else being new; nothing here should require good
+   close-up vision to read on a first look. */
+html{font-size:18px}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:"Work Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;line-height:1.45}
 .wrap{max-width:480px;margin:0 auto;padding:16px 16px 40px}
 /* Real feedback from 6 first-time users in the actual target age group (60s-70s):
    every one of them looked at the old page - brand name big, "Know your money"
@@ -70,16 +76,20 @@ body{margin:0;background:var(--paper);color:var(--ink);font-family:"Work Sans",-
 .balance-amt.pos{color:var(--leaf-deep)}
 .balance-amt.neg{color:var(--brick)}
 .today-row{display:flex;justify-content:space-between;align-items:center;padding:7px 0}
-.today-row span:first-child{color:var(--ink-soft);font-size:.92rem}
+.today-row span:first-child{color:var(--ink-soft);font-size:1.02rem}
 .today-row span:last-child{font-family:"IBM Plex Mono",monospace;font-weight:700;font-variant-numeric:tabular-nums}
 .today-row.balance{border-top:1px solid var(--rule);margin-top:6px;padding-top:12px}
 .today-row.balance span:first-child{color:var(--ink);font-weight:700}
-.today-row.balance span:last-child{font-size:1.5rem}
+.today-row.balance span:last-child{font-size:1.7rem}
 .today-hint{display:block;font-weight:400;font-size:.72rem;color:var(--muted);margin-top:1px}
 .actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:20px}
-.act-btn{font-family:"Manrope",sans-serif;border:none;border-radius:14px;padding:14px 10px;font-weight:700;font-size:.92rem;cursor:pointer;text-align:left;color:#fff;display:flex;align-items:center;gap:10px}
-.act-icon{flex:none;width:26px;height:26px}
-.act-btn small{display:block;font-weight:500;font-size:.72rem;opacity:.85;margin-top:2px}
+/* These four buttons ARE the app - everything else is secondary to them, so
+   they get the biggest icons and the most generous tap targets on the page,
+   not just bigger text. A big, unmistakable icon carries meaning on its own
+   for a reader who finds the English label slow going. */
+.act-btn{font-family:"Manrope",sans-serif;border:none;border-radius:14px;padding:18px 14px;min-height:76px;font-weight:700;font-size:1.05rem;cursor:pointer;text-align:left;color:#fff;display:flex;align-items:center;gap:12px}
+.act-icon{flex:none;width:34px;height:34px}
+.act-btn small{display:block;font-weight:500;font-size:.8rem;opacity:.9;margin-top:2px}
 .act-sale{background:var(--leaf)}
 .act-expense{background:var(--brick)}
 .act-owe-me{background:var(--amber)}
@@ -88,8 +98,8 @@ body{margin:0;background:var(--paper);color:var(--ink);font-family:"Work Sans",-
 .sheet.open{display:block}
 .sheet h2{font-family:"Manrope",sans-serif;font-size:1rem;margin:0 0 14px}
 .field{margin-bottom:12px}
-.field label{display:block;font-size:.82rem;color:var(--ink-soft);margin-bottom:5px;font-weight:600}
-.field input{width:100%;padding:12px;border:1px solid var(--rule);border-radius:10px;font-size:1rem;background:var(--paper)}
+.field label{display:block;font-size:.92rem;color:var(--ink-soft);margin-bottom:6px;font-weight:600}
+.field input{width:100%;padding:14px;border:1px solid var(--rule);border-radius:10px;font-size:1.1rem;background:var(--paper)}
 /* The native up/down spinner on number inputs reads as "tap these tiny arrows
    to count up one at a time" to a first-time user - the numeric keyboard from
    inputmode="decimal" is what's meant to be used instead, so the spinner is
@@ -97,7 +107,7 @@ body{margin:0;background:var(--paper);color:var(--ink);font-family:"Work Sans",-
 input[type="number"]::-webkit-outer-spin-button,
 input[type="number"]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
 input[type="number"]{-moz-appearance:textfield}
-.confirm-line{background:var(--leaf-soft);color:var(--leaf-deep);border-radius:10px;padding:12px;font-size:.92rem;margin-bottom:14px;font-weight:600;display:none}
+.confirm-line{background:var(--leaf-soft);color:var(--leaf-deep);border-radius:10px;padding:14px;font-size:1.05rem;margin-bottom:14px;font-weight:600;display:none}
 .confirm-line.show{display:block}
 .safety-block{background:var(--surface);border:1px solid var(--rule);border-radius:14px;padding:16px;margin-top:26px}
 .export-btn{width:100%;background:var(--paper);border:1px solid var(--rule);border-radius:12px;padding:12px;font-size:.86rem;font-weight:700;color:var(--ink);cursor:pointer}
@@ -120,8 +130,12 @@ input[type="number"]{-moz-appearance:textfield}
 .footer-row{max-width:480px;margin:16px auto 0;padding:0 16px 20px;display:flex;align-items:center;justify-content:center;gap:8px}
 .admin-close{background:none;border:none;color:var(--muted);font-size:1rem;cursor:pointer;padding:4px}
 .sheet-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:2px}
-.mic-btn{flex-shrink:0;width:52px;height:52px;border-radius:100px;border:none;background:var(--brick);color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,.15)}
-.mic-btn svg{width:24px;height:24px}
+/* Voice is the path that needs no reading or typing at all - the most useful
+   entry method for exactly the reader this pass is for, so it gets the most
+   visually inviting treatment on the sheet, not a small icon tucked in a
+   corner. */
+.mic-btn{flex-shrink:0;width:68px;height:68px;border-radius:100px;border:none;background:var(--brick);color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 3px 10px rgba(0,0,0,.18)}
+.mic-btn svg{width:30px;height:30px}
 .mic-btn.recording{background:var(--leaf-deep);animation:mic-pulse 1.1s ease-in-out infinite}
 @keyframes mic-pulse{0%,100%{box-shadow:0 0 0 0 rgba(45,106,79,.45)}50%{box-shadow:0 0 0 12px rgba(45,106,79,0)}}
 .mic-status{font-size:.86rem;color:var(--ink-soft);min-height:1.3em;margin-bottom:8px}
@@ -145,7 +159,7 @@ input[type="number"]{-moz-appearance:textfield}
 .voice-card-btns{display:flex;gap:10px;margin-top:12px}
 .voice-card-btns .btn{padding:10px}
 .sheet-btns{display:flex;gap:10px}
-.btn{flex:1;padding:13px;border-radius:10px;border:none;font-weight:700;font-size:.94rem;cursor:pointer}
+.btn{flex:1;padding:16px;min-height:56px;border-radius:10px;border:none;font-weight:700;font-size:1.05rem;cursor:pointer}
 .btn-save{background:var(--leaf);color:#fff}
 .btn-save:disabled{opacity:.6;cursor:default}
 .remind-btn{display:inline-block;margin-top:4px;font-size:.76rem;font-weight:700;color:var(--leaf-deep);background:var(--leaf-soft);padding:4px 9px;border-radius:100px;text-decoration:none}
