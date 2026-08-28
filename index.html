@@ -105,24 +105,8 @@ h1 .tagline{font-family:"Work Sans",sans-serif;font-size:.78rem;font-weight:500;
 .plan-pay-number:last-child{margin-bottom:0}
 .plan-pay-input{width:100%;font-weight:800;color:var(--leaf-deep);font-size:.98rem;background:var(--surface);border:1.5px solid var(--leaf);border-radius:8px;padding:8px 10px}
 .plan-note{font-size:.82rem;color:var(--muted);margin-bottom:14px}
-.footer-row{max-width:480px;margin:16px auto 0;padding:0 16px 20px;display:flex;align-items:center;justify-content:center;gap:8px;position:relative}
-.gear-btn{position:absolute;right:16px;background:none;border:none;color:var(--rule);font-size:1rem;cursor:pointer;padding:6px;line-height:1}
-/* Hidden by default &#x2014; not a labeled "owner only" bar sitting in view for anyone
-   holding the phone. Only opens on a deliberate tap of the small gear, and only
-   after the PIN if one is set (see openAdminBar in app.js). */
-.admin-bar{display:none;max-width:480px;margin:0 auto;padding:14px 16px 20px}
-.admin-bar.open{display:block}
-.admin-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
-.admin-header span{font-size:.74rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-weight:700}
+.footer-row{max-width:480px;margin:16px auto 0;padding:0 16px 20px;display:flex;align-items:center;justify-content:center;gap:8px}
 .admin-close{background:none;border:none;color:var(--muted);font-size:1rem;cursor:pointer;padding:4px}
-.admin-toggle{background:none;border:1px solid var(--rule);color:var(--ink-soft);border-radius:100px;padding:6px 12px;font-size:.76rem;font-weight:700;cursor:pointer}
-.lock-screen{display:none;position:fixed;inset:0;background:var(--paper);z-index:200;align-items:center;justify-content:center;padding:20px}
-.lock-screen.show{display:flex}
-.lock-box{max-width:320px;width:100%;text-align:center}
-.lock-title{font-family:"Manrope",sans-serif;font-weight:800;font-size:1.2rem;margin-bottom:8px}
-.lock-sub{font-size:.86rem;color:var(--ink-soft);margin-bottom:20px}
-.lock-input{width:100%;font-family:"IBM Plex Mono",monospace;font-size:1.8rem;letter-spacing:.5em;text-align:center;padding:14px 0 14px 1em;border:1.5px solid var(--rule);border-radius:12px;background:var(--surface);color:var(--ink)}
-.lock-error{color:var(--brick);font-size:.84rem;margin-top:10px;min-height:1.2em}
 .sheet-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:2px}
 .mic-btn{flex-shrink:0;width:52px;height:52px;border-radius:100px;border:none;background:var(--brick);color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,.15)}
 .mic-btn svg{width:24px;height:24px}
@@ -234,14 +218,14 @@ h1 .tagline{font-family:"Work Sans",sans-serif;font-size:.78rem;font-weight:500;
   </div>
 
   <div class="trust-block">
-    <div class="trust-line">&#x2713; Free &#x2014; no PIN ever asked &#x2014; no loans, just your records</div>
+    <div class="trust-line">&#x2713; Free forever &#x2014; no signup &#x2014; your records stay on your phone</div>
   </div>
 
-  <button id="planPill" class="plan-pill">Free &#xB7; last 7 days shown</button>
+  <button id="planPill" class="plan-pill">Free &#xB7; shows your last 7 days</button>
 
   <div id="planSheet" class="sheet plan-sheet">
-    <h2>See your full history</h2>
-    <p class="plan-copy">Free shows the last 7 days. Pay to keep everything, forever.</p>
+    <h2>See everything you've ever recorded</h2>
+    <p class="plan-copy">The app itself is always free. Free shows your last 7 days. Pay 99 cedis a month to see everything, going back as far as you've recorded.</p>
     <div class="plan-price"><span class="plan-amount">99 cedis</span><span class="plan-per">/month</span></div>
     <div class="plan-pay-box">
       <div class="plan-pay-label">Send by MoMo to</div>
@@ -249,33 +233,13 @@ h1 .tagline{font-family:"Work Sans",sans-serif;font-size:.78rem;font-weight:500;
       <div class="plan-pay-label">Reference &#x2014; type your shop name</div>
       <input id="shopIdInput" class="plan-pay-input" type="text" autocomplete="off" placeholder="e.g. mama ama provisions" data-clarity-mask="True">
     </div>
-    <p class="plan-note">We turn on Paid the same day we see it. We never call or message asking for your PIN.</p>
+    <p class="plan-note">We turn on Paid the same day we see it. We never call or message asking for your MoMo PIN.</p>
     <button id="planCloseBtn" class="btn btn-cancel" style="width:100%">Close</button>
   </div>
 </div>
 
 <div class="footer-row">
   <footer class="site-footer">CountMy &#x2014; a free tool for Ghanaian shop owners, nothing more.</footer>
-  <button id="gearBtn" class="gear-btn" aria-label="Lock this app">&#x1F512;</button>
-</div>
-
-<div id="adminBar" class="admin-bar">
-  <div class="admin-header">
-    <span>Keep your numbers private</span>
-    <button id="adminCloseBtn" class="admin-close">&#x2715;</button>
-  </div>
-  <div style="display:flex;gap:8px">
-    <button id="pinToggle" class="admin-toggle">Set a PIN</button>
-  </div>
-</div>
-
-<div id="lockScreen" class="lock-screen">
-  <div class="lock-box">
-    <div class="lock-title">Enter PIN</div>
-    <div class="lock-sub">This shop's owner locked these numbers. Enter your 4-digit PIN to continue.</div>
-    <input id="lockInput" class="lock-input" type="tel" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off" data-clarity-mask="True">
-    <div id="lockError" class="lock-error"></div>
-  </div>
 </div>
 
 <!-- Bump ?v= on every deploy alongside the service-worker CACHE version &#x2014; this query

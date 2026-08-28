@@ -529,7 +529,7 @@ async function refreshPaidStatus() {
 
 function renderAdmin() {
   const paid = isPaid();
-  document.getElementById('planPill').textContent = paid ? 'Paid \u00b7 full history unlocked' : 'Free \u00b7 last 7 days shown';
+  document.getElementById('planPill').textContent = paid ? 'Paid \u00b7 everything you have recorded' : 'Free \u00b7 shows your last 7 days';
   const shopInput = document.getElementById('shopIdInput');
   if (shopInput && document.activeElement !== shopInput) shopInput.value = getShopId();
 }
@@ -601,101 +601,34 @@ function speakToday() {
   speechSynthesis.speak(utter);
 }
 
-// Real, evidence-backed threat this closes: Ghanaian shop owners routinely hand
-// their phone to a customer to show a product photo on WhatsApp \u2014 the customer can
-// then swipe back and see the shop's daily revenue. This is a screen-lock deterrent,
-// not real security: the PIN is stored in plain localStorage, no encryption, nothing
-// server-side. Honest about that limit, not pretending it's more than it is. Optional
-// and off by default \u2014 no forced registration wall.
-function getPin() { return localStorage.getItem('kym_pin') || ''; }
-function setPin(p) { if (p) localStorage.setItem('kym_pin', p); else localStorage.removeItem('kym_pin'); }
+// PIN/lock removed entirely (28 Aug) - it contradicted the app's own trust promise
+// ("no PIN ever asked") and real users found it confusing rather than reassuring,
+// with no offsetting benefit strong enough to justify the friction. Nothing reads
+// getPin()/kym_pin any more; the value is simply never set again.
 
-function showLock() {
-  const pin = getPin();
-  if (!pin) return;
-  const lock = document.getElementById('lockScreen');
-  lock.classList.add('show');
-  const input = document.getElementById('lockInput');
-  input.value = '';
-  document.getElementById('lockError').textContent = '';
-  setTimeout(() => input.focus(), 50);
-}
-
-let pendingAdminReveal = false;
-
-function tryUnlock() {
-  const input = document.getElementById('lockInput');
-  if (input.value.length !== 4) return;
-  if (input.value === getPin()) {
-    document.getElementById('lockScreen').classList.remove('show');
-    if (pendingAdminReveal) { pendingAdminReveal = false; document.getElementById('adminBar').classList.add('open'); }
-  } else {
-    document.getElementById('lockError').textContent = 'Wrong PIN \u2014 try again.';
-    input.value = '';
-  }
-}
-
-// The gear is deliberately unlabeled and tiny \u2014 not a bar sitting in view for
-// anyone holding the phone. If a PIN is set, opening owner settings requires it,
-// same as viewing history \u2014 someone glancing at the phone shouldn't be able to
-// toggle billing state or change the PIN without knowing it.
-function openAdminBar() {
-  if (getPin()) { pendingAdminReveal = true; showLock(); }
-  else { document.getElementById('adminBar').classList.add('open'); }
-}
-function closeAdminBar() { document.getElementById('adminBar').classList.remove('open'); }
-
-function updatePinToggle() {
-  const btn = document.getElementById('pinToggle');
-  btn.textContent = getPin() ? '\u{1F512} Remove PIN' : 'Set a PIN';
-}
-
-// Real answer to "what if the phone is lost" without building a sync backend \u2014
-// a plain CSV the merchant can save, WhatsApp to themselves, or hand to anyone
-// (accountant, family) who wants to open it. No account, no server, no new cost.
-//
-// The file format stays CSV under the hood (an accountant can open it, and it's
-// free to generate) but a plain a.download link is the wrong delivery mechanism
-// for this audience \u2014 it depends on a merchant knowing what a Downloads folder
-// or a .csv file even is, and on many phones an installed PWA won't reliably
-// trigger that download at all. The Web Share API instead opens the exact same
-// "share to WhatsApp / Save to Files" sheet a merchant already uses to share a
-// photo, so backing up is one familiar tap, not a file-management lesson. Falls
-// back to the old download link only where file sharing genuinely isn't
-// supported (mainly desktop browsers, where "find the file" is normal).
+// Real answer to "what if the phone is lost" without building a sync backend or
+// asking a Makola market trader to understand a file system. WhatsApp is the one
+// app almost every Ghanaian shop owner already knows how to use, so this opens
+// WhatsApp directly with a plain, readable list of records pre-filled - no OS
+// share-sheet picker (AirDrop/Messages/Mail/etc, which tested as genuinely
+// confusing for older, less tech-familiar users), no file, no "what is a CSV."
+// She sends it to herself or a family member and that's the backup, done.
 async function exportBackup() {
   const entries = await getAllEntries();
   if (!entries.length) { alert('Nothing to back up yet.'); return; }
-  const rows = [['Date', 'Type', 'Description', 'Amount (cedis)', 'How it was entered']];
-  const typeLabel = { sale: 'Sale', expense: 'Expense', debt_in: 'Customer owes me', debt_out: 'I owe supplier' };
-  entries.slice().reverse().forEach(e => {
+  const typeLabel = { sale: 'Sale', expense: 'Expense', debt_in: 'Owed to me', debt_out: 'I owe' };
+  const ordered = entries.slice().reverse(); // oldest first, reads like a diary
+  const MAX_LINES = 200; // keeps the WhatsApp message and its URL a sane length
+  const shown = ordered.length > MAX_LINES ? ordered.slice(-MAX_LINES) : ordered;
+  const lines = shown.map(e => {
     const cfg = FIELD_CONFIG[e.type];
-    const when = new Date(e.ts).toLocaleString('en-GH', { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' });
-    const csvSafe = s => '"' + String(s).replace(/"/g, '""') + '"';
-    rows.push([when, typeLabel[e.type], csvSafe(cfg.desc(e)), e.amount, e.source === 'voice' ? 'Voice' : 'Typed']);
+    const when = new Date(e.ts).toLocaleDateString('en-GH', { day: 'numeric', month: 'short' });
+    return `${when} - ${typeLabel[e.type]}: ${cfg.desc(e)} - ${fmt(e.amount)}`;
   });
-  const csv = rows.map(r => r.join(',')).join('\n');
-  const shopName = getShopId() || 'my-shop';
-  const filename = `${shopName}-records-${todayKey(Date.now())}.csv`;
-  const file = new File([csv], filename, { type: 'text/csv' });
-
-  if (navigator.canShare && navigator.canShare({ files: [file] })) {
-    try {
-      await navigator.share({ files: [file], title: 'My shop records' });
-      return;
-    } catch (err) {
-      if (err && err.name === 'AbortError') return; // merchant closed the share sheet \u2014 not a failure
-      // any other failure falls through to the download link below
-    }
-  }
-  const url = URL.createObjectURL(file);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
+  const shopName = getShopId() || 'My shop';
+  const truncNote = shown.length < ordered.length ? ` (most recent ${MAX_LINES})` : '';
+  const text = `${shopName} records${truncNote}:\n\n${lines.join('\n')}`;
+  window.open('https://wa.me/?text=' + encodeURIComponent(text), '_blank');
 }
 
 function updateOfflineBadge() {
@@ -711,19 +644,6 @@ document.getElementById('hearBtn').addEventListener('click', speakToday);
 if (!('speechSynthesis' in window)) document.getElementById('hearBtn').style.display = 'none';
 document.getElementById('planPill').addEventListener('click', () => document.getElementById('planSheet').classList.add('open'));
 document.getElementById('planCloseBtn').addEventListener('click', () => document.getElementById('planSheet').classList.remove('open'));
-document.getElementById('gearBtn').addEventListener('click', openAdminBar);
-document.getElementById('adminCloseBtn').addEventListener('click', closeAdminBar);
-document.getElementById('pinToggle').addEventListener('click', () => {
-  if (getPin()) {
-    setPin('');
-  } else {
-    const p = prompt('Set a 4-digit PIN. You will need it to open this shop\'s numbers again.');
-    if (p && /^\d{4}$/.test(p)) setPin(p);
-    else if (p) alert('PIN must be exactly 4 digits.');
-  }
-  updatePinToggle();
-});
-document.getElementById('lockInput').addEventListener('input', tryUnlock);
 document.getElementById('exportBtn').addEventListener('click', exportBackup);
 document.getElementById('micBtn').addEventListener('click', toggleMic);
 if (!micSupported()) document.getElementById('micBtn').style.display = 'none';
@@ -735,17 +655,19 @@ document.getElementById('shopIdInput').addEventListener('change', async (e) => {
 });
 window.addEventListener('online', () => { updateOfflineBadge(); refreshPaidStatus(); });
 window.addEventListener('offline', updateOfflineBadge);
-// Lock whenever the tab comes back into view \u2014 covers "handed the phone to a
-// customer, they swiped back to the browser" and "phone was asleep in a pocket."
+// Re-render whenever the tab comes back into view - the real bug this fixes:
+// a shop owner who locks their phone at night with the app already open and
+// reopens it the next morning (without a full app close) was seeing yesterday's
+// "Today" totals frozen on screen, because render() only ever ran at load and
+// after a save. Today's date, and everything derived from it, is now always
+// recomputed the moment the app is looked at again.
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible') showLock();
+  if (document.visibilityState === 'visible') render();
 });
 
 (async function init() {
   db = await openDB();
   updateOfflineBadge();
-  updatePinToggle();
-  showLock();
   await render();
   refreshPaidStatus();
   ping('open');
