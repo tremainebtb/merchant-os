@@ -8,6 +8,12 @@
 <meta name="theme-color" content="#D9541A">
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
+<!-- Some browser/OS surfaces (bookmarks bars, older WebViews, some Android
+     home-screen flows) ignore the <link> above and request /favicon.ico
+     directly regardless - that path 404'd (verified live), and a repeatedly
+     failing icon fetch is a real, documented cause of a flickering/blinking
+     placeholder in exactly those surfaces. Added as a real file, not a guess. -->
+<link rel="shortcut icon" href="favicon.ico">
 
 <!-- Open Graph / Twitter Card - added 27 Aug so sending countmy.app in WhatsApp,
      iMessage, Slack etc actually shows a title, description, and preview image
@@ -323,7 +329,7 @@ input[type="number"]{-moz-appearance:textfield}
      string is what forces a fresh script fetch even before any service worker logic
      runs, independent of it. Found live 27 Aug: without this, an already-visited
      browser can keep running old code from plain HTTP cache regardless of SW strategy. -->
-<script src="app.js?v=13"></script>
+<script src="app.js?v=14"></script>
 
 <!-- Analytics for the Silent Alpha pilot only (27 Aug) - added to observe real
      merchant behavior (what they tap first, voice vs manual usage), NOT to
