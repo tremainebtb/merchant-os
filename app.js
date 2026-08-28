@@ -89,16 +89,32 @@ const FIELD_CONFIG = {
   },
   expense: {
     title: 'Add expense',
+    // Real problem, flagged independently by two separate strategy reviews,
+    // 28 Aug: with only one "Expense" bucket, buying 2,000 cedis of stock to
+    // resell later looked identical to losing 2,000 cedis - "Sales minus
+    // expenses" would show a huge loss on restock day even though nothing
+    // was actually lost. This new choice splits the two without adding real
+    // complexity: two big tap targets, not a dropdown or an accounting term
+    // to learn. Missing/old entries (voice-created, or saved before this
+    // existed) default to "running" - the exact same math as before, so no
+    // historical entry silently changes meaning.
     fields: [
       { key: 'item', label: 'What did you spend on?', type: 'text' },
-      { key: 'price', label: 'Amount (cedis)', type: 'number' }
+      { key: 'price', label: 'Amount (cedis)', type: 'number' },
+      {
+        key: 'kind', label: 'What kind of spend?', type: 'choice', default: 'running',
+        options: [
+          { value: 'running', label: 'Shop running cost' },
+          { value: 'stock', label: 'Stock to sell again' }
+        ]
+      }
     ],
     compute: v => Number(v.price) || 0,
     confirm: v => {
       if (!v.item || !v.price) return '';
       return `${v.item} \u2014 ${fmt(v.price)}`;
     },
-    desc: v => v.item,
+    desc: v => v.item + (v.kind === 'stock' ? ' (stock)' : ''),
     amountSign: -1
   },
   debt_in: {
@@ -636,13 +652,39 @@ function openSheet(type) {
   const cfg = FIELD_CONFIG[type];
   document.getElementById('sheetTitle').textContent = cfg.title;
   const fieldsEl = document.getElementById('fields');
-  fieldsEl.innerHTML = cfg.fields.map(f => `
+  fieldsEl.innerHTML = cfg.fields.map(f => {
+    if (f.type === 'choice') {
+      return `
+        <div class="field">
+          <label>${f.label}</label>
+          <input type="hidden" data-key="${f.key}" value="${f.default || ''}">
+          <div class="choice-row">
+            ${f.options.map(o => `<button type="button" class="choice-btn${o.value === f.default ? ' active' : ''}" data-value="${o.value}">${o.label}</button>`).join('')}
+          </div>
+        </div>
+      `;
+    }
+    return `
     <div class="field">
       <label>${f.label}</label>
       <input type="${f.type}" inputmode="${f.type === 'number' ? 'decimal' : 'text'}" data-key="${f.key}" autocomplete="off" data-clarity-mask="True">
     </div>
-  `).join('');
+  `;
+  }).join('');
   fieldsEl.querySelectorAll('input').forEach(inp => inp.addEventListener('input', updateConfirm));
+  // Choice fields render as two big tap targets rather than a dropdown or
+  // radio buttons - consistent with every other either/or decision in this
+  // app, and doesn't require reading/understanding an unfamiliar UI control.
+  fieldsEl.querySelectorAll('.choice-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const row = btn.parentElement;
+      const hiddenInput = row.previousElementSibling;
+      row.querySelectorAll('.choice-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      hiddenInput.value = btn.dataset.value;
+      hiddenInput.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+  });
   document.getElementById('confirmLine').classList.remove('show');
   document.getElementById('saveBtn').disabled = true;
   setMicStatus('Tap the mic and say ONE item and its price, then check the numbers before saving.');
@@ -711,6 +753,7 @@ async function saveEntry() {
       note: v.note || '',
       qty: v.qty || '',
       price: v.price || '',
+      kind: v.kind || '',
       amount: amount,
       source: sheetVoiceFilled ? 'voice' : 'manual',
       day: todayKey(ts),
@@ -785,19 +828,27 @@ async function render() {
   renderAdmin();
 
   const sales = todayEntries.filter(e => e.type === 'sale').reduce((s, e) => s + e.amount, 0);
-  const expenses = todayEntries.filter(e => e.type === 'expense').reduce((s, e) => s + e.amount, 0);
+  // Split 28 Aug: buying stock to resell isn't a loss, but it used to be
+  // lumped into the same "expenses" total that gets subtracted from sales -
+  // a restock day could show as a huge loss that never actually happened.
+  // Anything not explicitly tagged "stock" (including every entry saved
+  // before this existed, and every voice-created entry) counts as a running
+  // cost - the exact same math as before, nothing silently changes.
+  const expenses = todayEntries.filter(e => e.type === 'expense' && e.kind !== 'stock').reduce((s, e) => s + e.amount, 0);
+  const stockBought = todayEntries.filter(e => e.type === 'expense' && e.kind === 'stock').reduce((s, e) => s + e.amount, 0);
   const owedMe = entries.filter(e => e.type === 'debt_in').reduce((s, e) => s + e.amount, 0)
                - entries.filter(e => e.type === 'debt_in' && e.settled).reduce((s, e) => s + e.amount, 0);
   const balance = sales - expenses;
 
   document.getElementById('tSales').textContent = fmt(sales);
   document.getElementById('tExpenses').textContent = fmt(expenses);
+  document.getElementById('tStock').textContent = fmt(stockBought);
   document.getElementById('tOwedMe').textContent = fmt(owedMe);
   const balanceEl = document.getElementById('tBalance');
   balanceEl.textContent = fmt(balance);
   balanceEl.classList.toggle('pos', balance >= 0);
   balanceEl.classList.toggle('neg', balance < 0);
-  window._kymToday = { sales, expenses, owedMe, balance };
+  window._kymToday = { sales, expenses, stockBought, owedMe, balance };
 
   const histEl = document.getElementById('history');
   if (!entries.length) {
@@ -830,11 +881,12 @@ async function render() {
 // first, not an invented script.
 function speakToday() {
   if (!('speechSynthesis' in window)) return;
-  const t = window._kymToday || { sales: 0, expenses: 0, owedMe: 0, balance: 0 };
+  const t = window._kymToday || { sales: 0, expenses: 0, stockBought: 0, owedMe: 0, balance: 0 };
   // Matches the on-screen labels word for word \u2014 hearing something different from
   // what's on the screen is confusing, not helpful. Short, plain sentences, slow
   // pace \u2014 this is read aloud, not read silently.
-  const text = `Today. Sales: ${fmt(t.sales)}. Expenses: ${fmt(t.expenses)}. `
+  const stockLine = t.stockBought > 0 ? `Stock bought: ${fmt(t.stockBought)}. ` : '';
+  const text = `Today. Sales: ${fmt(t.sales)}. Expenses: ${fmt(t.expenses)}. ${stockLine}`
     + `Customers owe you: ${fmt(t.owedMe)}. Sales minus expenses: ${fmt(t.balance)}.`;
   const utter = new SpeechSynthesisUtterance(text);
   utter.rate = 0.8;

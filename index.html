@@ -144,6 +144,9 @@ body{margin:0;background:var(--paper);color:var(--ink);font-family:"Work Sans",-
 .field{margin-bottom:12px}
 .field label{display:block;font-size:.92rem;color:var(--ink-soft);margin-bottom:6px;font-weight:600}
 .field input{width:100%;padding:14px;border:1px solid var(--rule);border-radius:10px;font-size:1.1rem;background:var(--paper);color:var(--ink)}
+.choice-row{display:flex;gap:10px}
+.choice-btn{flex:1;padding:14px 8px;border:1.5px solid var(--rule);border-radius:10px;background:var(--surface);color:var(--ink-soft);font-family:inherit;font-size:.94rem;font-weight:700;cursor:pointer}
+.choice-btn.active{border-color:var(--leaf);background:var(--leaf-soft);color:var(--leaf-deep)}
 /* The native up/down spinner on number inputs reads as "tap these tiny arrows
    to count up one at a time" to a first-time user - the numeric keyboard from
    inputmode="decimal" is what's meant to be used instead, so the spinner is
@@ -279,8 +282,14 @@ input[type="number"]{-moz-appearance:textfield}
     </div>
     <div class="today-row tappable" data-speak="Sales"><span>Sales</span><span id="tSales" data-clarity-mask="True">0 cedis</span></div>
     <div class="today-row tappable" data-speak="Expenses"><span>Expenses</span><span id="tExpenses" data-clarity-mask="True">0 cedis</span></div>
+    <!-- Real problem, flagged independently by two separate strategy reviews,
+         28 Aug: buying stock to resell isn't a loss, but it used to be
+         counted the same as an expense - a restock day could show as a huge
+         loss that never happened. Shown as its own line, kept OUT of the
+         balance below. -->
+    <div class="today-row tappable" data-speak="Stock bought"><span>Stock bought</span><span id="tStock" data-clarity-mask="True">0 cedis</span></div>
     <div class="today-row tappable" data-speak="Customers owe you"><span>Customers owe me</span><span id="tOwedMe" data-clarity-mask="True">0 cedis</span></div>
-    <div class="today-row balance tappable" data-speak="Sales minus expenses"><span>Sales minus expenses<small class="today-hint">&#x2014; not what's owed to you, not cash count</small></span><span id="tBalance" class="balance-amt" data-clarity-mask="True">0 cedis</span></div>
+    <div class="today-row balance tappable" data-speak="Sales minus expenses"><span>Sales minus expenses<small class="today-hint">&#x2014; not what's owed to you, not cash count, not counting stock you bought</small></span><span id="tBalance" class="balance-amt" data-clarity-mask="True">0 cedis</span></div>
   </div>
 
   <button id="homeMicBtn" class="home-mic-btn" type="button" aria-label="Tap and speak what happened">
@@ -410,7 +419,7 @@ input[type="number"]{-moz-appearance:textfield}
      string is what forces a fresh script fetch even before any service worker logic
      runs, independent of it. Found live 27 Aug: without this, an already-visited
      browser can keep running old code from plain HTTP cache regardless of SW strategy. -->
-<script src="app.js?v=22"></script>
+<script src="app.js?v=23"></script>
 
 <!-- Analytics for the Silent Alpha pilot only (27 Aug) - added to observe real
      merchant behavior (what they tap first, voice vs manual usage), NOT to
