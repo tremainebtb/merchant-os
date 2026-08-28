@@ -359,6 +359,51 @@ document.getElementById('voiceReviewCloseBtn').addEventListener('click', () => {
 // was actually said, so this never needed activeType to work; activeType is
 // only used below as a fallback for the rare case a sheet happens to be
 // open (e.g. a merchant typing) and extraction finds nothing at all.
+// Live proof-of-capture bars under the mic button, added after real
+// testing feedback: without ANY visible reaction while speaking, a
+// silent failure (bad permission, muted input, wrong device selected at
+// the OS level) looks identical to the app just working normally - the
+// only signal was a status line appearing after the fact, which requires
+// reading. Five bars driven by actual mic input level via Web Audio's
+// AnalyserNode - if you speak and they don't move, the problem is
+// provably before this app (OS mic permission/mute), not in it.
+let micLevelCtx = null;
+let micLevelRaf = null;
+function startMicLevelMeter(stream) {
+  const meter = document.getElementById('micLevelMeter');
+  if (!meter || typeof AudioContext === 'undefined' && typeof webkitAudioContext === 'undefined') return;
+  try {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    micLevelCtx = new Ctx();
+    const source = micLevelCtx.createMediaStreamSource(stream);
+    const analyser = micLevelCtx.createAnalyser();
+    analyser.fftSize = 256;
+    source.connect(analyser);
+    const data = new Uint8Array(analyser.frequencyBinCount);
+    const bars = meter.querySelectorAll('span');
+    const tick = () => {
+      analyser.getByteFrequencyData(data);
+      const avg = data.reduce((s, v) => s + v, 0) / data.length;
+      bars.forEach((bar, i) => {
+        const jitter = 0.7 + (i % 3) * 0.15;
+        const h = Math.max(6, Math.min(22, avg * jitter * 0.7));
+        bar.style.height = h + 'px';
+      });
+      micLevelRaf = requestAnimationFrame(tick);
+    };
+    tick();
+  } catch (err) {
+    micLevelCtx = null; // meter is purely cosmetic - never block recording if this fails
+  }
+}
+function stopMicLevelMeter() {
+  if (micLevelRaf) cancelAnimationFrame(micLevelRaf);
+  micLevelRaf = null;
+  if (micLevelCtx) { micLevelCtx.close().catch(() => {}); micLevelCtx = null; }
+  const meter = document.getElementById('micLevelMeter');
+  if (meter) meter.querySelectorAll('span').forEach(bar => bar.style.height = '6px');
+}
+
 async function toggleMic(btn, statusId) {
   if (!micSupported()) {
     setMicStatus('Voice isn\u2019t available on this phone/browser \u2014 please type instead.', 'err', statusId);
@@ -371,6 +416,7 @@ async function toggleMic(btn, statusId) {
   try {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     recordedChunks = [];
+    startMicLevelMeter(stream);
     // Real bug, found by testing the live transcription endpoint directly
     // with real audio and confirming the server side works correctly: the
     // recorded blob was always hardcoded to 'audio/webm' regardless of what
@@ -387,6 +433,7 @@ async function toggleMic(btn, statusId) {
     mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) recordedChunks.push(e.data); };
     mediaRecorder.onstop = async () => {
       stream.getTracks().forEach(t => t.stop());
+      stopMicLevelMeter();
       btn.classList.remove('recording');
       setMicStatus('Listening to what you said\u2026', null, statusId);
       // If nothing was actually captured (mic muted at the OS level, a
