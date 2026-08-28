@@ -31,10 +31,16 @@
 <style>
 /* Same design system as the landing page &#x2014; one product, one identity. */
 :root{
-  --paper:#F8F3EC; --surface:#FFFFFF; --ink:#221A12; --ink-soft:#5C5142; --muted:#8C8172;
+  /* --muted and --amber measured and darkened from the original palette (was
+     3.46:1 and 4.08:1 against paper - both fail WCAG AA's 4.5:1 for normal
+     text) to 5.3:1 and 4.9-5.1:1, verified by computing real luminance
+     contrast, not eyeballed. This matters more than usual here: most of this
+     audience uses the app outdoors, in direct sun, where borderline contrast
+     that reads fine on an indoor screen washes out to unreadable. */
+  --paper:#F8F3EC; --surface:#FFFFFF; --ink:#221A12; --ink-soft:#5C5142; --muted:#6E6353;
   --rule:#E7DDCD; --flame:#D9541A; --flame-deep:#A83F12; --flame-soft:#FBE3D2;
   --leaf:#1B7A43; --leaf-deep:#125C32; --leaf-soft:#E1F2E7;
-  --brick:#A83F2E; --brick-soft:#F6E1DC; --amber:#9C6B12; --amber-soft:#FBEFD9;
+  --brick:#A83F2E; --brick-soft:#F6E1DC; --amber:#8C5F0F; --amber-soft:#FBEFD9;
 }
 @media (prefers-color-scheme: dark){
   :root:not([data-theme="light"]){
