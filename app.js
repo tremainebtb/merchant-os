@@ -430,6 +430,7 @@ async function toggleMic(btn, statusId) {
     const supportedMime = mimeCandidates.find(m => window.MediaRecorder.isTypeSupported && window.MediaRecorder.isTypeSupported(m));
     mediaRecorder = supportedMime ? new MediaRecorder(stream, { mimeType: supportedMime }) : new MediaRecorder(stream);
     const actualMime = mediaRecorder.mimeType || supportedMime || 'audio/webm';
+    const recordingStartedAt = Date.now();
     mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) recordedChunks.push(e.data); };
     mediaRecorder.onstop = async () => {
       stream.getTracks().forEach(t => t.stop());
@@ -447,10 +448,25 @@ async function toggleMic(btn, statusId) {
         setMicStatus('No sound was recorded \u2014 check your phone isn\u2019t muted, then try again.', 'err', statusId);
         return;
       }
+      // Real reported symptom, 28 Aug: recordings that DO have bytes (so the
+      // guard above doesn't fire) but transcribe to empty text every time,
+      // consistently, across three different devices - the exact fingerprint
+      // of tapping stop before actually finishing a full word, since a
+      // fraction-of-a-second clip has audio energy but no complete speech for
+      // Whisper to find. Give a targeted hint instead of the generic
+      // "didn't catch that", which reads as a mysterious black box.
+      const recordedMs = Date.now() - recordingStartedAt;
       try {
         const blob = new Blob(recordedChunks, { type: actualMime });
         const heard = await transcribeBlob(blob);
-        if (!heard.trim()) { track('mic_error', { reason: 'no_transcript' }); setMicStatus('Didn\u2019t catch that \u2014 try again.', 'err', statusId); return; }
+        if (!heard.trim()) {
+          track('mic_error', { reason: 'no_transcript', duration_ms: recordedMs });
+          const msg = recordedMs < 1200
+            ? 'That was too quick \u2014 tap once, say what happened out loud, THEN tap again to stop.'
+            : 'Didn\u2019t catch any words \u2014 hold the phone closer and speak clearly, then try again.';
+          setMicStatus(msg, 'err', statusId);
+          return;
+        }
         setMicStatus('Working out what happened\u2026', null, statusId);
         const events = await extractEvents(heard);
         track('voice_extracted', { event_count: events.length });
