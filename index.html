@@ -126,6 +126,11 @@ input[type="number"]{-moz-appearance:textfield}
 .plan-pay-number:last-child{margin-bottom:0}
 .plan-pay-input{width:100%;font-weight:800;color:var(--leaf-deep);font-size:.98rem;background:var(--surface);border:1.5px solid var(--leaf);border-radius:8px;padding:8px 10px}
 .plan-pay-hint{font-size:.76rem;color:var(--leaf-deep);opacity:.8;margin-top:6px}
+/* Asking anyone in Ghana to send money by MoMo is the single highest-risk
+   moment in the whole app for reading as a scam - MoMo PIN-theft fraud is
+   common and well-known, so the reassurance against exactly that pattern
+   needs to be impossible to miss, not a small gray line easy to skip past. */
+.plan-safety{display:flex;gap:8px;align-items:flex-start;background:var(--amber-soft);color:var(--amber);border-radius:10px;padding:12px 14px;font-size:.86rem;font-weight:600;line-height:1.5;margin-bottom:12px}
 .plan-note{font-size:.82rem;color:var(--muted);margin-bottom:14px}
 .footer-row{max-width:480px;margin:16px auto 0;padding:0 16px 20px;display:flex;align-items:center;justify-content:center;gap:8px}
 .admin-close{background:none;border:none;color:var(--muted);font-size:1rem;cursor:pointer;padding:4px}
@@ -189,10 +194,16 @@ input[type="number"]{-moz-appearance:textfield}
    between four English labels. Tapping and typing still work underneath -
    this doesn't remove a path, it puts the path that needs no reading or
    writing at all first, where it belongs for this audience. */
-.home-mic-btn{width:100%;display:flex;flex-direction:column;align-items:center;gap:10px;background:var(--brick);color:#fff;border:none;border-radius:20px;padding:26px 16px;cursor:pointer;margin-bottom:14px;box-shadow:0 4px 14px rgba(0,0,0,.18)}
+/* Flame, not brick - the app's own signature color (see theme-color, the
+   logo), not the red the ledger uses elsewhere for expenses/danger. A
+   stranger's app asking you to talk into your phone in bold alarm-red reads
+   as a scam prompt before anyone reads a word of the label; the brand's own
+   warm terracotta stays bold and inviting without that association. */
+.home-mic-btn{width:100%;display:flex;flex-direction:column;align-items:center;gap:10px;background:var(--flame);color:#fff;border:none;border-radius:20px;padding:26px 16px;cursor:pointer;margin-bottom:10px;box-shadow:0 4px 14px rgba(0,0,0,.18)}
 .home-mic-btn svg{width:46px;height:46px}
 .home-mic-btn.recording{background:var(--leaf-deep);animation:mic-pulse 1.1s ease-in-out infinite}
 .home-mic-label{font-family:"Manrope",sans-serif;font-weight:800;font-size:1.15rem}
+.mic-trust-line{text-align:center;font-size:.82rem;font-weight:600;color:var(--leaf-deep);margin-bottom:14px}
 .home-mic-status{min-height:1.4em;text-align:center;font-size:.95rem;color:var(--ink-soft);margin-bottom:14px}
 .home-mic-status.heard{color:var(--leaf-deep);font-weight:600}
 .home-mic-status.err{color:var(--brick);font-weight:600}
@@ -221,6 +232,7 @@ input[type="number"]{-moz-appearance:textfield}
     <svg viewBox="0 0 24 24" fill="none"><path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3Z" stroke="currentColor" stroke-width="2"/><path d="M19 11a7 7 0 0 1-14 0M12 18v3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
     <span class="home-mic-label">Tap and speak</span>
   </button>
+  <div class="mic-trust-line">&#x1F512; Free. No signup. Your saved records stay on your phone.</div>
   <div id="homeMicStatus" class="home-mic-status"></div>
   <div class="or-row">or tap a button</div>
 
@@ -291,7 +303,8 @@ input[type="number"]{-moz-appearance:textfield}
       <input id="shopIdInput" class="plan-pay-input" type="text" autocomplete="off" placeholder="mama ama provisions" data-clarity-mask="True">
       <div class="plan-pay-hint">This tells us the payment is from you.</div>
     </div>
-    <p class="plan-note">We turn on Paid the same day we see your payment. We never call or message asking for your MoMo PIN.</p>
+    <div class="plan-safety"><span>&#x1F512;</span> We never call or message asking for your MoMo PIN. Nobody needs your PIN to pay us &#x2014; only to steal from you.</div>
+    <p class="plan-note">We turn on Paid the same day we see your payment. This is optional &#x2014; the free app keeps working either way.</p>
     <button id="planCloseBtn" class="btn btn-cancel" style="width:100%">Close</button>
   </div>
 </div>
