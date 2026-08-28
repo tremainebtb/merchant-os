@@ -83,6 +83,13 @@ h1 .tagline{font-family:"Work Sans",sans-serif;font-size:.78rem;font-weight:500;
 .field{margin-bottom:12px}
 .field label{display:block;font-size:.82rem;color:var(--ink-soft);margin-bottom:5px;font-weight:600}
 .field input{width:100%;padding:12px;border:1px solid var(--rule);border-radius:10px;font-size:1rem;background:var(--paper)}
+/* The native up/down spinner on number inputs reads as "tap these tiny arrows
+   to count up one at a time" to a first-time user - the numeric keyboard from
+   inputmode="decimal" is what's meant to be used instead, so the spinner is
+   just confusing extra UI. Hidden on every number field in the app. */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+input[type="number"]{-moz-appearance:textfield}
 .confirm-line{background:var(--leaf-soft);color:var(--leaf-deep);border-radius:10px;padding:12px;font-size:.92rem;margin-bottom:14px;font-weight:600;display:none}
 .confirm-line.show{display:block}
 .safety-block{background:var(--surface);border:1px solid var(--rule);border-radius:14px;padding:16px;margin-top:26px}
@@ -146,7 +153,11 @@ h1 .tagline{font-family:"Work Sans",sans-serif;font-size:.78rem;font-weight:500;
 .amt.pos{color:var(--leaf-deep)}
 .amt.neg{color:var(--brick)}
 .empty{color:var(--muted);font-size:.88rem;text-align:center;padding:24px 0}
-.offline-badge{display:none;background:var(--amber-soft);color:var(--amber);font-size:.78rem;font-weight:700;padding:8px 12px;border-radius:10px;margin-bottom:14px}
+/* Deliberately NOT styled like a button (no pill shape, no fill) - real session
+   recordings showed people repeatedly tapping this expecting something to
+   happen, because it looked exactly like every other rounded colored control
+   on the page. A plain left-border strip reads as a status line, not a control. */
+.offline-badge{display:none;background:none;border-left:3px solid var(--amber);color:var(--amber);font-size:.78rem;font-weight:700;padding:6px 0 6px 10px;margin-bottom:14px;pointer-events:none}
 .offline-badge.show{display:block}
 </style>
 </head>

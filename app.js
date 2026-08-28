@@ -421,6 +421,7 @@ function openSheet(type) {
   `).join('');
   fieldsEl.querySelectorAll('input').forEach(inp => inp.addEventListener('input', updateConfirm));
   document.getElementById('confirmLine').classList.remove('show');
+  document.getElementById('saveBtn').disabled = true;
   setMicStatus('Tap the mic and say ONE item and its price, then check the numbers before saving.');
   document.getElementById('sheet').classList.add('open');
   document.getElementById('sheet').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -439,6 +440,13 @@ function readValues() {
   return v;
 }
 
+// The Save button was tappable at all times, even with required fields empty
+// - tapping it then did nothing at all: no message, no shake, nothing, because
+// saveEntry() just silently returned. Watched real session recordings where
+// this produced exactly the "dead click" pattern Clarity flagged: several taps
+// on Save, no visible result, session abandoned with zero entries saved. The
+// button itself now shows whether it's ready, the same moment the preview
+// line appears - nothing to read, nothing to figure out.
 function updateConfirm() {
   const cfg = FIELD_CONFIG[activeType];
   const v = readValues();
@@ -446,6 +454,7 @@ function updateConfirm() {
   const el = document.getElementById('confirmLine');
   if (line) { el.textContent = line + ' \u2014 correct?'; el.classList.add('show'); }
   else { el.classList.remove('show'); }
+  document.getElementById('saveBtn').disabled = !line;
 }
 
 let saving = false;
