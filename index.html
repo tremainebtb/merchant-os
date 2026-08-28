@@ -3,9 +3,14 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
-<title>CountMy</title>
+<!-- Real finding, 28 Aug: the bare "CountMy" title carried no keywords at all
+     for what people actually search - a free sales/expense ledger for
+     Ghanaian shop owners. The <title> tag is the single strongest on-page
+     ranking signal there is; a brand name alone wastes it. -->
+<title>CountMy - Free Sales &amp; Expense Ledger for Ghana Shop Owners</title>
 <meta name="description" content="Know your money. A free daily ledger for Ghanaian shop owners - works offline, no signup, your records stay on your phone.">
 <meta name="theme-color" content="#D9541A">
+<link rel="canonical" href="https://countmy.app/">
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <!-- Some browser/OS surfaces (bookmarks bars, older WebViews, some Android
@@ -31,6 +36,26 @@
 <meta name="twitter:title" content="CountMy - Know your money">
 <meta name="twitter:description" content="A free daily ledger for Ghanaian shop owners - works offline, no signup, your records stay on your phone.">
 <meta name="twitter:image" content="https://countmy.app/og-image.png">
+<!-- Structured data, added 28 Aug - real gap found via a live SEO check: zero
+     JSON-LD on the page before this, so Google had nothing to build a rich
+     result from (price, rating, category) and no explicit signal this is a
+     free finance app, not a random webpage. -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "CountMy",
+  "url": "https://countmy.app",
+  "description": "A free daily sales and expense ledger for Ghanaian shop owners. Works offline, no signup required, records stay on your phone.",
+  "applicationCategory": "FinanceApplication",
+  "operatingSystem": "Any (works in any mobile web browser)",
+  "offers": {
+    "@type": "Offer",
+    "price": "0",
+    "priceCurrency": "GHS"
+  }
+}
+</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&family=Work+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@600;700&display=swap">
