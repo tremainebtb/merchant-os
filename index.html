@@ -103,14 +103,12 @@ input[type="number"]{-moz-appearance:textfield}
 .plan-sheet{display:none}
 .plan-sheet.open{display:block;margin-top:14px}
 .plan-copy{font-size:.9rem;color:var(--ink-soft);margin:0 0 14px}
-.plan-price{margin-bottom:16px}
-.plan-amount{font-size:1.6rem;font-weight:800}
-.plan-per{color:var(--muted);font-size:.85rem;margin-left:4px}
 .plan-pay-box{background:var(--leaf-soft);border-radius:12px;padding:14px;margin-bottom:12px}
 .plan-pay-label{font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;color:var(--leaf-deep);font-weight:700;margin-bottom:2px}
-.plan-pay-number{font-weight:800;color:var(--leaf-deep);margin-bottom:10px;font-size:.98rem}
+.plan-pay-number{font-weight:800;color:var(--leaf-deep);margin-bottom:10px;font-size:1.3rem;letter-spacing:.03em}
 .plan-pay-number:last-child{margin-bottom:0}
 .plan-pay-input{width:100%;font-weight:800;color:var(--leaf-deep);font-size:.98rem;background:var(--surface);border:1.5px solid var(--leaf);border-radius:8px;padding:8px 10px}
+.plan-pay-hint{font-size:.76rem;color:var(--leaf-deep);opacity:.8;margin-top:6px}
 .plan-note{font-size:.82rem;color:var(--muted);margin-bottom:14px}
 .footer-row{max-width:480px;margin:16px auto 0;padding:0 16px 20px;display:flex;align-items:center;justify-content:center;gap:8px}
 .admin-close{background:none;border:none;color:var(--muted);font-size:1rem;cursor:pointer;padding:4px}
@@ -235,16 +233,16 @@ input[type="number"]{-moz-appearance:textfield}
   <button id="planPill" class="plan-pill">Free &#xB7; shows your last 7 days</button>
 
   <div id="planSheet" class="sheet plan-sheet">
-    <h2>See everything you've ever recorded</h2>
-    <p class="plan-copy">The app itself is always free. Free shows your last 7 days. Pay 99 cedis a month to see everything, going back as far as you've recorded.</p>
-    <div class="plan-price"><span class="plan-amount">99 cedis</span><span class="plan-per">/month</span></div>
+    <h2>See all your old records</h2>
+    <p class="plan-copy">Free shows your last 7 days. Pay 99 cedis every month to see everything, always.</p>
     <div class="plan-pay-box">
-      <div class="plan-pay-label">Send by MoMo to</div>
-      <div class="plan-pay-number">0209090019</div>
-      <div class="plan-pay-label">Reference &#x2014; type your shop name</div>
-      <input id="shopIdInput" class="plan-pay-input" type="text" autocomplete="off" placeholder="e.g. mama ama provisions" data-clarity-mask="True">
+      <div class="plan-pay-label">Step 1 &#x2014; Send 99 cedis by MoMo to</div>
+      <div class="plan-pay-number">020 909 0019</div>
+      <div class="plan-pay-label">Step 2 &#x2014; Type your shop name below</div>
+      <input id="shopIdInput" class="plan-pay-input" type="text" autocomplete="off" placeholder="mama ama provisions" data-clarity-mask="True">
+      <div class="plan-pay-hint">This tells us the payment is from you.</div>
     </div>
-    <p class="plan-note">We turn on Paid the same day we see it. We never call or message asking for your MoMo PIN.</p>
+    <p class="plan-note">We turn on Paid the same day we see your payment. We never call or message asking for your MoMo PIN.</p>
     <button id="planCloseBtn" class="btn btn-cancel" style="width:100%">Close</button>
   </div>
 </div>
@@ -272,11 +270,26 @@ input[type="number"]{-moz-appearance:textfield}
      carries data-clarity-mask="True" directly as defense-in-depth, regardless
      of whatever Clarity's own default masking behavior turns out to be. -->
 <script>
+  // Owner device opt-out, added 28 Aug. An IP-based exclusion (already set up in
+  // GA4 and Clarity) only ever covers ONE network - it misses a phone on mobile
+  // data entirely, and breaks the moment a home/office IP changes. This instead
+  // marks the DEVICE itself, permanently, independent of network: visiting the
+  // site once with ?owner=1 on a given phone or laptop sets a local flag that
+  // skips loading GA4 and Clarity on every future visit from that browser, and
+  // also tells ping() (see app.js) not to count this device in the owner
+  // dashboard's business/usage stats. One visit per device, done forever - no
+  // IP to track down, works the same on a phone as a laptop.
+  (function() {
+    var params = new URLSearchParams(location.search);
+    if (params.get('owner') === '1') localStorage.setItem('kym_owner_device', '1');
+  })();
+  window.KYM_IS_OWNER_DEVICE = localStorage.getItem('kym_owner_device') === '1';
+
   // The only two lines that need editing once Bobby sends the real IDs.
   window.GA4_ID = 'G-YJW9J53BL9';
   window.CLARITY_ID = 'y91blwr2nq';
 
-  if (window.GA4_ID.indexOf('XXXXXXXXXX') === -1) {
+  if (!window.KYM_IS_OWNER_DEVICE && window.GA4_ID.indexOf('XXXXXXXXXX') === -1) {
     var gaScript = document.createElement('script');
     gaScript.async = true;
     gaScript.src = 'https://www.googletagmanager.com/gtag/js?id=' + window.GA4_ID;
@@ -287,7 +300,7 @@ input[type="number"]{-moz-appearance:textfield}
     window.gtag('config', window.GA4_ID, { anonymize_ip: true });
   }
   (function(c,l,a,r,i,t,y){
-    if (!i || i.indexOf('XXXXXXXXXX') !== -1) return;
+    if (window.KYM_IS_OWNER_DEVICE || !i || i.indexOf('XXXXXXXXXX') !== -1) return;
     c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
     t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;
     y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);

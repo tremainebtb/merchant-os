@@ -397,6 +397,7 @@ function track(event, params) {
 // this is a directional usage signal, not a source of truth for the
 // merchant's own ledger, which stays local per PRD.
 function ping(eventType) {
+  if (window.KYM_IS_OWNER_DEVICE) return; // see the ?owner=1 flag set in index.html
   const shop = getShopId();
   if (!shop || !navigator.onLine) return;
   fetch(`${API_BASE}/ping`, {
