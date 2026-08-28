@@ -105,6 +105,7 @@ body{margin:0;background:var(--paper);color:var(--ink);font-family:"Work Sans",-
    Bobby was actually saying out loud to explain it, now living on the page
    itself instead of depending on him being there to say it. */
 .brand-row{font-family:"Manrope",sans-serif;font-size:.82rem;font-weight:700;color:var(--muted);letter-spacing:.02em;margin:8px 0 6px}
+.brand-sub{font-weight:500;text-transform:none;letter-spacing:0}
 .pitch{font-family:"Manrope",sans-serif;font-size:1.2rem;font-weight:800;line-height:1.4;margin:0 0 18px;color:var(--ink)}
 .today{background:var(--surface);border:1px solid var(--rule);border-radius:16px;padding:18px;margin-bottom:16px}
 .today-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
@@ -244,6 +245,7 @@ input[type="number"]{-moz-appearance:textfield}
 .home-mic-btn.recording .mic-level-meter{display:flex}
 .mic-level-meter span{width:6px;height:6px;min-height:6px;border-radius:3px;background:#fff;opacity:.9;transition:height .08s linear}
 .home-mic-label{font-family:"Manrope",sans-serif;font-weight:800;font-size:1.15rem}
+.mic-lang-line{text-align:center;font-size:.8rem;color:var(--muted);margin:2px 0 6px}
 .mic-trust-line{text-align:center;font-size:.82rem;font-weight:600;color:var(--leaf-deep);margin-bottom:14px}
 .home-mic-status{min-height:1.4em;text-align:center;font-size:.95rem;color:var(--ink-soft);margin-bottom:14px}
 .home-mic-status.heard{color:var(--leaf-deep);font-weight:600}
@@ -260,8 +262,15 @@ input[type="number"]{-moz-appearance:textfield}
        labelled "No connection" and getting silence reads as broken, not
        reassuring. Now a real button: tapping it re-checks and says so. -->
   <button id="offlineBadge" type="button" class="offline-badge">No connection &#x2014; still recording, saved on your phone. Tap to check again.</button>
-  <div class="brand-row">CountMy</div>
-  <h1 class="pitch">Sold something today? Spent money? Speak it, or tap a button &#x2014; CountMy remembers it, so you don't have to.</h1>
+  <!-- Real feedback, 28 Aug (55-year-old first-time user): "countmy name
+       overall confusing i thought they want me to count, i didn't know
+       that's the brand name" - and separately, the old two-question
+       headline ("Sold something today? Spent money?") read as "weird and
+       untrustworthy" and left them with "no idea what it is." Fixed by
+       saying plainly, in one flat sentence, what CountMy IS before anything
+       else - a name introduced as a name, not a question the app is asking. -->
+  <div class="brand-row">CountMy <span class="brand-sub">(a free money notebook)</span></div>
+  <h1 class="pitch">CountMy writes down what you sell and spend, so you always know your money.</h1>
 
   <div class="today">
     <div class="today-top">
@@ -285,6 +294,10 @@ input[type="number"]{-moz-appearance:textfield}
       <span></span><span></span><span></span><span></span><span></span>
     </div>
   </button>
+  <!-- Real feedback, 28 Aug: "is twi available? or pidgin english?" - a real
+       user had no way to know without guessing and just trying. Say it
+       plainly, right where the decision to speak is made. -->
+  <div class="mic-lang-line">Speak English, Twi, or Pidgin</div>
   <div class="mic-trust-line">&#x1F512; Free. No signup. Your saved records stay on your phone.</div>
   <div id="homeMicStatus" class="home-mic-status"></div>
   <div class="or-row">or tap a button</div>
@@ -337,16 +350,32 @@ input[type="number"]{-moz-appearance:textfield}
   <div class="hist-label">Recent</div>
   <div id="history"><div class="empty">Nothing recorded yet. Add your first sale above.</div></div>
 
+  <!-- Real feedback, 28 Aug: "save a backup...confusing as to i dont know
+       where to save it" and "the warning if its lost the phone made them
+       scared...didnt know if they break something if they press it." Led
+       with the risk before the action, which read as a warning label on a
+       button someone was scared to touch. Now leads with the calm, familiar
+       action first (sending yourself a WhatsApp message - nothing can break
+       by tapping it), with the "why" second, and says exactly where the
+       copy ends up. -->
   <div class="safety-block">
-    <button id="exportBtn" class="export-btn">&#x1F4BE; Save a backup of my records</button>
-    <div class="export-note">If this phone is lost, records only saved here go with it. Tap this and send a copy to yourself on WhatsApp &#x2014; just like sending a photo.</div>
+    <button id="exportBtn" class="export-btn">&#x1F4BE; Send my records to my own WhatsApp</button>
+    <div class="export-note">Tapping this is safe &#x2014; just like sending a photo to yourself, nothing on your phone changes. It sends your records to your own WhatsApp so you still have them if this phone is ever lost.</div>
   </div>
 
+  <!-- Real feedback, 28 Aug: "free forever and then saying 99 is confusing"
+       and "free but only show 7 days confusing" - these two lines used to
+       say "Free forever" and then, right under it, imply a limit ("shows
+       your last 7 days"). Said once, plainly, as one true statement instead
+       of two that sound like they disagree with each other. The button
+       below now says up front what tapping it leads to, instead of a vague
+       "shows your last 7 days" that then surprises you with a payment
+       screen - the surprise itself was what read as scam-like. -->
   <div class="trust-block">
-    <div class="trust-line">&#x2713; Free forever &#x2014; no signup &#x2014; your records stay on your phone</div>
+    <div class="trust-line">&#x2713; Always free to use &#x2014; no signup &#x2014; your records stay on your phone</div>
   </div>
 
-  <button id="planPill" class="plan-pill">Free &#xB7; shows your last 7 days</button>
+  <button id="planPill" class="plan-pill">This screen keeps your last 7 days. See everything, ever (optional, 99 cedis/month)</button>
 
   <div id="planSheet" class="sheet plan-sheet">
     <h2>See all your old records</h2>
@@ -358,7 +387,13 @@ input[type="number"]{-moz-appearance:textfield}
       <input id="shopIdInput" class="plan-pay-input" type="text" autocomplete="off" placeholder="mama ama provisions" data-clarity-mask="True">
       <div class="plan-pay-hint">This tells us the payment is from you.</div>
     </div>
-    <div class="plan-safety"><span>&#x1F512;</span> We never call or message asking for your MoMo PIN. Nobody needs your PIN to pay us &#x2014; only to steal from you.</div>
+    <!-- Real feedback, 28 Aug: "never call or message asking for your pin
+         was something made me feel unwell and overthinking so they
+         stopped" - naming "PIN" and "steal" together, unprompted, put the
+         idea of a threat into someone's head who wasn't thinking about one
+         at all, and the fear made them quit rather than feel reassured.
+         Said as a plain fact about what we ask for, with no threat words. -->
+    <div class="plan-safety"><span>&#x1F512;</span> All we need is your shop name above &#x2014; nothing else, ever.</div>
     <p class="plan-note">We turn on Paid the same day we see your payment. This is optional &#x2014; the free app keeps working either way.</p>
     <button id="planCloseBtn" class="btn btn-cancel" style="width:100%">Close</button>
   </div>
@@ -372,7 +407,7 @@ input[type="number"]{-moz-appearance:textfield}
      string is what forces a fresh script fetch even before any service worker logic
      runs, independent of it. Found live 27 Aug: without this, an already-visited
      browser can keep running old code from plain HTTP cache regardless of SW strategy. -->
-<script src="app.js?v=20"></script>
+<script src="app.js?v=21"></script>
 
 <!-- Analytics for the Silent Alpha pilot only (27 Aug) - added to observe real
      merchant behavior (what they tap first, voice vs manual usage), NOT to

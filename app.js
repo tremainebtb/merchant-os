@@ -113,7 +113,13 @@ const FIELD_CONFIG = {
       if (!v.item || !v.price) return '';
       return `${v.item} owes you ${fmt(v.price)}`;
     },
-    desc: v => v.item + (v.note ? ' \u2014 ' + v.note : ''),
+    // Real feedback, 28 Aug (a 55-year-old first-time user, low literacy/
+    // numeracy): the Recent list used to show just the name ("Ama") with
+    // direction implied only by a +/- sign and a color - "customer who owed
+    // me and supplier getting messy" is exactly what that produces for
+    // someone who can't reliably read a red/green + or -. Say the direction
+    // in words every time, not just via sign/color.
+    desc: v => `${v.item} owes you` + (v.note ? ' \u2014 ' + v.note : ''),
     amountSign: 1,
     isDebt: true
   },
@@ -129,7 +135,7 @@ const FIELD_CONFIG = {
       if (!v.item || !v.price) return '';
       return `You owe ${v.item} ${fmt(v.price)}`;
     },
-    desc: v => v.item + (v.note ? ' \u2014 ' + v.note : ''),
+    desc: v => `You owe ${v.item}` + (v.note ? ' \u2014 ' + v.note : ''),
     amountSign: -1,
     isDebt: true
   }
@@ -755,7 +761,11 @@ async function refreshPaidStatus() {
 
 function renderAdmin() {
   const paid = isPaid();
-  document.getElementById('planPill').textContent = paid ? 'Paid \u00b7 everything you have recorded' : 'Free \u00b7 shows your last 7 days';
+  // Real feedback, 28 Aug: the old pill ("Free - shows your last 7 days")
+  // then opened a sheet with an unrelated-looking MoMo payment request -
+  // the surprise itself read as scam-like. Say up front what tapping leads
+  // to, so nothing about the next screen is a surprise.
+  document.getElementById('planPill').textContent = paid ? 'Paid \u00b7 everything you have recorded' : 'This screen keeps your last 7 days. See everything, ever (optional, 99 cedis/month)';
   const shopInput = document.getElementById('shopIdInput');
   if (shopInput && document.activeElement !== shopInput) shopInput.value = getShopId();
 }
