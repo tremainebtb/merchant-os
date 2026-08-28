@@ -163,7 +163,7 @@ input[type="number"]{-moz-appearance:textfield}
 .trust-line{font-size:.82rem;color:var(--leaf-deep);font-weight:600;line-height:1.6}
 .plan-pay-name{font-size:.8rem;color:var(--ink-soft);font-weight:600;margin:-6px 0 10px;padding-bottom:8px;border-bottom:1px dashed var(--rule)}
 .site-footer{max-width:480px;margin:0 auto;padding:0 16px 20px;text-align:center;font-size:.74rem;color:var(--muted)}
-.plan-pill{width:100%;background:var(--surface);border:1px solid var(--rule);border-radius:12px;padding:12px;font-size:.84rem;font-weight:700;color:var(--ink-soft);margin-top:14px;cursor:pointer}
+.plan-link{display:block;width:100%;max-width:480px;margin:0 auto 20px;background:none;border:none;padding:6px 16px;font-family:inherit;font-size:.76rem;font-weight:600;color:var(--muted);text-decoration:underline;text-underline-offset:2px;cursor:pointer;text-align:center}
 .plan-sheet{display:none}
 .plan-sheet.open{display:block;margin-top:14px}
 .plan-copy{font-size:.9rem;color:var(--ink-soft);margin:0 0 14px}
@@ -372,19 +372,19 @@ input[type="number"]{-moz-appearance:textfield}
     <div class="export-note">Tapping this is safe &#x2014; just like sending a photo to yourself, nothing on your phone changes. It sends your records to your own WhatsApp so you still have them if this phone is ever lost.</div>
   </div>
 
-  <!-- Real feedback, 28 Aug: "free forever and then saying 99 is confusing"
-       and "free but only show 7 days confusing" - these two lines used to
-       say "Free forever" and then, right under it, imply a limit ("shows
-       your last 7 days"). Said once, plainly, as one true statement instead
-       of two that sound like they disagree with each other. The button
-       below now says up front what tapping it leads to, instead of a vague
-       "shows your last 7 days" that then surprises you with a payment
-       screen - the surprise itself was what read as scam-like. -->
+  <!-- Real advice, 28 Aug, from real testing (Bobby's mum, born 1964, and
+       aunties - "everything" was confusing) plus two independent AI reviews
+       and real stats (zero paid conversions ever, from a payment pitch
+       that's been live and prominent): a full-width button pitching a
+       payment on the main screen, right next to a "this is free" line,
+       reads as a contradiction to exactly this audience no matter how the
+       wording changes. Real Ghana competitors (AxisTrade) also give away a
+       genuinely strong free tier - this app's free tier should look and
+       feel unconditionally free, with the option to see full history
+       reachable, but not pushed. -->
   <div class="trust-block">
     <div class="trust-line">&#x2713; Always free to use &#x2014; no signup &#x2014; your records stay on your phone</div>
   </div>
-
-  <button id="planPill" class="plan-pill">This screen keeps your last 7 days. See everything, ever (optional, 99 cedis/year)</button>
 
   <div id="planSheet" class="sheet plan-sheet">
     <h2>See all your old records</h2>
@@ -414,12 +414,16 @@ input[type="number"]{-moz-appearance:textfield}
        ambition. -->
   <footer class="site-footer">CountMy &#x2014; your shop's money book, free.</footer>
 </div>
+<!-- Moved out of the main screen (see note above the trust-block) - still
+     fully reachable for the small number of people who want it, just no
+     longer sitting where it reads as a contradiction to "always free." -->
+<button id="planPill" class="plan-link">See your full history (optional, 99 cedis/year)</button>
 
 <!-- Bump ?v= on every deploy alongside the service-worker CACHE version &#x2014; this query
      string is what forces a fresh script fetch even before any service worker logic
      runs, independent of it. Found live 27 Aug: without this, an already-visited
      browser can keep running old code from plain HTTP cache regardless of SW strategy. -->
-<script src="app.js?v=23"></script>
+<script src="app.js?v=24"></script>
 
 <!-- Analytics for the Silent Alpha pilot only (27 Aug) - added to observe real
      merchant behavior (what they tap first, voice vs manual usage), NOT to

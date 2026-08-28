@@ -804,19 +804,14 @@ async function refreshPaidStatus() {
 
 function renderAdmin() {
   const paid = isPaid();
-  // Real feedback, 28 Aug: the old pill ("Free - shows your last 7 days")
-  // then opened a sheet with an unrelated-looking MoMo payment request -
-  // the surprise itself read as scam-like. Say up front what tapping leads
-  // to, so nothing about the next screen is a surprise.
-  // Real advice, 28 Aug, sought independently from two different AI reviews:
-  // both flagged 99 cedis/MONTH as the wrong shape for this audience - it
-  // reads as "pay to see your own old records," which contradicts the
-  // app's own privacy promise, and every AxisTrade/TruKonta-style
-  // competitor charges less per month for more. A once-a-year price is a
-  // completely different psychological ask ("less than 2 cedis a week")
-  // instead of a recurring monthly deduction someone has to keep
-  // justifying to themselves.
-  document.getElementById('planPill').textContent = paid ? 'Paid \u00b7 everything you have recorded' : 'This screen keeps your last 7 days. See everything, ever (optional, 99 cedis/year)';
+  // Real advice, 28 Aug, from real testing (Bobby's mum and aunties found
+  // "everything" confusing) plus two independent AI reviews plus real stats
+  // (zero paid conversions ever from a prominent, full-width payment pitch):
+  // a payment button on the main screen contradicts "always free" no matter
+  // how it's worded, for this exact audience. Demoted to a small, low-key
+  // link instead of a full-width button pitching payment - still reachable,
+  // no longer competing with the free promise for attention.
+  document.getElementById('planPill').textContent = paid ? 'Paid \u00b7 everything you have recorded' : 'See your full history (optional, 99 cedis/year)';
   const shopInput = document.getElementById('shopIdInput');
   if (shopInput && document.activeElement !== shopInput) shopInput.value = getShopId();
 }
