@@ -133,10 +133,9 @@ function micSupported() {
 }
 
 function setMicStatus(text, cls, statusId) {
-  const el = document.getElementById(statusId || 'micStatus');
-  const base = statusId === 'homeMicStatus' ? 'home-mic-status' : 'mic-status';
+  const el = document.getElementById(statusId || 'homeMicStatus');
   el.textContent = text;
-  el.className = base + (cls ? ' ' + cls : '');
+  el.className = 'home-mic-status' + (cls ? ' ' + cls : '');
 }
 
 // Deliberately simple, not NLP: pulls every number out of what was heard, and treats
@@ -196,9 +195,12 @@ function fillFields(values) {
   updateConfirm();
 }
 
+// Filename extension matched to the blob's real recorded type, not hardcoded
+// - see the real bug this fixes in toggleMic() below.
 async function transcribeBlob(blob) {
+  const ext = blob.type.indexOf('mp4') !== -1 ? 'mp4' : (blob.type.indexOf('ogg') !== -1 ? 'ogg' : 'webm');
   const form = new FormData();
-  form.append('audio', blob, 'voice.webm');
+  form.append('audio', blob, `voice.${ext}`);
   const res = await fetch(`${API_BASE}/transcribe`, { method: 'POST', body: form });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error || 'Could not hear that \u2014 try again');
@@ -267,6 +269,35 @@ function fieldMarkup(value, idx, key, type, extraAttrs) {
     </div>`;
 }
 
+// Real feedback: a silent card appearing after you finish speaking, asking
+// for a SEPARATE "Save" tap, doesn't read as an obvious next step to someone
+// who can't read the card - it reads as nothing happening, or as confusion
+// about what's being asked of them. The review step itself can't be removed
+// safely (the AI extracting these events has, live, invented entire
+// transactions that were never spoken - see extractEvents() - so it must
+// stay human-verified before it saves). What this does instead: say out
+// loud what was heard and the one thing to do next, the same way speakToday
+// already does for the daily summary, so the confirmation is heard, not
+// only read.
+function speakVoiceReview(events) {
+  if (!('speechSynthesis' in window)) return;
+  const lines = events.map(ev => {
+    const entry = eventToEntry(ev);
+    if (!entry.item) return null;
+    const label = TYPE_LABEL[ev.type] || ev.type;
+    const amountPart = entry.amount ? `, ${fmt(entry.amount)}` : ', but I did not catch the amount';
+    return `${label}: ${entry.item}${amountPart}.`;
+  }).filter(Boolean);
+  if (!lines.length) return;
+  const closer = events.length > 1
+    ? 'Check each one below, then tap the green Save button under it.'
+    : 'Check it below, then tap the green Save button.';
+  const utter = new SpeechSynthesisUtterance(`I heard this. ${lines.join(' ')} ${closer}`);
+  utter.rate = 0.8;
+  speechSynthesis.cancel();
+  speechSynthesis.speak(utter);
+}
+
 function renderVoiceReview() {
   const list = document.getElementById('voiceReviewList');
   const wrap = document.getElementById('voiceReview');
@@ -321,18 +352,14 @@ document.getElementById('voiceReviewCloseBtn').addEventListener('click', () => {
   renderVoiceReview();
 });
 
-// Shared by two buttons now: the one inside an already-open Add Sale/Expense
-// sheet (activeType set, statusId 'micStatus'), and the big "Tap and speak"
-// button on the home screen itself (no sheet open, activeType null, statusId
-// 'homeMicStatus'). Both go through the exact same record -> transcribe ->
-// extract pipeline, because extractEvents() already classifies sale vs
-// expense vs debt on its own from what was actually said - it never needed
-// activeType to work. activeType is only used below as a fallback for the
-// rare case extraction finds nothing at all, and only when a sheet is
-// actually open to fall back into.
+// The one and only voice entry point (the home screen's "Tap and speak"
+// button - a second, in-sheet mic was removed after real feedback that two
+// microphones on screen read as confusing, not as extra flexibility).
+// extractEvents() classifies sale vs expense vs debt on its own from what
+// was actually said, so this never needed activeType to work; activeType is
+// only used below as a fallback for the rare case a sheet happens to be
+// open (e.g. a merchant typing) and extraction finds nothing at all.
 async function toggleMic(btn, statusId) {
-  btn = btn || document.getElementById('micBtn');
-  statusId = statusId || 'micStatus';
   if (!micSupported()) {
     setMicStatus('Voice isn\u2019t available on this phone/browser \u2014 please type instead.', 'err', statusId);
     return;
@@ -344,14 +371,37 @@ async function toggleMic(btn, statusId) {
   try {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     recordedChunks = [];
-    mediaRecorder = new MediaRecorder(stream);
+    // Real bug, found by testing the live transcription endpoint directly
+    // with real audio and confirming the server side works correctly: the
+    // recorded blob was always hardcoded to 'audio/webm' regardless of what
+    // the browser actually recorded. Chrome/Android really does produce
+    // webm, but Safari/iOS never has - it records audio/mp4 - so every
+    // recording from an iPhone was being mislabeled before it was ever sent
+    // anywhere, independent of anything Whisper does. Ask the browser what
+    // it actually supports and use that, both for the recorder itself and
+    // for how the resulting blob is labeled.
+    const mimeCandidates = ['audio/webm', 'audio/mp4', 'audio/ogg'];
+    const supportedMime = mimeCandidates.find(m => window.MediaRecorder.isTypeSupported && window.MediaRecorder.isTypeSupported(m));
+    mediaRecorder = supportedMime ? new MediaRecorder(stream, { mimeType: supportedMime }) : new MediaRecorder(stream);
+    const actualMime = mediaRecorder.mimeType || supportedMime || 'audio/webm';
     mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) recordedChunks.push(e.data); };
     mediaRecorder.onstop = async () => {
       stream.getTracks().forEach(t => t.stop());
       btn.classList.remove('recording');
       setMicStatus('Listening to what you said\u2026', null, statusId);
+      // If nothing was actually captured (mic muted at the OS level, a
+      // permission edge case, or the recording stopped instantly) the old
+      // code sent an empty file to be transcribed and got back nothing,
+      // with no way to tell that apart from "transcription heard silence."
+      // This catches it before a network call and says exactly what
+      // happened instead.
+      if (!recordedChunks.length || recordedChunks.reduce((s, c) => s + c.size, 0) === 0) {
+        track('mic_error', { reason: 'empty_recording' });
+        setMicStatus('No sound was recorded \u2014 check your phone isn\u2019t muted, then try again.', 'err', statusId);
+        return;
+      }
       try {
-        const blob = new Blob(recordedChunks, { type: 'audio/webm' });
+        const blob = new Blob(recordedChunks, { type: actualMime });
         const heard = await transcribeBlob(blob);
         if (!heard.trim()) { track('mic_error', { reason: 'no_transcript' }); setMicStatus('Didn\u2019t catch that \u2014 try again.', 'err', statusId); return; }
         setMicStatus('Working out what happened\u2026', null, statusId);
@@ -362,6 +412,8 @@ async function toggleMic(btn, statusId) {
           renderVoiceReview();
           closeSheet();
           setMicStatus(`Heard: \u201c${heard}\u201d \u2014 check each one below, then Save.`, 'heard', statusId);
+          document.getElementById('voiceReview').scrollIntoView({ behavior: 'smooth', block: 'start' });
+          speakVoiceReview(events);
         } else if (activeType) {
           fillFields(parseHeardText(activeType, heard));
           sheetVoiceFilled = true;
@@ -668,13 +720,11 @@ if (!('speechSynthesis' in window)) document.getElementById('hearBtn').style.dis
 document.getElementById('planPill').addEventListener('click', () => document.getElementById('planSheet').classList.add('open'));
 document.getElementById('planCloseBtn').addEventListener('click', () => document.getElementById('planSheet').classList.remove('open'));
 document.getElementById('exportBtn').addEventListener('click', exportBackup);
-document.getElementById('micBtn').addEventListener('click', () => toggleMic(document.getElementById('micBtn'), 'micStatus'));
 document.getElementById('homeMicBtn').addEventListener('click', () => {
   track('open_sheet', { type: 'home_mic' });
   toggleMic(document.getElementById('homeMicBtn'), 'homeMicStatus');
 });
 if (!micSupported()) {
-  document.getElementById('micBtn').style.display = 'none';
   document.getElementById('homeMicBtn').style.display = 'none';
   document.querySelector('.or-row').style.display = 'none';
 }

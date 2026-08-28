@@ -147,17 +147,7 @@ input[type="number"]{-moz-appearance:textfield}
 .footer-row{max-width:480px;margin:16px auto 0;padding:0 16px 20px;display:flex;align-items:center;justify-content:center;gap:8px}
 .admin-close{background:none;border:none;color:var(--muted);font-size:1rem;cursor:pointer;padding:4px}
 .sheet-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:2px}
-/* Voice is the path that needs no reading or typing at all - the most useful
-   entry method for exactly the reader this pass is for, so it gets the most
-   visually inviting treatment on the sheet, not a small icon tucked in a
-   corner. */
-.mic-btn{flex-shrink:0;width:68px;height:68px;border-radius:100px;border:none;background:var(--brick);color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 3px 10px rgba(0,0,0,.18)}
-.mic-btn svg{width:30px;height:30px}
-.mic-btn.recording{background:var(--leaf-deep);animation:mic-pulse 1.1s ease-in-out infinite}
 @keyframes mic-pulse{0%,100%{box-shadow:0 0 0 0 rgba(45,106,79,.45)}50%{box-shadow:0 0 0 12px rgba(45,106,79,0)}}
-.mic-status{font-size:.86rem;color:var(--ink-soft);min-height:1.3em;margin-bottom:8px}
-.mic-status.heard{color:var(--leaf-deep);font-weight:600}
-.mic-status.err{color:var(--brick);font-weight:600}
 .voice-review{display:none;margin-bottom:20px}
 .voice-review.open{display:block}
 .voice-review-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;font-size:.78rem;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;font-weight:700}
@@ -173,8 +163,11 @@ input[type="number"]{-moz-appearance:textfield}
 .field-caption{font-size:.72rem;margin-top:4px;margin-bottom:2px}
 .field.ai-detected .field-caption{color:var(--muted)}
 .field.needs-input .field-caption{color:var(--amber);font-weight:700}
-.voice-card-btns{display:flex;gap:10px;margin-top:12px}
-.voice-card-btns .btn{padding:10px}
+/* This Save button is the single most important tap in the whole voice flow
+   - it's the one thing that actually needs to happen after speaking, and it
+   was previously shrunk back down below the rest of the app's buttons here
+   specifically, working directly against making it unmissable. */
+.voice-card-btns{display:flex;gap:10px;margin-top:14px}
 .sheet-btns{display:flex;gap:10px}
 .btn{flex:1;padding:16px;min-height:56px;border-radius:10px;border:none;font-weight:700;font-size:1.05rem;cursor:pointer}
 .btn-save{background:var(--leaf);color:#fff}
@@ -268,13 +261,15 @@ input[type="number"]{-moz-appearance:textfield}
   </div>
 
   <div id="sheet" class="sheet">
+    <!-- The mic used to also live here, duplicated per sheet - real feedback:
+         having a mic on the home screen AND a second one inside every sheet
+         read as confusing ("which one do I use?"), not as extra flexibility.
+         There is now exactly one way to use voice (the home screen button,
+         which already handles every entry type on its own) and exactly one
+         way to type (these fields) - no second, redundant mic in here. -->
     <div class="sheet-head">
       <h2 id="sheetTitle">Add</h2>
-      <button id="micBtn" class="mic-btn" aria-label="Speak instead of typing" type="button">
-        <svg viewBox="0 0 24 24" fill="none"><path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3Z" stroke="currentColor" stroke-width="2"/><path d="M19 11a7 7 0 0 1-14 0M12 18v3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-      </button>
     </div>
-    <div id="micStatus" class="mic-status"></div>
     <div id="fields"></div>
     <div id="confirmLine" class="confirm-line" data-clarity-mask="True"></div>
     <div class="sheet-btns">
@@ -329,7 +324,7 @@ input[type="number"]{-moz-appearance:textfield}
      string is what forces a fresh script fetch even before any service worker logic
      runs, independent of it. Found live 27 Aug: without this, an already-visited
      browser can keep running old code from plain HTTP cache regardless of SW strategy. -->
-<script src="app.js?v=14"></script>
+<script src="app.js?v=15"></script>
 
 <!-- Analytics for the Silent Alpha pilot only (27 Aug) - added to observe real
      merchant behavior (what they tap first, voice vs manual usage), NOT to
