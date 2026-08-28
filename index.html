@@ -375,11 +375,11 @@ input[type="number"]{-moz-appearance:textfield}
     <div class="trust-line">&#x2713; Always free to use &#x2014; no signup &#x2014; your records stay on your phone</div>
   </div>
 
-  <button id="planPill" class="plan-pill">This screen keeps your last 7 days. See everything, ever (optional, 99 cedis/month)</button>
+  <button id="planPill" class="plan-pill">This screen keeps your last 7 days. See everything, ever (optional, 99 cedis/year)</button>
 
   <div id="planSheet" class="sheet plan-sheet">
     <h2>See all your old records</h2>
-    <p class="plan-copy">Free shows your last 7 days. Pay 99 cedis every month to see everything, always.</p>
+    <p class="plan-copy">Free shows your last 7 days. Pay 99 cedis once a year to see everything, always &#x2014; less than 2 cedis a week.</p>
     <div class="plan-pay-box">
       <div class="plan-pay-label">Step 1 &#x2014; Send 99 cedis by MoMo to</div>
       <div class="plan-pay-number">020 909 0019</div>
@@ -400,14 +400,17 @@ input[type="number"]{-moz-appearance:textfield}
 </div>
 
 <div class="footer-row">
-  <footer class="site-footer">CountMy &#x2014; a free tool for Ghanaian shop owners, nothing more.</footer>
+  <!-- Real advice, 28 Aug: an independent review flagged "nothing more" as
+       reading unserious - free should describe the price, not the app's
+       ambition. -->
+  <footer class="site-footer">CountMy &#x2014; your shop's money book, free.</footer>
 </div>
 
 <!-- Bump ?v= on every deploy alongside the service-worker CACHE version &#x2014; this query
      string is what forces a fresh script fetch even before any service worker logic
      runs, independent of it. Found live 27 Aug: without this, an already-visited
      browser can keep running old code from plain HTTP cache regardless of SW strategy. -->
-<script src="app.js?v=21"></script>
+<script src="app.js?v=22"></script>
 
 <!-- Analytics for the Silent Alpha pilot only (27 Aug) - added to observe real
      merchant behavior (what they tap first, voice vs manual usage), NOT to

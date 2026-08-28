@@ -765,7 +765,15 @@ function renderAdmin() {
   // then opened a sheet with an unrelated-looking MoMo payment request -
   // the surprise itself read as scam-like. Say up front what tapping leads
   // to, so nothing about the next screen is a surprise.
-  document.getElementById('planPill').textContent = paid ? 'Paid \u00b7 everything you have recorded' : 'This screen keeps your last 7 days. See everything, ever (optional, 99 cedis/month)';
+  // Real advice, 28 Aug, sought independently from two different AI reviews:
+  // both flagged 99 cedis/MONTH as the wrong shape for this audience - it
+  // reads as "pay to see your own old records," which contradicts the
+  // app's own privacy promise, and every AxisTrade/TruKonta-style
+  // competitor charges less per month for more. A once-a-year price is a
+  // completely different psychological ask ("less than 2 cedis a week")
+  // instead of a recurring monthly deduction someone has to keep
+  // justifying to themselves.
+  document.getElementById('planPill').textContent = paid ? 'Paid \u00b7 everything you have recorded' : 'This screen keeps your last 7 days. See everything, ever (optional, 99 cedis/year)';
   const shopInput = document.getElementById('shopIdInput');
   if (shopInput && document.activeElement !== shopInput) shopInput.value = getShopId();
 }
