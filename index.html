@@ -107,9 +107,9 @@ body{margin:0;background:var(--paper);color:var(--ink);font-family:"Work Sans",-
 .brand-row{font-family:"Manrope",sans-serif;font-size:.82rem;font-weight:700;color:var(--muted);letter-spacing:.02em;margin:8px 0 6px}
 .brand-sub{font-weight:500;text-transform:none;letter-spacing:0}
 .pitch{font-family:"Manrope",sans-serif;font-size:1.2rem;font-weight:800;line-height:1.4;margin:0 0 18px;color:var(--ink)}
-.today{background:var(--surface);border:1px solid var(--rule);border-radius:16px;padding:18px;margin-bottom:16px}
+.today{background:var(--surface);border:1px solid var(--rule);border-radius:16px;padding:18px;margin-bottom:16px;box-shadow:0 2px 10px rgba(34,26,18,.06)}
 .today-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
-.today-label{font-size:.72rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:700}
+.today-label{font-family:"Manrope",sans-serif;font-size:.98rem;color:var(--ink);font-weight:700}
 .hear-btn{font-family:"Manrope",sans-serif;background:var(--flame-soft);color:var(--flame-deep);border:none;border-radius:100px;padding:6px 12px;font-size:.78rem;font-weight:700;cursor:pointer}
 .hear-btn.speaking{background:var(--flame);color:#fff}
 .balance-amt.pos{color:var(--leaf-deep)}
@@ -131,7 +131,7 @@ body{margin:0;background:var(--paper);color:var(--ink);font-family:"Work Sans",-
    they get the biggest icons and the most generous tap targets on the page,
    not just bigger text. A big, unmistakable icon carries meaning on its own
    for a reader who finds the English label slow going. */
-.act-btn{font-family:"Manrope",sans-serif;border:none;border-radius:14px;padding:18px 14px;min-height:76px;font-weight:700;font-size:1.05rem;cursor:pointer;text-align:left;color:#fff;display:flex;align-items:center;gap:12px}
+.act-btn{font-family:"Manrope",sans-serif;border:none;border-radius:14px;padding:18px 14px;min-height:76px;font-weight:700;font-size:1.05rem;cursor:pointer;text-align:left;color:#fff;display:flex;align-items:center;gap:12px;box-shadow:0 2px 8px rgba(34,26,18,.1)}
 .act-icon{flex:none;width:34px;height:34px}
 .act-btn small{display:block;font-weight:500;font-size:.8rem;opacity:.9;margin-top:2px}
 .act-sale{background:var(--leaf)}
@@ -277,7 +277,14 @@ input[type="number"]{-moz-appearance:textfield}
 
   <div class="today">
     <div class="today-top">
-      <div class="today-label">Today</div>
+      <!-- Real design reference, 28 Aug: AxisTrade (a Ghana competitor Bobby
+           specifically likes) greets by name - "Good afternoon, Adjoa" -
+           instead of a plain "TODAY" label. What actually reads as
+           glocalised there isn't decoration, it's real specificity: a real
+           name, a real time of day. id="todayGreeting" is set by app.js
+           (time-of-day + shop name if one is set), with "Today" as the
+           HTML fallback so this never renders empty before JS runs. -->
+      <div id="todayGreeting" class="today-label">Today</div>
       <button id="hearBtn" class="hear-btn">&#x1F50A; Hear it</button>
     </div>
     <div class="today-row tappable" data-speak="Sales"><span>Sales</span><span id="tSales" data-clarity-mask="True">0 cedis</span></div>
@@ -423,7 +430,7 @@ input[type="number"]{-moz-appearance:textfield}
      string is what forces a fresh script fetch even before any service worker logic
      runs, independent of it. Found live 27 Aug: without this, an already-visited
      browser can keep running old code from plain HTTP cache regardless of SW strategy. -->
-<script src="app.js?v=24"></script>
+<script src="app.js?v=25"></script>
 
 <!-- Analytics for the Silent Alpha pilot only (27 Aug) - added to observe real
      merchant behavior (what they tap first, voice vs manual usage), NOT to

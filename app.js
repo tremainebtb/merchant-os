@@ -816,11 +816,24 @@ function renderAdmin() {
   if (shopInput && document.activeElement !== shopInput) shopInput.value = getShopId();
 }
 
+// Real design reference, 28 Aug: AxisTrade (a Ghana competitor Bobby
+// specifically pointed to) greets by name and time of day instead of a
+// plain "TODAY" label. Falls back to just the greeting, no name, when no
+// Shop ID is set yet - which is most people, so this must read naturally
+// either way, not like something is missing.
+function greeting() {
+  const hour = new Date().getHours();
+  const part = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+  const shop = getShopId();
+  return shop ? `${part}, ${shop}` : part;
+}
+
 async function render() {
   const entries = await getAllEntries();
   const today = todayKey(Date.now());
   const todayEntries = entries.filter(e => e.day === today);
   renderAdmin();
+  document.getElementById('todayGreeting').textContent = greeting();
 
   const sales = todayEntries.filter(e => e.type === 'sale').reduce((s, e) => s + e.amount, 0);
   // Split 28 Aug: buying stock to resell isn't a loss, but it used to be
