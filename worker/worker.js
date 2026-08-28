@@ -48,6 +48,40 @@ async function handlePing(request, env) {
   return cors(new Response(null, { status: 204 }));
 }
 
+// Owner-only single-shop lookup, added 28 Aug: the aggregate /admin/stats
+// feed below can say "3 shops were active this week" but can never say
+// WHICH 3, on purpose - shop_hash is a one-way hash so nobody, owner
+// included, can reverse it back to a name. That's correct for real
+// merchants, but it means a specific test user (a parent, a pilot shop)
+// is genuinely invisible unless you already know their exact Shop ID and
+// ask for it by name. This endpoint does exactly that and nothing more:
+// given a shop id you already know (not a search, not a list), hash it
+// the same way handlePing does, and return that one shop's own activity.
+// Same ADMIN_KEY gate as the stats feed - never callable from the app.
+async function handleShopActivity(request, env) {
+  if (!env.COUNTMY_DB) return cors(new Response(JSON.stringify({ error: 'not configured' }), { status: 503 }));
+  const url = new URL(request.url);
+  const key = url.searchParams.get('key') || '';
+  if (!env.ADMIN_KEY || key !== env.ADMIN_KEY) {
+    return cors(new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401 }));
+  }
+  const shop = (url.searchParams.get('shop') || '').trim().toLowerCase();
+  if (!shop) return cors(new Response(JSON.stringify({ error: 'missing shop id' }), { status: 400 }));
+  const shopHash = (await sha256Hex(shop)).slice(0, 32);
+  const row = await env.COUNTMY_DB.prepare(
+    "SELECT MIN(ts) as firstSeen, MAX(ts) as lastSeen, SUM(CASE WHEN event_type='open' THEN 1 ELSE 0 END) as opens, SUM(CASE WHEN event_type='save' THEN 1 ELSE 0 END) as saves FROM events WHERE shop_hash = ?"
+  ).bind(shopHash).first();
+  const seen = !!(row && row.firstSeen);
+  return cors(new Response(JSON.stringify({
+    shop,
+    seen,
+    firstSeen: seen ? row.firstSeen : null,
+    lastSeen: seen ? row.lastSeen : null,
+    opens: seen ? (row.opens || 0) : 0,
+    saves: seen ? (row.saves || 0) : 0
+  }), { headers: { 'Content-Type': 'application/json' } }));
+}
+
 // Owner-only dashboard feed, gated by a secret query key (env.ADMIN_KEY, a
 // Worker secret set in the Cloudflare dashboard - never committed to the repo,
 // never in client-side code). Periods are rolling windows (last 24h / 7d /
@@ -160,11 +194,20 @@ async function handleTranscribe(request, env) {
   }
   const base64Audio = btoa(binary);
 
+  // language was hardcoded to 'en' - honest limit found 28 Aug checking what
+  // this model actually supports: Whisper large-v3 has no Twi/Akan in its
+  // trained language set at all, so real Twi speech was never going to work
+  // regardless of this setting. But forcing 'en' also actively hurt the
+  // common real case - a Ghanaian shop owner speaking English with Twi
+  // words mixed in, or Ghanaian Pidgin - by telling the model to decode
+  // everything as pure English even where that's wrong. Dropping the forced
+  // language lets Whisper auto-detect per utterance, which is strictly
+  // better for English and Pidgin (both close enough to be recognized) and
+  // does nothing worse for Twi (still unsupported either way).
   let result;
   try {
     result = await env.AI.run('@cf/openai/whisper-large-v3-turbo', {
-      audio: base64Audio,
-      language: 'en'
+      audio: base64Audio
     });
   } catch (err) {
     // Covers the daily-quota-exhausted case (real, documented risk on the free tier)
@@ -361,6 +404,7 @@ export default {
       if (url.pathname === '/extract' && request.method === 'POST') return await handleExtract(request, env);
       if (url.pathname === '/ping' && request.method === 'POST') return await handlePing(request, env);
       if (url.pathname === '/admin/stats' && request.method === 'GET') return await handleAdminStats(request, env);
+      if (url.pathname === '/admin/shop' && request.method === 'GET') return await handleShopActivity(request, env);
       return cors(new Response('Not found', { status: 404 }));
     } catch (err) {
       return cors(new Response(JSON.stringify({ error: 'server error', detail: String(err) }), { status: 500 }));

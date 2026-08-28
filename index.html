@@ -111,7 +111,7 @@ body{margin:0;background:var(--paper);color:var(--ink);font-family:"Work Sans",-
 .sheet h2{font-family:"Manrope",sans-serif;font-size:1rem;margin:0 0 14px}
 .field{margin-bottom:12px}
 .field label{display:block;font-size:.92rem;color:var(--ink-soft);margin-bottom:6px;font-weight:600}
-.field input{width:100%;padding:14px;border:1px solid var(--rule);border-radius:10px;font-size:1.1rem;background:var(--paper)}
+.field input{width:100%;padding:14px;border:1px solid var(--rule);border-radius:10px;font-size:1.1rem;background:var(--paper);color:var(--ink)}
 /* The native up/down spinner on number inputs reads as "tap these tiny arrows
    to count up one at a time" to a first-time user - the numeric keyboard from
    inputmode="decimal" is what's meant to be used instead, so the spinner is
@@ -155,11 +155,12 @@ input[type="number"]{-moz-appearance:textfield}
 .voice-card-type{display:flex;justify-content:space-between;align-items:center;font-family:"Manrope",sans-serif;font-weight:800;font-size:.86rem;color:var(--flame-deep);margin-bottom:10px}
 .voice-card-status{font-family:"Work Sans",sans-serif;font-weight:700;font-size:.68rem;text-transform:uppercase;letter-spacing:.04em;padding:3px 9px;border-radius:100px}
 .voice-card-status.ready{background:var(--leaf-soft);color:var(--leaf-deep)}
+.voice-card-status.saved{background:var(--leaf-deep);color:#fff}
 .voice-card-status.pending{background:var(--amber-soft);color:var(--amber)}
 .field-label{display:block;font-size:.82rem;color:var(--ink-soft);margin-bottom:5px;font-weight:600}
 .field.ai-detected input,.field.needs-input input{width:100%;padding:12px;border-radius:10px;font-size:1rem}
-.field.ai-detected input{border:1px solid var(--rule);background:var(--paper)}
-.field.needs-input input{border:1.5px solid var(--amber);background:var(--amber-soft)}
+.field.ai-detected input{border:1px solid var(--rule);background:var(--paper);color:var(--ink)}
+.field.needs-input input{border:1.5px solid var(--amber);background:var(--amber-soft);color:var(--ink)}
 .field-caption{font-size:.72rem;margin-top:4px;margin-bottom:2px}
 .field.ai-detected .field-caption{color:var(--muted)}
 .field.needs-input .field-caption{color:var(--amber);font-weight:700}
@@ -334,7 +335,7 @@ input[type="number"]{-moz-appearance:textfield}
      string is what forces a fresh script fetch even before any service worker logic
      runs, independent of it. Found live 27 Aug: without this, an already-visited
      browser can keep running old code from plain HTTP cache regardless of SW strategy. -->
-<script src="app.js?v=17"></script>
+<script src="app.js?v=18"></script>
 
 <!-- Analytics for the Silent Alpha pilot only (27 Aug) - added to observe real
      merchant behavior (what they tap first, voice vs manual usage), NOT to

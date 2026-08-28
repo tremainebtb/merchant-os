@@ -33,6 +33,29 @@ function addEntry(entry) {
   });
 }
 
+function deleteEntry(id) {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE, 'readwrite');
+    tx.objectStore(STORE).delete(id);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+function updateEntry(id, patch) {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE, 'readwrite');
+    const store = tx.objectStore(STORE);
+    const req = store.get(id);
+    req.onsuccess = () => {
+      const rec = req.result;
+      if (rec) store.put(Object.assign(rec, patch));
+    };
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
 function getAllEntries() {
   return new Promise((resolve, reject) => {
     const tx = db.transaction(STORE, 'readonly');
@@ -279,20 +302,31 @@ function fieldMarkup(value, idx, key, type, extraAttrs) {
 // loud what was heard and the one thing to do next, the same way speakToday
 // already does for the daily summary, so the confirmation is heard, not
 // only read.
+// Real feedback, 28 Aug: after speaking, asking for a SEPARATE "Save" tap
+// is backwards for someone who can't read the card - it reads as a second,
+// unexplained chore, not an obvious next step. Fixed by flipping the
+// default: anything the AI heard clearly (an item AND a number) is saved
+// the instant it's heard - no tap needed - and what's spoken back says so
+// plainly. A big, simple "Undo" stays on every card in case it's wrong,
+// so the safety net is still there, it's just after the fact instead of
+// before. Only a genuinely incomplete entry (heard an item, never caught
+// a number) still asks for a tap - because there is nothing yet TO save.
 function speakVoiceReview(events) {
   if (!('speechSynthesis' in window)) return;
-  const lines = events.map(ev => {
+  const saved = [], incomplete = [];
+  events.forEach(ev => {
     const entry = eventToEntry(ev);
-    if (!entry.item) return null;
-    const label = TYPE_LABEL[ev.type] || ev.type;
-    const amountPart = entry.amount ? `, ${fmt(entry.amount)}` : ', but I did not catch the amount';
-    return `${label}: ${entry.item}${amountPart}.`;
-  }).filter(Boolean);
+    if (!entry.item) return;
+    (voiceEventComplete(ev) ? saved : incomplete).push(entry);
+  });
+  const lines = [];
+  saved.forEach(entry => lines.push(`Saved: ${entry.item}, ${fmt(entry.amount)}.`));
+  incomplete.forEach(entry => lines.push(`I heard ${entry.item} but not the price - tap it in below.`));
   if (!lines.length) return;
-  const closer = events.length > 1
-    ? 'Check each one below, then tap the green Save button under it.'
-    : 'Check it below, then tap the green Save button.';
-  const utter = new SpeechSynthesisUtterance(`I heard this. ${lines.join(' ')} ${closer}`);
+  const closer = saved.length
+    ? 'If any of this is wrong, tap Undo under it.'
+    : '';
+  const utter = new SpeechSynthesisUtterance(`${lines.join(' ')} ${closer}`.trim());
   utter.rate = 0.8;
   speechSynthesis.cancel();
   speechSynthesis.speak(utter);
@@ -307,30 +341,54 @@ function renderVoiceReview() {
     const nameLabel = ev.type === 'debt_in' ? 'Customer name' : ev.type === 'debt_out' ? 'Supplier name' : 'What';
     const priceLabel = ev.type === 'sale' ? 'Price each (cedis)' : 'Amount (cedis)';
     const ready = voiceEventComplete(ev);
+    const statusCls = ev._savedId ? 'saved' : (ready ? 'ready' : 'pending');
+    const statusText = ev._savedId ? '\u2713 Saved' : (ready ? 'Ready' : 'Needs a number');
+    const btns = ev._savedId
+      ? `<div class="voice-card-btns"><button class="btn btn-cancel voice-undo" data-idx="${i}">Undo save</button></div>`
+      : `<div class="voice-card-btns">
+          <button class="btn btn-cancel voice-discard" data-idx="${i}">Discard</button>
+          <button class="btn btn-save voice-save" data-idx="${i}">Save</button>
+        </div>`;
     return `
       <div class="voice-card">
         <div class="voice-card-type">
           <span>${TYPE_LABEL[ev.type] || ev.type}</span>
-          <span class="voice-card-status ${ready ? 'ready' : 'pending'}">${ready ? 'Ready' : 'Needs a number'}</span>
+          <span class="voice-card-status ${statusCls}">${statusText}</span>
         </div>
         <label class="field-label">${nameLabel}</label>
         ${fieldMarkup(ev.item, i, 'item', 'text')}
         ${ev.type === 'sale' ? `<label class="field-label">How many?</label>${fieldMarkup(ev.qty, i, 'qty', 'number', 'inputmode="decimal"')}` : ''}
         <label class="field-label">${priceLabel}</label>
         ${fieldMarkup(ev.price, i, 'price', 'number', 'inputmode="decimal"')}
-        <div class="voice-card-btns">
-          <button class="btn btn-cancel voice-discard" data-idx="${i}">Discard</button>
-          <button class="btn btn-save voice-save" data-idx="${i}">Save</button>
-        </div>
+        ${btns}
       </div>`;
   }).join('');
-  list.querySelectorAll('input').forEach(inp => inp.addEventListener('input', (e) => {
+  // Fields stay editable even after a card auto-saves - a saved-but-wrong
+  // number is exactly the case this exists for. Editing a saved card writes
+  // straight through to the already-saved record instead of silently doing
+  // nothing, so "tap to fix it" actually fixes it.
+  list.querySelectorAll('input').forEach(inp => inp.addEventListener('input', async (e) => {
     const { idx, key } = e.target.dataset;
-    pendingVoiceEvents[idx][key] = e.target.value;
+    const ev = pendingVoiceEvents[idx];
+    ev[key] = e.target.value;
+    if (ev._savedId) {
+      const entry = eventToEntry(ev);
+      await updateEntry(ev._savedId, { item: entry.item, qty: entry.qty, price: entry.price, amount: entry.amount });
+      await render();
+    }
   }));
   list.querySelectorAll('.voice-discard').forEach(btn => btn.addEventListener('click', (e) => {
     pendingVoiceEvents.splice(Number(e.target.dataset.idx), 1);
     renderVoiceReview();
+  }));
+  list.querySelectorAll('.voice-undo').forEach(btn => btn.addEventListener('click', async (e) => {
+    const idx = Number(e.target.dataset.idx);
+    const ev = pendingVoiceEvents[idx];
+    await deleteEntry(ev._savedId);
+    track('undo_voice_save', { type: ev.type });
+    pendingVoiceEvents.splice(idx, 1);
+    renderVoiceReview();
+    await render();
   }));
   list.querySelectorAll('.voice-save').forEach(btn => btn.addEventListener('click', async (e) => {
     const idx = Number(e.target.dataset.idx);
@@ -338,10 +396,11 @@ function renderVoiceReview() {
     if (!voiceEventComplete(ev)) { alert('Fill in the missing number(s) first.'); return; }
     const entry = eventToEntry(ev);
     const ts = Date.now();
-    await addEntry({ id: crypto.randomUUID(), type: entry.type, item: entry.item, note: entry.note, qty: entry.qty, price: entry.price, amount: entry.amount, source: 'voice', day: todayKey(ts), ts });
+    const id = crypto.randomUUID();
+    await addEntry({ id, type: entry.type, item: entry.item, note: entry.note, qty: entry.qty, price: entry.price, amount: entry.amount, source: 'voice', day: todayKey(ts), ts });
     track('save_entry', { type: entry.type, source: 'voice' });
     ping('save');
-    pendingVoiceEvents.splice(idx, 1);
+    ev._savedId = id;
     renderVoiceReview();
     await render();
   }));
