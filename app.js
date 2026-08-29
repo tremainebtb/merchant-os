@@ -639,9 +639,14 @@ async function toggleMic(btn, statusId) {
         const heard = await transcribeBlob(blob);
         if (!heard.trim()) {
           track('mic_error', { reason: 'no_transcript', duration_ms: recordedMs });
+          // Real advice, 30 Aug: researched (not guessed) - "please" is the
+          // single most documented politeness marker in Ghanaian English,
+          // used far more generously in requests than American/British
+          // English. Added to every instruction that asks the owner to do
+          // something, not to plain statements of fact.
           const msg = recordedMs < 1200
-            ? 'That was too quick \u2014 tap once, say what happened out loud, THEN tap again to stop.'
-            : 'Didn\u2019t catch any words \u2014 hold the phone closer and speak clearly, then try again.';
+            ? 'That was too quick \u2014 please tap once, say what happened out loud, THEN tap again to stop.'
+            : 'Didn\u2019t catch any words \u2014 please hold the phone closer and speak clearly, then try again.';
           setMicStatus(msg, 'err', statusId);
           return;
         }
@@ -695,7 +700,7 @@ async function toggleMic(btn, statusId) {
     // say it out loud too, since a text-only fix instruction is useless to
     // someone who can't read it in the first place.
     const msg = err.name === 'NotAllowedError'
-      ? 'This phone said no to the microphone. Go to your phone\u2019s Settings, find CountMy or your browser, and turn the microphone on. Or just type instead.'
+      ? 'This phone said no to the microphone. Please go to your phone\u2019s Settings, find CountMy or your browser, and turn the microphone on. Or just type instead.'
       : err.name === 'NotFoundError'
       ? 'This phone/browser has no microphone available. Please type instead.'
       : 'Couldn\u2019t reach the microphone \u2014 please type instead.';
@@ -800,7 +805,7 @@ function openSheet(type) {
   });
   document.getElementById('confirmLine').classList.remove('show');
   document.getElementById('saveBtn').disabled = true;
-  setMicStatus('Tap the mic and say ONE item and its price, then check the numbers before saving.');
+  setMicStatus('Please tap the mic and say ONE item and its price, then check the numbers before saving.');
   document.getElementById('sheet').classList.add('open');
   document.getElementById('sheet').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   fieldsEl.querySelector('input').focus();
@@ -1049,12 +1054,18 @@ async function render() {
     const remind = e.type === 'debt_in' && !isSettled
       ? `<a class="remind-btn" target="_blank" rel="noopener" href="https://wa.me/?text=${encodeURIComponent(`Hello ${e.item}, your balance is ${fmt(remaining)}${e.note ? ' for ' + e.note : ''}. Please send by MoMo when you can. Thank you.`)}">Remind on WhatsApp</a>`
       : '';
+    // "Small small" (bit by bit) is real, sourced, everyday Ghanaian
+    // English used across all ages for gradual/partial payment - unlike
+    // slang terms this app deliberately avoids elsewhere, this one is
+    // genuinely universal register, not youth-coded, and it's an exact
+    // match for what this specific control does.
     const paymentRow = cfg.isDebt && !isSettled ? `
       <div class="debt-pay-row">
         <input type="number" inputmode="decimal" class="debt-pay-input" data-id="${e.id}" placeholder="Amount paid" data-clarity-mask="True">
         <button type="button" class="debt-pay-btn" data-id="${e.id}">Record payment</button>
         <button type="button" class="debt-full-btn" data-id="${e.id}">Paid in full</button>
-      </div>` : '';
+      </div>
+      <small class="debt-pay-hint">They can pay small small &#x2014; record whatever they gave you.</small>` : '';
     const settledTag = cfg.isDebt && isSettled ? '<span class="debt-settled-tag">\u2713 Paid in full</span>' : '';
     return `<div class="hist-item${cfg.isDebt ? ' is-debt' : ''}">
       <div class="desc" data-clarity-mask="True">${cfg.desc(e)}${settledTag}<small>${when}</small>${agingLine}${remind}${paymentRow}</div>

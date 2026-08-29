@@ -221,6 +221,7 @@ input[type="number"]{-moz-appearance:textfield}
 .debt-aging{color:var(--amber) !important;font-weight:600}
 .debt-settled-tag{display:inline-block;margin-left:6px;font-size:.72rem;font-weight:700;color:var(--leaf-deep);background:var(--leaf-soft);padding:2px 8px;border-radius:100px}
 .debt-pay-row{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
+.debt-pay-hint{display:block;color:var(--muted);font-size:.74rem;margin-top:5px}
 .debt-pay-input{width:110px;padding:8px 10px;border:1px solid var(--rule);border-radius:8px;font-size:.86rem;background:var(--paper);color:var(--ink)}
 .debt-pay-btn,.debt-full-btn{font-family:inherit;border:none;border-radius:100px;padding:8px 12px;font-size:.78rem;font-weight:700;cursor:pointer}
 .debt-pay-btn{background:var(--amber-soft);color:var(--amber)}
@@ -274,7 +275,7 @@ input[type="number"]{-moz-appearance:textfield}
        but was a static div. A worried first-time user tapping something
        labelled "No connection" and getting silence reads as broken, not
        reassuring. Now a real button: tapping it re-checks and says so. -->
-  <button id="offlineBadge" type="button" class="offline-badge">No connection &#x2014; still recording, saved on your phone. Tap to check again.</button>
+  <button id="offlineBadge" type="button" class="offline-badge">No connection &#x2014; still recording, saved on your phone. Please tap to check again.</button>
   <!-- Real feedback, 29 Aug: "the top part with the text and branding and
        company logo... is very confusing still." Two separate text blocks
        (a brand line, then a full sentence explaining the app) sitting on
@@ -430,9 +431,9 @@ input[type="number"]{-moz-appearance:textfield}
     <h2>See all your old records</h2>
     <p class="plan-copy">Free shows your last 7 days. Pay 99 cedis once a year to see everything, always &#x2014; less than 2 cedis a week.</p>
     <div class="plan-pay-box">
-      <div class="plan-pay-label">Step 1 &#x2014; Send 99 cedis by MoMo to</div>
+      <div class="plan-pay-label">Step 1 &#x2014; Please send 99 cedis by MoMo to</div>
       <div class="plan-pay-number">020 909 0019</div>
-      <div class="plan-pay-label">Step 2 &#x2014; Type your shop name below</div>
+      <div class="plan-pay-label">Step 2 &#x2014; Please type your shop name below</div>
       <input id="shopIdInput" class="plan-pay-input" type="text" autocomplete="off" placeholder="mama ama provisions" data-clarity-mask="True">
       <div class="plan-pay-hint">This tells us the payment is from you.</div>
     </div>
@@ -463,7 +464,7 @@ input[type="number"]{-moz-appearance:textfield}
      string is what forces a fresh script fetch even before any service worker logic
      runs, independent of it. Found live 27 Aug: without this, an already-visited
      browser can keep running old code from plain HTTP cache regardless of SW strategy. -->
-<script src="app.js?v=30"></script>
+<script src="app.js?v=31"></script>
 
 <!-- Analytics for the Silent Alpha pilot only (27 Aug) - added to observe real
      merchant behavior (what they tap first, voice vs manual usage), NOT to
