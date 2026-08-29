@@ -73,10 +73,25 @@ function fmt(n) {
 const FIELD_CONFIG = {
   sale: {
     title: 'Add sale',
+    // Real advice, repeated independently by both AI reviews and visibly
+    // core to AxisTrade's own design (Cash/MoMo/Credit shown as colored
+    // dots on every sale) - Ghanaian traders think in cash vs MoMo as a
+    // basic fact about a sale, not an accounting afterthought. Credit
+    // sales already have their own flow ("Customer owes me"), so this
+    // choice only covers the two ways an already-paid sale actually came
+    // in. Missing/old entries default to "cash" - the exact same math as
+    // before, nothing silently changes.
     fields: [
       { key: 'item', label: 'What did you sell?', type: 'text' },
       { key: 'qty', label: 'How many?', type: 'number' },
-      { key: 'price', label: 'Price each (cedis)', type: 'number' }
+      { key: 'price', label: 'Price each (cedis)', type: 'number' },
+      {
+        key: 'method', label: 'How were you paid?', type: 'choice', default: 'cash',
+        options: [
+          { value: 'cash', label: 'Cash' },
+          { value: 'momo', label: 'MoMo' }
+        ]
+      }
     ],
     compute: v => (Number(v.qty) || 0) * (Number(v.price) || 0),
     confirm: v => {
@@ -754,6 +769,7 @@ async function saveEntry() {
       qty: v.qty || '',
       price: v.price || '',
       kind: v.kind || '',
+      method: v.method || '',
       amount: amount,
       source: sheetVoiceFilled ? 'voice' : 'manual',
       day: todayKey(ts),
@@ -848,6 +864,14 @@ async function render() {
   const yesterdaySales = entries.filter(e => e.type === 'sale' && e.day === yesterdayKey).reduce((s, e) => s + e.amount, 0);
 
   const sales = todayEntries.filter(e => e.type === 'sale').reduce((s, e) => s + e.amount, 0);
+  // Real gap, closed 28 Aug: sales never distinguished cash from MoMo,
+  // even though that's a basic fact about the sale to a Ghanaian trader,
+  // not an accounting afterthought - flagged independently by both AI
+  // reviews and visibly core to AxisTrade's own design. Missing/old
+  // entries (voice-created, or saved before this existed) count as cash -
+  // the exact same total as before, nothing silently changes.
+  const cashSales = todayEntries.filter(e => e.type === 'sale' && e.method !== 'momo').reduce((s, e) => s + e.amount, 0);
+  const momoSales = todayEntries.filter(e => e.type === 'sale' && e.method === 'momo').reduce((s, e) => s + e.amount, 0);
   // Split 28 Aug: buying stock to resell isn't a loss, but it used to be
   // lumped into the same "expenses" total that gets subtracted from sales -
   // a restock day could show as a huge loss that never actually happened.
@@ -861,6 +885,8 @@ async function render() {
   const balance = sales - expenses;
 
   document.getElementById('tSales').textContent = fmt(sales);
+  const cashMomoEl = document.getElementById('tCashMomo');
+  cashMomoEl.textContent = sales > 0 ? `Cash ${fmt(cashSales)} - MoMo ${fmt(momoSales)}` : '';
   document.getElementById('tExpenses').textContent = fmt(expenses);
   document.getElementById('tStock').textContent = fmt(stockBought);
   document.getElementById('tOwedMe').textContent = fmt(owedMe);

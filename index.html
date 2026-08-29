@@ -115,6 +115,7 @@ body{margin:0;background:var(--paper);color:var(--ink);font-family:"Work Sans",-
 .balance-amt.pos{color:var(--leaf-deep)}
 .balance-amt.neg{color:var(--brick)}
 .today-row{display:flex;justify-content:space-between;align-items:center;padding:7px 0}
+.today-cash-momo{font-size:.78rem;color:var(--muted);margin:-4px 0 4px}
 .today-vs{font-size:.8rem;font-weight:600;color:var(--muted);margin:-4px 0 4px}
 .today-vs.pos{color:var(--leaf-deep)}
 .today-vs.neg{color:var(--brick)}
@@ -291,6 +292,12 @@ input[type="number"]{-moz-appearance:textfield}
       <button id="hearBtn" class="hear-btn">&#x1F50A; Hear it</button>
     </div>
     <div class="today-row tappable" data-speak="Sales"><span>Sales</span><span id="tSales" data-clarity-mask="True">0 cedis</span></div>
+    <!-- Real gap, closed 28 Aug: sales never distinguished cash from MoMo -
+         flagged independently by both AI reviews and visibly core to
+         AxisTrade's own design (shown as colored dots under the total). A
+         compact line, not new full rows - the fact matters, not a bigger
+         card. -->
+    <div id="tCashMomo" class="today-cash-momo" data-clarity-mask="True"></div>
     <!-- Real advice, 28 Aug, from two independent AI reviews after real
          Clarity data showed retention stuck near 3%: the highest-leverage
          next feature isn't a new tool, it's making the Today card answer
@@ -440,7 +447,7 @@ input[type="number"]{-moz-appearance:textfield}
      string is what forces a fresh script fetch even before any service worker logic
      runs, independent of it. Found live 27 Aug: without this, an already-visited
      browser can keep running old code from plain HTTP cache regardless of SW strategy. -->
-<script src="app.js?v=26"></script>
+<script src="app.js?v=27"></script>
 
 <!-- Analytics for the Silent Alpha pilot only (27 Aug) - added to observe real
      merchant behavior (what they tap first, voice vs manual usage), NOT to
