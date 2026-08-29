@@ -216,47 +216,52 @@ async function handleTranscribe(request, env) {
   }
   let text = (result && (result.text || (result.transcription_info && result.transcription_info.text))) || '';
 
-  // Real Twi support, prepped 29 Aug, activates the instant KHAYA_API_KEY is
-  // set as a Worker secret - until then this whole block is a no-op and
-  // behavior is identical to before. Whisper large-v3 has zero Twi/Akan in
-  // its training data (verified against Cloudflare's own docs and OpenAI's
-  // published language list), so it will reliably return empty text for
-  // real Twi speech - not an error, just silence. Rather than add a
-  // language picker to the UI (more to learn, against this app's whole
-  // "just speak" premise), fall back to GhanaNLP's Khaya ASR API
-  // (developer.khaya.ai) - a real, purpose-built, actively-improving Twi
-  // speech model (Twi word error rate ~15% as of their latest release) -
-  // ONLY when Whisper heard nothing at all.
+  // Real Ghanaian-language ASR, wired 30 Aug via GhanaNLP's Khaya API
+  // (developer.khaya.ai). Whisper large-v3 has zero Twi/Akan/Ga in its
+  // training data (verified against Cloudflare's own docs and OpenAI's
+  // published language list), so it reliably returns empty text for real
+  // local-language speech - not an error, just silence. This only runs in
+  // exactly that case, so English/Pidgin (which Whisper already handles)
+  // never touches Khaya's quota at all.
   //
-  // NOT WIRED YET - deliberately: the exact request shape (endpoint path,
-  // audio encoding, response JSON) is documented behind Khaya's developer
-  // sign-in and could not be verified without an account, which is Bobby's
-  // to create, not something to guess at and ship as if confirmed. Once a
-  // real account/key exists, replace the block below with the real HTTP
-  // call using whatever the docs actually specify - do not invent an
-  // endpoint URL from assumption.
+  // Endpoint, language codes, and raw-bytes request shape all verified
+  // directly against Khaya's real API docs (developer.khaya.ai/api-details)
+  // and confirmed live: GET /languages returned the real code list (twi,
+  // gaa, fat, ewe, pcm for Pidgin, etc - not guessed), and a genuine
+  // browser-recorded webm/opus blob (built the same way this app actually
+  // records) was POSTed to the real endpoint and came back 200 with a
+  // correct transcript - despite webm not being in Khaya's documented
+  // format list (wav/mp3/flac/ogg), their backend evidently sniffs the
+  // real format rather than trusting the declared one.
+  //
+  // Twi only, deliberately: the free Developer tier this account is on
+  // caps at 100 calls total per MONTH (not per day) - trying several
+  // languages per failed recording would burn that in a handful of real
+  // uses. Twi is by far the most widely spoken Ghanaian language, so it's
+  // the single best bet with a one-shot budget. If real usage shows people
+  // need Ga/Fante/Ewe specifically, that needs either a paid Khaya tier or
+  // a way to ask which language once, not silently multiply API calls.
   if (!text.trim() && env.KHAYA_API_KEY) {
     try {
-      // const khayaRes = await fetch('<VERIFY REAL ENDPOINT FROM KHAYA DOCS>', {
-      //   method: 'POST',
-      //   headers: {
-      //     'Ocp-Apim-Subscription-Key': env.KHAYA_API_KEY,
-      //     'Content-Type': '<VERIFY - likely audio/mpeg or multipart/form-data>'
-      //   },
-      //   body: /* VERIFY - Khaya's own Dart SDK example uses raw audio bytes
-      //            from an .mp3 file; this app records webm/mp4/ogg depending
-      //            on browser, and Workers cannot transcode audio formats
-      //            without an external service - confirm Khaya accepts the
-      //            browser's native format before wiring this for real, or
-      //            this will silently fail on real Twi speech exactly like
-      //            Whisper does today. */
-      // });
-      // const khayaData = await khayaRes.json();
-      // text = khayaData.text || khayaData.transcript || '';
+      const khayaRes = await fetch('https://translation-api.ghananlp.org/asr/v3/transcribe?language=twi', {
+        method: 'POST',
+        headers: {
+          'Ocp-Apim-Subscription-Key': env.KHAYA_API_KEY,
+          'Content-Type': audio.type || 'audio/webm'
+        },
+        body: audioBytes
+      });
+      if (khayaRes.ok) {
+        const khayaData = await khayaRes.json();
+        text = (khayaData && khayaData.text) || '';
+      }
+      // A non-OK response (e.g. quota exhausted, invalid audio) falls
+      // through to the same empty-transcript handling the frontend
+      // already has for Whisper - never a broken/different error path
+      // just because the fallback was the one that failed.
     } catch (err) {
-      // Twi fallback failing should never break the existing English/Pidgin
-      // path - swallow and fall through to the same empty-transcript
-      // handling the frontend already has.
+      // Same reasoning: a network failure reaching Khaya should never
+      // break the existing English/Pidgin experience.
     }
   }
 
