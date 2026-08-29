@@ -115,6 +115,9 @@ body{margin:0;background:var(--paper);color:var(--ink);font-family:"Work Sans",-
 .balance-amt.pos{color:var(--leaf-deep)}
 .balance-amt.neg{color:var(--brick)}
 .today-row{display:flex;justify-content:space-between;align-items:center;padding:7px 0}
+.today-vs{font-size:.8rem;font-weight:600;color:var(--muted);margin:-4px 0 4px}
+.today-vs.pos{color:var(--leaf-deep)}
+.today-vs.neg{color:var(--brick)}
 .today-row.tappable{cursor:pointer;border-radius:8px;margin:0 -8px;padding:7px 8px;transition:background .12s}
 .today-row.tappable:active{background:var(--flame-soft)}
 .today-row.balance.tappable:active{background:var(--leaf-soft)}
@@ -288,6 +291,13 @@ input[type="number"]{-moz-appearance:textfield}
       <button id="hearBtn" class="hear-btn">&#x1F50A; Hear it</button>
     </div>
     <div class="today-row tappable" data-speak="Sales"><span>Sales</span><span id="tSales" data-clarity-mask="True">0 cedis</span></div>
+    <!-- Real advice, 28 Aug, from two independent AI reviews after real
+         Clarity data showed retention stuck near 3%: the highest-leverage
+         next feature isn't a new tool, it's making the Today card answer
+         "did I do better than yesterday" - the natural reason to come back
+         daily. Matches AxisTrade's own pattern ("+ GH240 vs last Tue") but
+         in plain cedis, never a percentage. -->
+    <div id="tVsYesterday" class="today-vs"></div>
     <div class="today-row tappable" data-speak="Expenses"><span>Expenses</span><span id="tExpenses" data-clarity-mask="True">0 cedis</span></div>
     <!-- Real problem, flagged independently by two separate strategy reviews,
          28 Aug: buying stock to resell isn't a loss, but it used to be
@@ -430,7 +440,7 @@ input[type="number"]{-moz-appearance:textfield}
      string is what forces a fresh script fetch even before any service worker logic
      runs, independent of it. Found live 27 Aug: without this, an already-visited
      browser can keep running old code from plain HTTP cache regardless of SW strategy. -->
-<script src="app.js?v=25"></script>
+<script src="app.js?v=26"></script>
 
 <!-- Analytics for the Silent Alpha pilot only (27 Aug) - added to observe real
      merchant behavior (what they tap first, voice vs manual usage), NOT to

@@ -835,6 +835,18 @@ async function render() {
   renderAdmin();
   document.getElementById('todayGreeting').textContent = greeting();
 
+  // Real advice, 28 Aug, sought independently from two AI reviews after
+  // real Clarity data showed 97% of visits are new and returning usage is
+  // still flat: the single highest-leverage thing to build isn't a new
+  // feature, it's turning the Today card into a daily ritual someone comes
+  // back to check - "did I do better than yesterday?" is the natural next
+  // question after "what happened today", and it's exactly what AxisTrade's
+  // own design shows ("+ GH240.00 vs last Tue"). Uses plain cedis
+  // difference, not a percentage - this audience shouldn't need to do
+  // percentage math to understand their own sales.
+  const yesterdayKey = todayKey(Date.now() - 24 * 60 * 60 * 1000);
+  const yesterdaySales = entries.filter(e => e.type === 'sale' && e.day === yesterdayKey).reduce((s, e) => s + e.amount, 0);
+
   const sales = todayEntries.filter(e => e.type === 'sale').reduce((s, e) => s + e.amount, 0);
   // Split 28 Aug: buying stock to resell isn't a loss, but it used to be
   // lumped into the same "expenses" total that gets subtracted from sales -
@@ -856,7 +868,21 @@ async function render() {
   balanceEl.textContent = fmt(balance);
   balanceEl.classList.toggle('pos', balance >= 0);
   balanceEl.classList.toggle('neg', balance < 0);
-  window._kymToday = { sales, expenses, stockBought, owedMe, balance };
+
+  const vsYesterdayEl = document.getElementById('tVsYesterday');
+  const salesDiff = sales - yesterdaySales;
+  if (salesDiff > 0) {
+    vsYesterdayEl.textContent = `Up ${fmt(salesDiff)} from yesterday`;
+    vsYesterdayEl.className = 'today-vs pos';
+  } else if (salesDiff < 0) {
+    vsYesterdayEl.textContent = `Down ${fmt(-salesDiff)} from yesterday`;
+    vsYesterdayEl.className = 'today-vs neg';
+  } else {
+    vsYesterdayEl.textContent = 'Same as yesterday';
+    vsYesterdayEl.className = 'today-vs';
+  }
+
+  window._kymToday = { sales, expenses, stockBought, owedMe, balance, salesDiff };
 
   const histEl = document.getElementById('history');
   if (!entries.length) {
@@ -889,13 +915,16 @@ async function render() {
 // first, not an invented script.
 function speakToday() {
   if (!('speechSynthesis' in window)) return;
-  const t = window._kymToday || { sales: 0, expenses: 0, stockBought: 0, owedMe: 0, balance: 0 };
+  const t = window._kymToday || { sales: 0, expenses: 0, stockBought: 0, owedMe: 0, balance: 0, salesDiff: 0 };
   // Matches the on-screen labels word for word \u2014 hearing something different from
   // what's on the screen is confusing, not helpful. Short, plain sentences, slow
   // pace \u2014 this is read aloud, not read silently.
   const stockLine = t.stockBought > 0 ? `Stock bought: ${fmt(t.stockBought)}. ` : '';
+  const vsLine = t.salesDiff > 0 ? `You sold ${fmt(t.salesDiff)} more than yesterday. `
+    : t.salesDiff < 0 ? `You sold ${fmt(-t.salesDiff)} less than yesterday. `
+    : `Same sales as yesterday. `;
   const text = `Today. Sales: ${fmt(t.sales)}. Expenses: ${fmt(t.expenses)}. ${stockLine}`
-    + `Customers owe you: ${fmt(t.owedMe)}. Sales minus expenses: ${fmt(t.balance)}.`;
+    + `Customers owe you: ${fmt(t.owedMe)}. Sales minus expenses: ${fmt(t.balance)}. ${vsLine}`;
   const utter = new SpeechSynthesisUtterance(text);
   utter.rate = 0.8;
   const btn = document.getElementById('hearBtn');
