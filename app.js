@@ -7,10 +7,28 @@
 // this app is built for. Preferring a local, on-device English voice is a
 // real, bounded improvement - it is not a fix for whatever the underlying
 // platform TTS engine itself sounds like, which this app has no control over.
+// Real feedback, 29 Aug: "the voice... perhaps to be in English Ghanaian
+// way and not western world English." No browser/OS ships an actual
+// Ghanaian English voice today - that's a real, checkable limit, not
+// something to fake. The honest, bounded improvement available: Ghanaian
+// English follows British spelling/pronunciation convention (a British
+// colonial-era legacy, still how English is taught in Ghanaian schools),
+// not American - so a British or other Commonwealth-English voice reads
+// as meaningfully closer and more familiar than the US-English voice most
+// browsers default to. Checked in this order, falling through only when
+// the previous tier has nothing installed on this device: an actual
+// Ghanaian voice (checked in case one ever ships - free to ask for),
+// other African-English locales some Android TTS engines do carry, then
+// British English, then any English at all.
+const VOICE_LANG_PRIORITY = ['en-gh', 'en-ng', 'en-za', 'en-ke', 'en-gb'];
 function pickBestVoice() {
   if (!('speechSynthesis' in window)) return null;
   const voices = speechSynthesis.getVoices();
   const enVoices = voices.filter(v => v.lang && v.lang.toLowerCase().startsWith('en'));
+  for (const lang of VOICE_LANG_PRIORITY) {
+    const match = enVoices.find(v => v.lang.toLowerCase() === lang);
+    if (match) return match;
+  }
   const localEn = enVoices.find(v => v.localService);
   return localEn || enVoices[0] || voices[0] || null;
 }
@@ -412,6 +430,27 @@ function speakVoiceReview(events) {
   speechSynthesis.speak(utter);
 }
 
+// Real bug, found 29 Aug from real user feedback: the auto-save behavior
+// this file already describes in comments above ("anything the AI heard
+// clearly is saved the instant it's heard - no tap needed") was never
+// actually wired up anywhere - the only place that ever set _savedId was
+// the manual "Save" button click handler below. Every complete voice entry
+// still silently required a manual tap this whole time. This is the actual
+// trigger: called once right after events are produced, before the first
+// render, so a complete entry shows already in its saved state.
+async function autoSaveReadyEvents(events) {
+  for (const ev of events) {
+    if (ev._savedId || !voiceEventComplete(ev)) continue;
+    const entry = eventToEntry(ev);
+    const ts = Date.now();
+    const id = crypto.randomUUID();
+    await addEntry({ id, type: entry.type, item: entry.item, note: entry.note, qty: entry.qty, price: entry.price, paid: 0, amount: entry.amount, source: 'voice', day: todayKey(ts), ts });
+    track('save_entry', { type: entry.type, source: 'voice' });
+    ping('save');
+    ev._savedId = id;
+  }
+}
+
 function renderVoiceReview() {
   const list = document.getElementById('voiceReviewList');
   const wrap = document.getElementById('voiceReview');
@@ -611,15 +650,31 @@ async function toggleMic(btn, statusId) {
         track('voice_extracted', { event_count: events.length });
         if (events.length >= 1) {
           pendingVoiceEvents = events;
+          await autoSaveReadyEvents(pendingVoiceEvents);
           renderVoiceReview();
           closeSheet();
-          setMicStatus(`Heard: \u201c${heard}\u201d \u2014 check each one below, then Save.`, 'heard', statusId);
+          setMicStatus(`Heard: \u201c${heard}\u201d \u2014 saved, check it below.`, 'heard', statusId);
           document.getElementById('voiceReview').scrollIntoView({ behavior: 'smooth', block: 'start' });
-          speakVoiceReview(events);
+          speakVoiceReview(pendingVoiceEvents);
+          await render();
         } else if (activeType) {
-          fillFields(parseHeardText(activeType, heard));
-          sheetVoiceFilled = true;
-          setMicStatus(`Heard: \u201c${heard}\u201d \u2014 check the numbers below, then Save.`, 'heard', statusId);
+          // Real bug, found 29 Aug from a real screenshot: a sheet left open
+          // (e.g. "I owe supplier") plus an unrelated thing said into the mic
+          // used to get silently crammed into that sheet's fields no matter
+          // how little sense it made for that entry type, then just sat
+          // there waiting for a manual Save tap someone could easily miss or
+          // not understand. Routed through the exact same auto-save +
+          // editable + Undo card as every other voice entry now, closing
+          // the sheet instead of leaving a stale, wrongly-typed form open.
+          const parsed = parseHeardText(activeType, heard);
+          pendingVoiceEvents = [{ type: activeType, item: parsed.item, price: parsed.price, qty: parsed.qty, note: '' }];
+          await autoSaveReadyEvents(pendingVoiceEvents);
+          renderVoiceReview();
+          closeSheet();
+          setMicStatus(`Heard: \u201c${heard}\u201d \u2014 saved, check it below.`, 'heard', statusId);
+          document.getElementById('voiceReview').scrollIntoView({ behavior: 'smooth', block: 'start' });
+          speakVoiceReview(pendingVoiceEvents);
+          await render();
         } else {
           setMicStatus(`Heard: \u201c${heard}\u201d \u2014 but couldn\u2019t work out what happened. Try again, saying an amount in cedis.`, 'err', statusId);
         }
@@ -939,6 +994,13 @@ async function render() {
   document.getElementById('tExpenses').textContent = fmt(expenses);
   document.getElementById('tStock').textContent = fmt(stockBought);
   document.getElementById('tOwedMe').textContent = fmt(owedMe);
+  // Real feedback, 29 Aug: hide these two rows until they have a real value
+  // once - a "0 cedis" row for a feature nobody has used yet is clutter,
+  // not information. Once shown, stays shown for that device even if the
+  // number goes back to 0 later (e.g. a debt gets fully paid off) - it
+  // never disappears the moment after someone actually used it.
+  if (stockBought > 0) document.getElementById('tStockRow').style.display = '';
+  if (owedMe > 0) document.getElementById('tOwedRow').style.display = '';
   const balanceEl = document.getElementById('tBalance');
   balanceEl.textContent = fmt(balance);
   balanceEl.classList.toggle('pos', balance >= 0);

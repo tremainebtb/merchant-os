@@ -104,9 +104,8 @@ body{margin:0;background:var(--paper);color:var(--ink);font-family:"Work Sans",-
    nothing about what to do or why; the plain-language sentence below is what
    Bobby was actually saying out loud to explain it, now living on the page
    itself instead of depending on him being there to say it. */
-.brand-row{font-family:"Manrope",sans-serif;font-size:.82rem;font-weight:700;color:var(--muted);letter-spacing:.02em;margin:8px 0 6px}
-.brand-sub{font-weight:500;text-transform:none;letter-spacing:0}
-.pitch{font-family:"Manrope",sans-serif;font-size:1.2rem;font-weight:800;line-height:1.4;margin:0 0 18px;color:var(--ink)}
+.brand-sub{font-weight:500;font-size:.68em;color:var(--muted)}
+.pitch{font-family:"Manrope",sans-serif;font-size:1.5rem;font-weight:800;line-height:1.3;margin:10px 0 16px;color:var(--ink)}
 .today{background:var(--surface);border:1px solid var(--rule);border-radius:16px;padding:18px;margin-bottom:16px;box-shadow:0 2px 10px rgba(34,26,18,.06)}
 .today-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
 .today-label{font-family:"Manrope",sans-serif;font-size:.98rem;color:var(--ink);font-weight:700}
@@ -276,15 +275,14 @@ input[type="number"]{-moz-appearance:textfield}
        labelled "No connection" and getting silence reads as broken, not
        reassuring. Now a real button: tapping it re-checks and says so. -->
   <button id="offlineBadge" type="button" class="offline-badge">No connection &#x2014; still recording, saved on your phone. Tap to check again.</button>
-  <!-- Real feedback, 28 Aug (55-year-old first-time user): "countmy name
-       overall confusing i thought they want me to count, i didn't know
-       that's the brand name" - and separately, the old two-question
-       headline ("Sold something today? Spent money?") read as "weird and
-       untrustworthy" and left them with "no idea what it is." Fixed by
-       saying plainly, in one flat sentence, what CountMy IS before anything
-       else - a name introduced as a name, not a question the app is asking. -->
-  <div class="brand-row">CountMy <span class="brand-sub">(a free money notebook)</span></div>
-  <h1 class="pitch">CountMy writes down what you sell and spend, so you always know your money.</h1>
+  <!-- Real feedback, 29 Aug: "the top part with the text and branding and
+       company logo... is very confusing still." Two separate text blocks
+       (a brand line, then a full sentence explaining the app) sitting on
+       top of each other before anything else on the page was itself part
+       of the "so much text" problem - said the same thing twice, in two
+       different sizes. Down to one line: the name, self-explained in the
+       same breath, nothing above it, nothing to read before it. -->
+  <h1 class="pitch">CountMy <span class="brand-sub">&#x2014; your free money notebook</span></h1>
 
   <div class="today">
     <div class="today-top">
@@ -318,8 +316,15 @@ input[type="number"]{-moz-appearance:textfield}
          counted the same as an expense - a restock day could show as a huge
          loss that never happened. Shown as its own line, kept OUT of the
          balance below. -->
-    <div class="today-row tappable" data-speak="Stock bought"><span>Stock bought</span><span id="tStock" data-clarity-mask="True">0 cedis</span></div>
-    <div class="today-row tappable" data-speak="Customers owe you"><span>Customers owe me</span><span id="tOwedMe" data-clarity-mask="True">0 cedis</span></div>
+    <!-- Real feedback, 29 Aug: "so much text still... circles and
+         rectangles... overwhelming." These two rows only matter to someone
+         who has actually bought stock to resell or has a customer owing
+         them - showing "0 cedis" for a feature nobody has touched yet is
+         pure clutter, not information. Hidden via app.js until the first
+         real value exists, exactly like "Recent" already only shows once
+         there's something to show. -->
+    <div id="tStockRow" class="today-row tappable" data-speak="Stock bought" style="display:none"><span>Stock bought</span><span id="tStock" data-clarity-mask="True">0 cedis</span></div>
+    <div id="tOwedRow" class="today-row tappable" data-speak="Customers owe you" style="display:none"><span>Customers owe me</span><span id="tOwedMe" data-clarity-mask="True">0 cedis</span></div>
     <div class="today-row balance tappable" data-speak="Sales minus expenses"><span>Sales minus expenses<small class="today-hint">&#x2014; not what's owed to you, not cash count, not counting stock you bought</small></span><span id="tBalance" class="balance-amt" data-clarity-mask="True">0 cedis</span></div>
   </div>
 
@@ -340,8 +345,23 @@ input[type="number"]{-moz-appearance:textfield}
   <div class="mic-lang-line">Speak English, Twi, or Pidgin</div>
   <div class="mic-trust-line">&#x1F512; Free. No signup. Your saved records stay on your phone.</div>
   <div id="homeMicStatus" class="home-mic-status"></div>
-  <div class="or-row">or tap a button</div>
+  <div id="voiceReview" class="voice-review">
+    <div class="voice-review-head">
+      <span>What I heard - check each one, then Save</span>
+      <button id="voiceReviewCloseBtn" class="admin-close">&#x2715;</button>
+    </div>
+    <div id="voiceReviewList"></div>
+  </div>
 
+  <div class="hist-label">Recent</div>
+  <div id="history"><div class="empty">Nothing recorded yet. Add your first sale above.</div></div>
+
+  <!-- Real feedback, 29 Aug: "the 4 categories perhaps should show much
+       later" - with voice handling every entry type on its own, the typed
+       buttons are the fallback for someone who'd rather type, not the main
+       decision on the screen. Moved below Recent so voice and the Today
+       card are the only things competing for attention on first load. -->
+  <div class="or-row">or type it yourself</div>
   <div class="actions">
     <button class="act-btn act-sale" data-type="sale">
       <svg class="act-icon" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/><path d="M12 7v10M9 9.5c0-1 1-1.8 3-1.8s3 .8 3 1.8-1 1.5-3 1.5-3 .5-3 1.5 1 1.8 3 1.8 3-.8 3-1.8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
@@ -378,17 +398,6 @@ input[type="number"]{-moz-appearance:textfield}
       <button class="btn btn-save" id="saveBtn">Save</button>
     </div>
   </div>
-
-  <div id="voiceReview" class="voice-review">
-    <div class="voice-review-head">
-      <span>What I heard - check each one, then Save</span>
-      <button id="voiceReviewCloseBtn" class="admin-close">&#x2715;</button>
-    </div>
-    <div id="voiceReviewList"></div>
-  </div>
-
-  <div class="hist-label">Recent</div>
-  <div id="history"><div class="empty">Nothing recorded yet. Add your first sale above.</div></div>
 
   <!-- Real feedback, 28 Aug: "save a backup...confusing as to i dont know
        where to save it" and "the warning if its lost the phone made them
@@ -454,7 +463,7 @@ input[type="number"]{-moz-appearance:textfield}
      string is what forces a fresh script fetch even before any service worker logic
      runs, independent of it. Found live 27 Aug: without this, an already-visited
      browser can keep running old code from plain HTTP cache regardless of SW strategy. -->
-<script src="app.js?v=29"></script>
+<script src="app.js?v=30"></script>
 
 <!-- Analytics for the Silent Alpha pilot only (27 Aug) - added to observe real
      merchant behavior (what they tap first, voice vs manual usage), NOT to
