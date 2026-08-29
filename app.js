@@ -1,3 +1,26 @@
+// Real feedback, 28 Aug, from a real outside tester: "the audio isn't too
+// clear." Two real, controllable factors this addresses: (1) speechSynthesis
+// with no explicit voice/volume set falls back to whatever the browser
+// picks first, which is sometimes a low-quality or network-dependent voice;
+// (2) a voice requiring a live network round-trip to synthesize (localService
+// === false) can sound choppy or degraded on the slow/expensive connections
+// this app is built for. Preferring a local, on-device English voice is a
+// real, bounded improvement - it is not a fix for whatever the underlying
+// platform TTS engine itself sounds like, which this app has no control over.
+function pickBestVoice() {
+  if (!('speechSynthesis' in window)) return null;
+  const voices = speechSynthesis.getVoices();
+  const enVoices = voices.filter(v => v.lang && v.lang.toLowerCase().startsWith('en'));
+  const localEn = enVoices.find(v => v.localService);
+  return localEn || enVoices[0] || voices[0] || null;
+}
+
+function speakClearly(utter) {
+  utter.voice = pickBestVoice();
+  utter.volume = 1;
+  return utter;
+}
+
 const DB_NAME = 'merchantos';
 const STORE = 'entries';
 let db;
@@ -208,12 +231,32 @@ const NUMBER_WORDS = { one:1,two:2,three:3,four:4,five:5,six:6,seven:7,eight:8,n
   eleven:11,twelve:12,thirteen:13,fourteen:14,fifteen:15,twenty:20,thirty:30,forty:40,fifty:50,
   sixty:60,seventy:70,eighty:80,ninety:90,hundred:100 };
 
-const NUMBER_WORD_RE = new RegExp('\\b(?:' + Object.keys(NUMBER_WORDS).join('|') + ')(?:[\\s-]+(?:' + Object.keys(NUMBER_WORDS).join('|') + '))*\\b', 'gi');
+// Real bug, found 28 Aug from real outside-family feedback ("you need to
+// mention the figures then type again"): this used to (a) not tolerate
+// "and" between number words at all, so "one hundred and fifty" split into
+// two separate matches instead of one, and (b) summed every word word's
+// face value additively even for "hundred" - "one hundred" came out as 101
+// (1+100), not 100, and "one hundred and fifty" lost the 50 entirely once
+// split. Cedi amounts routinely use exactly this "X hundred and Y" shape,
+// so this silently corrupted a very common real spoken price.
+// "and" is only matched as an optional connector between two real number
+// words, never standing alone - so "rice and beans" is never touched.
+const NUMBER_WORD_LIST = Object.keys(NUMBER_WORDS).join('|');
+const NUMBER_WORD_RE = new RegExp(
+  '\\b(?:' + NUMBER_WORD_LIST + ')(?:[\\s-]+(?:and[\\s-]+)?(?:' + NUMBER_WORD_LIST + '))*\\b', 'gi'
+);
 
 function wordsToNumber(text) {
   return text.replace(NUMBER_WORD_RE, (phrase) => {
-    const total = phrase.toLowerCase().split(/[\s-]+/).reduce((sum, w) => sum + (NUMBER_WORDS[w] || 0), 0);
-    return String(total);
+    const words = phrase.toLowerCase().split(/[\s-]+/).filter(w => w !== 'and');
+    let current = 0;
+    for (const w of words) {
+      const val = NUMBER_WORDS[w];
+      if (val === undefined) continue;
+      if (val === 100) current = (current || 1) * 100;
+      else current += val;
+    }
+    return String(current);
   });
 }
 
@@ -363,7 +406,7 @@ function speakVoiceReview(events) {
   const closer = saved.length
     ? 'If any of this is wrong, tap Undo under it.'
     : '';
-  const utter = new SpeechSynthesisUtterance(`${lines.join(' ')} ${closer}`.trim());
+  const utter = speakClearly(new SpeechSynthesisUtterance(`${lines.join(' ')} ${closer}`.trim()));
   utter.rate = 0.8;
   speechSynthesis.cancel();
   speechSynthesis.speak(utter);
@@ -603,7 +646,7 @@ async function toggleMic(btn, statusId) {
       : 'Couldn\u2019t reach the microphone \u2014 please type instead.';
     setMicStatus(msg, 'err', statusId);
     if ('speechSynthesis' in window) {
-      const utter = new SpeechSynthesisUtterance(msg);
+      const utter = speakClearly(new SpeechSynthesisUtterance(msg));
       utter.rate = 0.8;
       speechSynthesis.cancel();
       speechSynthesis.speak(utter);
@@ -1011,7 +1054,7 @@ function speakToday() {
     : `Same sales as yesterday. `;
   const text = `Today. Sales: ${fmt(t.sales)}. Expenses: ${fmt(t.expenses)}. ${stockLine}`
     + `Customers owe you: ${fmt(t.owedMe)}. Sales minus expenses: ${fmt(t.balance)}. ${vsLine}`;
-  const utter = new SpeechSynthesisUtterance(text);
+  const utter = speakClearly(new SpeechSynthesisUtterance(text));
   utter.rate = 0.8;
   const btn = document.getElementById('hearBtn');
   utter.onstart = () => btn.classList.add('speaking');
@@ -1108,7 +1151,7 @@ document.querySelectorAll('.today-row.tappable').forEach(row => {
     const valueEl = row.querySelector('span[data-clarity-mask]');
     const value = valueEl ? valueEl.textContent : '';
     if ('speechSynthesis' in window) {
-      const utter = new SpeechSynthesisUtterance(`${label}: ${value}.`);
+      const utter = speakClearly(new SpeechSynthesisUtterance(`${label}: ${value}.`));
       utter.rate = 0.8;
       speechSynthesis.cancel();
       speechSynthesis.speak(utter);
