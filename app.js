@@ -434,7 +434,7 @@ function renderVoiceReview() {
     const entry = eventToEntry(ev);
     const ts = Date.now();
     const id = crypto.randomUUID();
-    await addEntry({ id, type: entry.type, item: entry.item, note: entry.note, qty: entry.qty, price: entry.price, amount: entry.amount, source: 'voice', day: todayKey(ts), ts });
+    await addEntry({ id, type: entry.type, item: entry.item, note: entry.note, qty: entry.qty, price: entry.price, paid: 0, amount: entry.amount, source: 'voice', day: todayKey(ts), ts });
     track('save_entry', { type: entry.type, source: 'voice' });
     ping('save');
     ev._savedId = id;
@@ -770,6 +770,7 @@ async function saveEntry() {
       price: v.price || '',
       kind: v.kind || '',
       method: v.method || '',
+      paid: 0,
       amount: amount,
       source: sheetVoiceFilled ? 'voice' : 'manual',
       day: todayKey(ts),
@@ -880,8 +881,13 @@ async function render() {
   // cost - the exact same math as before, nothing silently changes.
   const expenses = todayEntries.filter(e => e.type === 'expense' && e.kind !== 'stock').reduce((s, e) => s + e.amount, 0);
   const stockBought = todayEntries.filter(e => e.type === 'expense' && e.kind === 'stock').reduce((s, e) => s + e.amount, 0);
-  const owedMe = entries.filter(e => e.type === 'debt_in').reduce((s, e) => s + e.amount, 0)
-               - entries.filter(e => e.type === 'debt_in' && e.settled).reduce((s, e) => s + e.amount, 0);
+  // Real bug, found 28 Aug: this used to read e.settled, a field nothing in
+  // the app ever wrote - "Customers owe me" could only ever go UP, forever,
+  // even after a real customer actually paid back what they owed. Debt
+  // entries now carry a `paid` amount (cumulative, updated via
+  // recordDebtPayment below); remaining = amount - paid is the real source
+  // of truth everywhere a debt's outstanding balance is shown.
+  const owedMe = entries.filter(e => e.type === 'debt_in').reduce((s, e) => s + Math.max(0, e.amount - (e.paid || 0)), 0);
   const balance = sales - expenses;
 
   document.getElementById('tSales').textContent = fmt(sales);
@@ -923,15 +929,69 @@ async function render() {
     const sign = cfg.amountSign > 0 ? '+' : '\u2212';
     const cls = cfg.amountSign > 0 ? 'pos' : 'neg';
     const when = new Date(e.ts).toLocaleString('en-GH', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
-    const remind = e.type === 'debt_in'
-      ? `<a class="remind-btn" target="_blank" rel="noopener" href="https://wa.me/?text=${encodeURIComponent(`Hello ${e.item}, your balance is ${fmt(e.amount)}${e.note ? ' for ' + e.note : ''}. Please send by MoMo when you can. Thank you.`)}">Remind on WhatsApp</a>`
+    // Real gap, closed 28 Aug: there was no way to ever record a real
+    // repayment against a debt - "Kofi paid GH50 today, Kofi still owes
+    // GH70" (a concrete example both AI reviews independently gave) was
+    // simply impossible before this. `remaining` is the real outstanding
+    // balance; a debt with nothing left owed shows a plain "Paid in full"
+    // tag instead of payment controls or a remind link.
+    const remaining = cfg.isDebt ? Math.max(0, e.amount - (e.paid || 0)) : null;
+    const isSettled = cfg.isDebt && remaining <= 0;
+    const displayAmount = cfg.isDebt ? remaining : e.amount;
+    const daysOwed = cfg.isDebt ? Math.floor((Date.now() - e.ts) / (24 * 60 * 60 * 1000)) : 0;
+    const agingLine = cfg.isDebt && !isSettled && daysOwed >= 1
+      ? `<small class="debt-aging">Owed for ${daysOwed} day${daysOwed === 1 ? '' : 's'}</small>` : '';
+    const remind = e.type === 'debt_in' && !isSettled
+      ? `<a class="remind-btn" target="_blank" rel="noopener" href="https://wa.me/?text=${encodeURIComponent(`Hello ${e.item}, your balance is ${fmt(remaining)}${e.note ? ' for ' + e.note : ''}. Please send by MoMo when you can. Thank you.`)}">Remind on WhatsApp</a>`
       : '';
-    return `<div class="hist-item">
-      <div class="desc" data-clarity-mask="True">${cfg.desc(e)}<small>${when}</small>${remind}</div>
-      <div class="amt ${cls}" data-clarity-mask="True">${sign}${fmt(e.amount)}</div>
+    const paymentRow = cfg.isDebt && !isSettled ? `
+      <div class="debt-pay-row">
+        <input type="number" inputmode="decimal" class="debt-pay-input" data-id="${e.id}" placeholder="Amount paid" data-clarity-mask="True">
+        <button type="button" class="debt-pay-btn" data-id="${e.id}">Record payment</button>
+        <button type="button" class="debt-full-btn" data-id="${e.id}">Paid in full</button>
+      </div>` : '';
+    const settledTag = cfg.isDebt && isSettled ? '<span class="debt-settled-tag">\u2713 Paid in full</span>' : '';
+    return `<div class="hist-item${cfg.isDebt ? ' is-debt' : ''}">
+      <div class="desc" data-clarity-mask="True">${cfg.desc(e)}${settledTag}<small>${when}</small>${agingLine}${remind}${paymentRow}</div>
+      <div class="amt ${cls}" data-clarity-mask="True">${sign}${fmt(displayAmount)}</div>
     </div>`;
   }).join('') + (hiddenCount > 0 ? `<div class="empty">${hiddenCount} older entr${hiddenCount === 1 ? 'y' : 'ies'} \u2014 go Paid to see your full history</div>` : '');
 }
+
+// Real gap, closed 28 Aug: recording a repayment against a debt was simply
+// impossible before this - "Customers owe me" only ever went up. Delegated
+// on #history once (not per-render, since innerHTML is fully replaced on
+// every render()) rather than rebinding listeners on every redraw.
+document.getElementById('history').addEventListener('click', async (e) => {
+  const fullBtn = e.target.closest('.debt-full-btn');
+  const payBtn = e.target.closest('.debt-pay-btn');
+  if (fullBtn) {
+    // Real bug, caught in testing 28 Aug: this used to set paid to the
+    // *remaining* balance shown on the button, not the entry's full
+    // original amount - after any prior partial payment, "Paid in full"
+    // silently under-settled the debt instead of zeroing it out. paid is
+    // cumulative-total-ever-paid, so it must be set from the entry's real
+    // amount, always looked up fresh, never from a value baked into the
+    // button at render time.
+    const entries = await getAllEntries();
+    const entry = entries.find(x => x.id === fullBtn.dataset.id);
+    if (!entry) return;
+    await updateEntry(entry.id, { paid: entry.amount });
+    track('debt_paid', { full: true });
+    await render();
+  } else if (payBtn) {
+    const input = document.querySelector(`.debt-pay-input[data-id="${payBtn.dataset.id}"]`);
+    const amount = Number(input.value);
+    if (!amount || amount <= 0) return;
+    const entries = await getAllEntries();
+    const entry = entries.find(x => x.id === payBtn.dataset.id);
+    if (!entry) return;
+    const newPaid = (entry.paid || 0) + amount;
+    await updateEntry(entry.id, { paid: newPaid });
+    track('debt_paid', { full: newPaid >= entry.amount });
+    await render();
+  }
+});
 
 // Reads today's numbers aloud. Evidence for this over text-only: Viamo's Ghana voice
 // campaign reached ~37,000 customers with weekly voice calls \u2014 those who engaged with

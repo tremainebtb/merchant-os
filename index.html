@@ -215,10 +215,17 @@ input[type="number"]{-moz-appearance:textfield}
 .remind-btn{display:inline-block;margin-top:4px;font-size:.76rem;font-weight:700;color:var(--leaf-deep);background:var(--leaf-soft);padding:4px 9px;border-radius:100px;text-decoration:none}
 .btn-cancel{background:var(--rule);color:var(--ink)}
 .hist-label{font-size:.72rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:700;margin:20px 0 10px}
-.hist-item{display:flex;justify-content:space-between;padding:11px 0;border-bottom:1px solid var(--rule);font-size:.9rem}
-.hist-item .desc{color:var(--ink)}
+.hist-item{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;padding:11px 0;border-bottom:1px solid var(--rule);font-size:.9rem}
+.hist-item .desc{color:var(--ink);flex:1;min-width:0}
 .hist-item .desc small{display:block;color:var(--muted);font-size:.76rem}
 .hist-item .amt{font-family:"IBM Plex Mono",monospace;font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}
+.debt-aging{color:var(--amber) !important;font-weight:600}
+.debt-settled-tag{display:inline-block;margin-left:6px;font-size:.72rem;font-weight:700;color:var(--leaf-deep);background:var(--leaf-soft);padding:2px 8px;border-radius:100px}
+.debt-pay-row{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
+.debt-pay-input{width:110px;padding:8px 10px;border:1px solid var(--rule);border-radius:8px;font-size:.86rem;background:var(--paper);color:var(--ink)}
+.debt-pay-btn,.debt-full-btn{font-family:inherit;border:none;border-radius:100px;padding:8px 12px;font-size:.78rem;font-weight:700;cursor:pointer}
+.debt-pay-btn{background:var(--amber-soft);color:var(--amber)}
+.debt-full-btn{background:var(--leaf-soft);color:var(--leaf-deep)}
 .amt.pos{color:var(--leaf-deep)}
 .amt.neg{color:var(--brick)}
 .empty{color:var(--muted);font-size:.88rem;text-align:center;padding:24px 0}
@@ -447,7 +454,7 @@ input[type="number"]{-moz-appearance:textfield}
      string is what forces a fresh script fetch even before any service worker logic
      runs, independent of it. Found live 27 Aug: without this, an already-visited
      browser can keep running old code from plain HTTP cache regardless of SW strategy. -->
-<script src="app.js?v=27"></script>
+<script src="app.js?v=28"></script>
 
 <!-- Analytics for the Silent Alpha pilot only (27 Aug) - added to observe real
      merchant behavior (what they tap first, voice vs manual usage), NOT to
