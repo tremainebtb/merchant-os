@@ -48,6 +48,88 @@ async function handlePing(request, env) {
   return cors(new Response(null, { status: 204 }));
 }
 
+// Automatic entry backup, added 30 Aug: Bobby's explicit call - "it shouldn't
+// be an option, it should be automatic, less confusion or buttons or worries
+// for users" - after asking how to let him recover his mum's records if her
+// phone is lost or she deletes something by mistake. This is a real change to
+// this file's own stated privacy shape above (handlePing's comment: "no shop
+// name, item, price, or customer name ever reaches this dashboard or the
+// database") - that promise still holds for the events table and the
+// aggregate dashboard, but this new entries table intentionally stores real
+// entry content (item names, customer names typed into debts, amounts) so it
+// can be recovered. What's preserved from the original design: the shop id
+// itself is still never stored in plaintext, only its one-way hash, so
+// nobody - Bobby included - can list or browse shops; entries are only ever
+// retrievable by already knowing the exact shop id, the same shape as
+// handleShopActivity below. Soft-delete only (a flag, never a real SQL
+// DELETE) since "recover something that was deleted" is the entire point.
+async function handleSync(request, env) {
+  if (!env.COUNTMY_DB) return cors(new Response(JSON.stringify({ error: 'not configured' }), { status: 503 }));
+  let body;
+  try { body = await request.json(); } catch (e) {
+    return cors(new Response(JSON.stringify({ error: 'invalid request' }), { status: 400 }));
+  }
+  const shop = String((body && body.shop) || '').trim().toLowerCase().slice(0, 200);
+  const entry = body && body.entry;
+  const deleted = !!(body && body.deleted);
+  if (!shop || !entry || !entry.id) {
+    return cors(new Response(JSON.stringify({ error: 'missing shop or entry' }), { status: 400 }));
+  }
+  const now = Date.now();
+  const entryId = String(entry.id).slice(0, 200);
+
+  // A delete-only payload (deleteEntry() on the client only ever has the id,
+  // never the full record) just flips the flag on the row already written
+  // when this entry was first created or last edited.
+  if (deleted && Object.keys(entry).length === 1) {
+    await env.COUNTMY_DB.prepare('UPDATE entries SET deleted = 1, updated_at = ? WHERE entry_id = ?')
+      .bind(now, entryId).run();
+    return cors(new Response(null, { status: 204 }));
+  }
+
+  const shopHash = (await sha256Hex(shop)).slice(0, 32);
+  await env.COUNTMY_DB.prepare(
+    `INSERT INTO entries (entry_id, shop_hash, type, item, note, qty, price, kind, method, paid, amount, source, day, ts, deleted, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT(entry_id) DO UPDATE SET
+       shop_hash=excluded.shop_hash, type=excluded.type, item=excluded.item, note=excluded.note,
+       qty=excluded.qty, price=excluded.price, kind=excluded.kind, method=excluded.method,
+       paid=excluded.paid, amount=excluded.amount, source=excluded.source, day=excluded.day,
+       ts=excluded.ts, deleted=excluded.deleted, updated_at=excluded.updated_at`
+  ).bind(
+    entryId, shopHash,
+    String(entry.type || '').slice(0, 40), String(entry.item || '').slice(0, 500), String(entry.note || '').slice(0, 500),
+    String(entry.qty || ''), String(entry.price || ''), String(entry.kind || ''), String(entry.method || ''),
+    Number(entry.paid || 0), Number(entry.amount || 0), String(entry.source || '').slice(0, 40),
+    String(entry.day || '').slice(0, 20), Number(entry.ts || now), deleted ? 1 : 0, now
+  ).run();
+  return cors(new Response(null, { status: 204 }));
+}
+
+// Owner-only recovery lookup, added 30 Aug: given a shop id you already know
+// (never a search or a list of shops - same privacy shape as
+// handleShopActivity below), returns every entry ever backed up for that
+// shop, including ones the owner themselves deleted, so a lost phone or an
+// accidental delete is never actually permanent. Same ADMIN_KEY gate as
+// every other /admin/* route.
+async function handleAdminEntries(request, env) {
+  if (!env.COUNTMY_DB) return cors(new Response(JSON.stringify({ error: 'not configured' }), { status: 503 }));
+  const url = new URL(request.url);
+  const key = url.searchParams.get('key') || '';
+  if (!env.ADMIN_KEY || key !== env.ADMIN_KEY) {
+    return cors(new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401 }));
+  }
+  const shop = (url.searchParams.get('shop') || '').trim().toLowerCase();
+  if (!shop) return cors(new Response(JSON.stringify({ error: 'missing shop id' }), { status: 400 }));
+  const shopHash = (await sha256Hex(shop)).slice(0, 32);
+  const { results } = await env.COUNTMY_DB.prepare(
+    'SELECT entry_id, type, item, note, qty, price, kind, method, paid, amount, source, day, ts, deleted, updated_at FROM entries WHERE shop_hash = ? ORDER BY ts DESC'
+  ).bind(shopHash).all();
+  return cors(new Response(JSON.stringify({ shop, entries: results || [] }), {
+    headers: { 'Content-Type': 'application/json' }
+  }));
+}
+
 // Owner-only single-shop lookup, added 28 Aug: the aggregate /admin/stats
 // feed below can say "3 shops were active this week" but can never say
 // WHICH 3, on purpose - shop_hash is a one-way hash so nobody, owner
@@ -453,8 +535,10 @@ export default {
       if (url.pathname === '/transcribe' && request.method === 'POST') return await handleTranscribe(request, env);
       if (url.pathname === '/extract' && request.method === 'POST') return await handleExtract(request, env);
       if (url.pathname === '/ping' && request.method === 'POST') return await handlePing(request, env);
+      if (url.pathname === '/sync' && request.method === 'POST') return await handleSync(request, env);
       if (url.pathname === '/admin/stats' && request.method === 'GET') return await handleAdminStats(request, env);
       if (url.pathname === '/admin/shop' && request.method === 'GET') return await handleShopActivity(request, env);
+      if (url.pathname === '/admin/entries' && request.method === 'GET') return await handleAdminEntries(request, env);
       return cors(new Response('Not found', { status: 404 }));
     } catch (err) {
       return cors(new Response(JSON.stringify({ error: 'server error', detail: String(err) }), { status: 500 }));

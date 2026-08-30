@@ -69,6 +69,15 @@ svg text{font-family:"Work Sans",sans-serif;fill:var(--muted)}
 
 footer{font-size:.76rem;color:var(--muted);margin-top:20px;border-top:1px solid var(--rule);padding-top:14px}
 footer p{margin:0 0 6px}
+
+.recover-row{display:flex;gap:8px;margin-bottom:8px}
+.recover-row input{flex:1;padding:10px 12px;border:1px solid var(--rule);border-radius:8px;font-size:.9rem;background:var(--paper);color:var(--ink)}
+.gate-err-inline{color:var(--flame-deep);font-size:.8rem;min-height:1.2em;margin-bottom:8px}
+.recover-entry{border:1px solid var(--rule);border-radius:10px;padding:10px 12px;margin-bottom:8px;font-size:.86rem}
+.recover-entry.is-deleted{opacity:.6;border-style:dashed}
+.recover-entry .re-top{display:flex;justify-content:space-between;gap:10px;font-weight:700}
+.recover-entry .re-meta{color:var(--muted);font-size:.76rem;margin-top:2px}
+.recover-copy-btn{width:100%;margin-top:10px}
 </style>
 </head>
 <body>
@@ -121,9 +130,20 @@ footer p{margin:0 0 6px}
     <div id="chartEntries"></div>
   </div>
 
+  <div class="panel">
+    <h3>Recover a shop's records</h3>
+    <p class="note">Every entry is backed up automatically the moment it's saved - if a phone is lost, broken, or an entry is deleted by mistake, look it up here by the exact Shop ID and resend it. There's no list or search of shops - you have to already know the Shop ID.</p>
+    <div class="recover-row">
+      <input id="recoverShopInput" type="text" placeholder="Shop ID, e.g. mama ama provisions" autocomplete="off">
+      <button class="refresh-btn" id="recoverBtn">Look up</button>
+    </div>
+    <div id="recoverErr" class="gate-err-inline"></div>
+    <div id="recoverResults"></div>
+  </div>
+
   <footer>
     <p><strong>How to read this:</strong> "Today / week / month / year" are rolling windows (last 24h / 7d / 30d / 365d), not calendar boundaries - shop owners span timezones, so a fixed calendar day would misattribute activity for most of them.</p>
-    <p>A "business" here is a hashed Shop ID, never the ID itself - no shop name, item, price, or customer name ever reaches this dashboard or the database behind it.</p>
+    <p>A "business" here is a hashed Shop ID, never the ID itself - the counts above never reveal a shop name, item, price, or customer name. The recovery panel is the one deliberate exception: it stores real entry content so it can be restored, but only ever surfaces it to someone who already knows the exact Shop ID - there is no way to browse or search shops.</p>
   </footer>
 </div>
 
@@ -267,6 +287,59 @@ document.getElementById('refreshBtn').addEventListener('click', () => {
   if (key) boot(key);
 });
 document.querySelectorAll('.tab').forEach(t => t.addEventListener('click', () => setPeriod(t.dataset.period)));
+
+const TYPE_LABEL = { sale: 'Sale', expense: 'Expense', debt_in: 'Customer owed', debt_out: 'Owed to supplier' };
+
+function fmtCedis(n) { return fmtInt(Math.round(Number(n) || 0)) + ' cedis'; }
+
+function entryLine(e) {
+  const label = TYPE_LABEL[e.type] || e.type;
+  const when = new Date(e.ts).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  const qty = e.type === 'sale' && e.qty ? `${e.qty} x ` : '';
+  return `${label}: ${qty}${e.item || ''}${e.note ? ' - ' + e.note : ''} - ${fmtCedis(e.amount)} (${when})${e.deleted ? ' [deleted on phone]' : ''}`;
+}
+
+async function lookupShop(shop, key) {
+  const errEl = document.getElementById('recoverErr');
+  const resEl = document.getElementById('recoverResults');
+  errEl.textContent = '';
+  resEl.innerHTML = 'Looking up...';
+  try {
+    const res = await fetch(`${API_BASE}/admin/entries?key=${encodeURIComponent(key)}&shop=${encodeURIComponent(shop)}`);
+    if (res.status === 401) { errEl.textContent = 'Wrong key.'; resEl.innerHTML = ''; return; }
+    if (!res.ok) { errEl.textContent = 'Could not reach the server - try again.'; resEl.innerHTML = ''; return; }
+    const data = await res.json();
+    const entries = data.entries || [];
+    if (!entries.length) { resEl.innerHTML = '<div class="empty-note">Nothing backed up yet for that exact Shop ID.</div>'; return; }
+    resEl.innerHTML = entries.map(e => `
+      <div class="recover-entry${e.deleted ? ' is-deleted' : ''}">
+        <div class="re-top"><span>${(TYPE_LABEL[e.type] || e.type)}${e.deleted ? ' (deleted on phone)' : ''}</span><span>${fmtCedis(e.amount)}</span></div>
+        <div>${e.item || ''}${e.note ? ' - ' + e.note : ''}</div>
+        <div class="re-meta">${new Date(e.ts).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</div>
+      </div>
+    `).join('') + `<button class="refresh-btn recover-copy-btn" id="recoverCopyBtn">Copy all as text (paste into WhatsApp)</button>`;
+    document.getElementById('recoverCopyBtn').addEventListener('click', () => {
+      const text = entries.map(entryLine).join('\n');
+      navigator.clipboard.writeText(text).then(() => {
+        document.getElementById('recoverCopyBtn').textContent = 'Copied!';
+        setTimeout(() => { document.getElementById('recoverCopyBtn').textContent = 'Copy all as text (paste into WhatsApp)'; }, 1500);
+      });
+    });
+  } catch (err) {
+    errEl.textContent = 'Could not reach the server - try again.';
+    resEl.innerHTML = '';
+  }
+}
+
+document.getElementById('recoverBtn').addEventListener('click', () => {
+  const shop = document.getElementById('recoverShopInput').value.trim();
+  const key = localStorage.getItem(KEY_STORAGE);
+  if (!shop || !key) return;
+  lookupShop(shop, key);
+});
+document.getElementById('recoverShopInput').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') document.getElementById('recoverBtn').click();
+});
 
 (function init() {
   const saved = localStorage.getItem(KEY_STORAGE);

@@ -62,13 +62,33 @@ function todayKey(ts) {
   return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
 }
 
+// Real request, 30 Aug: if a phone is lost, broken, or an entry gets deleted
+// by mistake (a real elderly first-time user, not a hypothetical one), there
+// was no way to get it back - records lived ONLY in this device's IndexedDB.
+// Bobby's explicit call: automatic, no toggle, no extra button - "less
+// confusion or buttons or worries for users" - over an opt-in backup setting.
+// Same privacy shape as ping(): the shop id is hashed server-side before it
+// touches storage (see worker.js handleSync), this is best-effort/fire-and-
+// forget, and it never blocks or fails the real local save if it's offline
+// or the request fails.
+function syncEntryToServer(entry, deleted) {
+  if (window.KYM_IS_OWNER_DEVICE) return;
+  if (!navigator.onLine) return;
+  const shop = getShopId() || getDeviceId();
+  fetch(`${API_BASE}/sync`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ shop, entry, deleted: !!deleted })
+  }).catch(() => {});
+}
+
 function addEntry(entry) {
   return new Promise((resolve, reject) => {
     const tx = db.transaction(STORE, 'readwrite');
     const req = tx.objectStore(STORE).add(entry);
     let reqError = null;
     req.onerror = (e) => { reqError = req.error; e.preventDefault(); tx.abort(); };
-    tx.oncomplete = () => resolve();
+    tx.oncomplete = () => { syncEntryToServer(entry, false); resolve(); };
     tx.onerror = () => reject(reqError || tx.error || new Error('addEntry failed'));
     tx.onabort = () => reject(reqError || tx.error || new Error('addEntry aborted'));
   });
@@ -78,7 +98,11 @@ function deleteEntry(id) {
   return new Promise((resolve, reject) => {
     const tx = db.transaction(STORE, 'readwrite');
     tx.objectStore(STORE).delete(id);
-    tx.oncomplete = () => resolve();
+    // Delete-only payload, deliberately just the id: the entry's real content
+    // was already mirrored server-side when it was first created (or last
+    // edited), so a deletion only ever needs to flip the server's flag, never
+    // resend content the client no longer has once this transaction commits.
+    tx.oncomplete = () => { syncEntryToServer({ id }, true); resolve(); };
     tx.onerror = () => reject(tx.error);
   });
 }
@@ -88,11 +112,12 @@ function updateEntry(id, patch) {
     const tx = db.transaction(STORE, 'readwrite');
     const store = tx.objectStore(STORE);
     const req = store.get(id);
+    let merged = null;
     req.onsuccess = () => {
       const rec = req.result;
-      if (rec) store.put(Object.assign(rec, patch));
+      if (rec) { merged = Object.assign(rec, patch); store.put(merged); }
     };
-    tx.oncomplete = () => resolve();
+    tx.oncomplete = () => { if (merged) syncEntryToServer(merged, false); resolve(); };
     tx.onerror = () => reject(tx.error);
   });
 }
