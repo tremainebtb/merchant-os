@@ -369,18 +369,18 @@ input[type="number"]{-moz-appearance:textfield}
   <div class="actions">
     <button class="act-btn act-sale" data-type="sale">
       <svg class="act-icon" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/><path d="M12 7v10M9 9.5c0-1 1-1.8 3-1.8s3 .8 3 1.8-1 1.5-3 1.5-3 .5-3 1.5 1 1.8 3 1.8 3-.8 3-1.8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
-      <span>+ Sale<small>Item, qty, price</small></span>
+      <span>+ Sale<small>What you sold, how many, price</small></span>
     </button>
     <button class="act-btn act-expense" data-type="expense">
       <svg class="act-icon" viewBox="0 0 24 24" fill="none"><rect x="4" y="7" width="16" height="12" rx="2" stroke="currentColor" stroke-width="2"/><path d="M8 7V5.5A2.5 2.5 0 0110.5 3h3A2.5 2.5 0 0116 5.5V7M9 13h6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
       <span>+ Expense<small>What you spent</small></span>
     </button>
     <button class="act-btn act-owe-me" data-type="debt_in">
-      <svg class="act-icon" viewBox="0 0 24 24" fill="none"><circle cx="9" cy="8" r="3" stroke="currentColor" stroke-width="2"/><path d="M3 20c0-3.3 2.7-5.5 6-5.5S15 16.7 15 20" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M17 8l3 3-3 3M20 11h-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <svg class="act-icon" viewBox="0 0 24 24" fill="none"><circle cx="9" cy="8" r="3" stroke="currentColor" stroke-width="2"/><path d="M3 20c0-3.3 2.7-5.5 6-5.5S15 16.7 15 20" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M18 8v6M15 11h6" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>
       <span>Customer owes me<small>Track who owes you</small></span>
     </button>
     <button class="act-btn act-owe-supplier" data-type="debt_out">
-      <svg class="act-icon" viewBox="0 0 24 24" fill="none"><circle cx="9" cy="8" r="3" stroke="currentColor" stroke-width="2"/><path d="M3 20c0-3.3 2.7-5.5 6-5.5S15 16.7 15 20" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M20 8l-3 3 3 3M17 11h7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <svg class="act-icon" viewBox="0 0 24 24" fill="none"><circle cx="9" cy="8" r="3" stroke="currentColor" stroke-width="2"/><path d="M3 20c0-3.3 2.7-5.5 6-5.5S15 16.7 15 20" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M15 11h6" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>
       <span>I owe supplier<small>Track what you owe</small></span>
     </button>
   </div>
@@ -464,7 +464,7 @@ input[type="number"]{-moz-appearance:textfield}
      string is what forces a fresh script fetch even before any service worker logic
      runs, independent of it. Found live 27 Aug: without this, an already-visited
      browser can keep running old code from plain HTTP cache regardless of SW strategy. -->
-<script src="app.js?v=33"></script>
+<script src="app.js?v=34"></script>
 
 <!-- Analytics for the Silent Alpha pilot only (27 Aug) - added to observe real
      merchant behavior (what they tap first, voice vs manual usage), NOT to
