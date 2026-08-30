@@ -367,37 +367,22 @@ function fillFields(values) {
   updateConfirm();
 }
 
-// Filename extension matched to the blob's real recorded type, not hardcoded
-// - see the real bug this fixes in toggleMic() below.
-async function transcribeBlob(blob) {
+// Real latency fix, 30 Aug, from real user feedback ("seems delayed...
+// it's deffo delayed"): transcribeBlob() then extractEvents() used to be
+// two separate round trips - wait for text back, then send it again and
+// wait for events back. One extra full network round trip on top of an
+// already-slow connection is exactly the wrong cost to add for the exact
+// users this app is built for. This hits one combined endpoint
+// (worker.js handleTranscribeAndExtract) that does both AI steps back-to-
+// back on Cloudflare's edge and returns both results together.
+async function transcribeAndExtract(blob) {
   const ext = blob.type.indexOf('mp4') !== -1 ? 'mp4' : (blob.type.indexOf('ogg') !== -1 ? 'ogg' : 'webm');
   const form = new FormData();
   form.append('audio', blob, `voice.${ext}`);
-  const res = await fetch(`${API_BASE}/transcribe`, { method: 'POST', body: form });
+  const res = await fetch(`${API_BASE}/transcribe-and-extract`, { method: 'POST', body: form });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error || 'Could not hear that \u2014 try again');
-  return data.text || '';
-}
-
-// Stage 2 of voice, added 27 Aug: a real merchant speaking naturally describes
-// several things in one breath ("I sold three shoes... Kwame took two shirts...
-// I spent 50 on transport"). The old approach forced them into one item per
-// recording. This calls a free Workers AI text model (see worker.js) to split
-// one messy transcript into several structured events. It is NOT trustworthy on
-// its own - live-tested 27 Aug: it can invent a plausible-looking price for an
-// amount that was never actually said. That is exactly why every extracted field
-// is shown to the owner, editable, before anything saves - see showVoiceReview().
-// Network failure or an empty result falls back to the old single-field-fill path
-// (parseHeardText below) rather than leaving the owner stuck.
-async function extractEvents(text) {
-  const res = await fetch(`${API_BASE}/extract`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ text })
-  });
-  if (!res.ok) return [];
-  const data = await res.json().catch(() => ({}));
-  return Array.isArray(data.events) ? data.events : [];
+  if (!res.ok && !data.text) throw new Error(data.error || 'Could not hear that \u2014 try again');
+  return { text: data.text || '', events: Array.isArray(data.events) ? data.events : [] };
 }
 
 const TYPE_LABEL = { sale: 'Sale', expense: 'Expense', debt_in: 'Customer owes me', debt_out: 'I owe supplier' };
@@ -707,7 +692,8 @@ async function toggleMic(btn, statusId) {
       const recordedMs = Date.now() - recordingStartedAt;
       try {
         const blob = new Blob(recordedChunks, { type: actualMime });
-        const heard = await transcribeBlob(blob);
+        setMicStatus('Working out what happened\u2026', null, statusId);
+        const { text: heard, events } = await transcribeAndExtract(blob);
         if (!heard.trim()) {
           track('mic_error', { reason: 'no_transcript', duration_ms: recordedMs });
           // Real advice, 30 Aug: researched (not guessed) - "please" is the
@@ -721,8 +707,6 @@ async function toggleMic(btn, statusId) {
           setMicStatus(msg, 'err', statusId);
           return;
         }
-        setMicStatus('Working out what happened\u2026', null, statusId);
-        const events = await extractEvents(heard);
         track('voice_extracted', { event_count: events.length });
         if (events.length >= 1) {
           pendingVoiceEvents = events;

@@ -322,18 +322,16 @@ async function handleAdminStats(request, env) {
 // the quota misreporting as exhausted (error 4006) even at low real usage. That's why
 // a quota/AI failure here returns a clear, honest error instead of pretending - the
 // frontend already tells the owner to type instead rather than get stuck.
-async function handleTranscribe(request, env) {
-  if (!env.AI) {
-    return cors(new Response(JSON.stringify({ error: 'transcription not configured yet' }), { status: 503 }));
-  }
-  const incomingForm = await request.formData();
-  const audio = incomingForm.get('audio');
-  if (!audio) return cors(new Response(JSON.stringify({ error: 'no audio received' }), { status: 400 }));
-
-  const audioBytes = new Uint8Array(await audio.arrayBuffer());
-  if (audioBytes.length === 0) {
-    return cors(new Response(JSON.stringify({ error: 'no audio received' }), { status: 400 }));
-  }
+// Split out 30 Aug so /transcribe-and-extract (see below) can run both AI
+// steps back-to-back on Cloudflare's own edge, in one client request,
+// instead of the client waiting for a full round trip back just to
+// immediately start a second one - real latency this app's own users
+// reported ("seems delayed... it's deffo delayed"), and exactly the kind
+// of extra round trip that hurts most on the weak mobile connections this
+// app is built to tolerate. handleTranscribe below still works standalone
+// (nothing that already calls /transcribe breaks).
+async function transcribeAudio(audioBytes, audioType, env) {
+  if (audioBytes.length === 0) return { text: '', error: 'no audio received' };
 
   // whisper-large-v3-turbo's input schema wants 'audio' as an array of raw byte
   // values OR base64 - live-tested 27 Aug: passing a plain JS array (Array.from a
@@ -366,7 +364,7 @@ async function handleTranscribe(request, env) {
   } catch (err) {
     // Covers the daily-quota-exhausted case (real, documented risk on the free tier)
     // as well as any other Workers AI failure - same honest-error path either way.
-    return cors(new Response(JSON.stringify({ error: 'transcription unavailable right now - try again shortly, or type instead', detail: String(err).slice(0, 200) }), { status: 502 }));
+    return { text: '', error: 'transcription unavailable right now - try again shortly, or type instead', detail: String(err).slice(0, 200) };
   }
   let text = (result && (result.text || (result.transcription_info && result.transcription_info.text))) || '';
 
@@ -401,7 +399,7 @@ async function handleTranscribe(request, env) {
         method: 'POST',
         headers: {
           'Ocp-Apim-Subscription-Key': env.KHAYA_API_KEY,
-          'Content-Type': audio.type || 'audio/webm'
+          'Content-Type': audioType || 'audio/webm'
         },
         body: audioBytes
       });
@@ -419,7 +417,25 @@ async function handleTranscribe(request, env) {
     }
   }
 
-  return cors(new Response(JSON.stringify({ text }), {
+  return { text };
+}
+
+// Thin wrapper kept for backward compatibility - anything still calling
+// /transcribe directly (or a future non-voice-entry use of transcription
+// alone) keeps working exactly as before.
+async function handleTranscribe(request, env) {
+  if (!env.AI) {
+    return cors(new Response(JSON.stringify({ error: 'transcription not configured yet' }), { status: 503 }));
+  }
+  const incomingForm = await request.formData();
+  const audio = incomingForm.get('audio');
+  if (!audio) return cors(new Response(JSON.stringify({ error: 'no audio received' }), { status: 400 }));
+  const audioBytes = new Uint8Array(await audio.arrayBuffer());
+  const result = await transcribeAudio(audioBytes, audio.type, env);
+  if (result.error) {
+    return cors(new Response(JSON.stringify({ error: result.error, detail: result.detail }), { status: result.detail ? 502 : 400 }));
+  }
+  return cors(new Response(JSON.stringify({ text: result.text }), {
     headers: { 'Content-Type': 'application/json' }
   }));
 }
@@ -538,17 +554,11 @@ function sanitizeEvents(rawEvents, transcript) {
     .filter(clean => clean.item || clean.customer || clean.supplier);
 }
 
-async function handleExtract(request, env) {
-  if (!env.AI) {
-    return cors(new Response(JSON.stringify({ error: 'extraction not configured yet' }), { status: 503 }));
-  }
-  let body;
-  try { body = await request.json(); } catch (e) {
-    return cors(new Response(JSON.stringify({ error: 'invalid request' }), { status: 400 }));
-  }
-  const text = (body && body.text || '').trim();
-  if (!text) return cors(new Response(JSON.stringify({ error: 'no text received' }), { status: 400 }));
-
+// Split out 30 Aug for the same reason as transcribeAudio above - lets
+// /transcribe-and-extract run this step immediately after transcription,
+// on the edge, without a round trip back to the client in between.
+async function extractFromText(text, env) {
+  if (!text) return { events: [] };
   let result;
   try {
     result = await env.AI.run('@cf/meta/llama-3.2-3b-instruct', {
@@ -559,7 +569,7 @@ async function handleExtract(request, env) {
       max_tokens: 700
     });
   } catch (err) {
-    return cors(new Response(JSON.stringify({ error: 'extraction unavailable right now - try again, or fill in manually', detail: String(err).slice(0, 200) }), { status: 502 }));
+    return { events: [], error: 'extraction unavailable right now - try again, or fill in manually', detail: String(err).slice(0, 200) };
   }
 
   // llama-3.2-3b-instruct's response comes back through Workers AI's OpenAI-
@@ -583,8 +593,58 @@ async function handleExtract(request, env) {
   }
   if (!Array.isArray(events)) events = [];
 
-  events = sanitizeEvents(events, text);
-  return cors(new Response(JSON.stringify({ events }), {
+  return { events: sanitizeEvents(events, text) };
+}
+
+// Thin wrapper kept for backward compatibility.
+async function handleExtract(request, env) {
+  if (!env.AI) {
+    return cors(new Response(JSON.stringify({ error: 'extraction not configured yet' }), { status: 503 }));
+  }
+  let body;
+  try { body = await request.json(); } catch (e) {
+    return cors(new Response(JSON.stringify({ error: 'invalid request' }), { status: 400 }));
+  }
+  const text = (body && body.text || '').trim();
+  if (!text) return cors(new Response(JSON.stringify({ error: 'no text received' }), { status: 400 }));
+  const result = await extractFromText(text, env);
+  if (result.error) {
+    return cors(new Response(JSON.stringify({ error: result.error, detail: result.detail }), { status: 502 }));
+  }
+  return cors(new Response(JSON.stringify({ events: result.events }), {
+    headers: { 'Content-Type': 'application/json' }
+  }));
+}
+
+// The actual latency fix, added 30 Aug from real user feedback ("seems
+// delayed... it's deffo delayed"): every voice entry used to need TWO full
+// client-to-edge round trips - record, send, wait, get text back, send
+// text, wait, get events back. This does both AI steps in one request:
+// the client uploads audio once and gets back both the transcript and the
+// extracted events together, cutting one full round trip - the exact kind
+// of latency that hurts most on the weak mobile connections this app is
+// built to tolerate. Falls back cleanly: an empty transcript or a failed
+// extraction still returns whatever succeeded so the client's existing
+// fallback logic (parseHeardText) has something to work with.
+async function handleTranscribeAndExtract(request, env) {
+  if (!env.AI) {
+    return cors(new Response(JSON.stringify({ error: 'transcription not configured yet' }), { status: 503 }));
+  }
+  const incomingForm = await request.formData();
+  const audio = incomingForm.get('audio');
+  if (!audio) return cors(new Response(JSON.stringify({ error: 'no audio received' }), { status: 400 }));
+  const audioBytes = new Uint8Array(await audio.arrayBuffer());
+
+  const transcribed = await transcribeAudio(audioBytes, audio.type, env);
+  if (transcribed.error) {
+    return cors(new Response(JSON.stringify({ text: '', events: [], error: transcribed.error, detail: transcribed.detail }), { status: 502 }));
+  }
+  const text = transcribed.text || '';
+  if (!text.trim()) {
+    return cors(new Response(JSON.stringify({ text: '', events: [] }), { headers: { 'Content-Type': 'application/json' } }));
+  }
+  const extracted = await extractFromText(text, env);
+  return cors(new Response(JSON.stringify({ text, events: extracted.events || [] }), {
     headers: { 'Content-Type': 'application/json' }
   }));
 }
@@ -606,6 +666,7 @@ export default {
       if (url.pathname === '/status' && request.method === 'GET') return await handleStatus(request, env);
       if (url.pathname === '/transcribe' && request.method === 'POST') return await handleTranscribe(request, env);
       if (url.pathname === '/extract' && request.method === 'POST') return await handleExtract(request, env);
+      if (url.pathname === '/transcribe-and-extract' && request.method === 'POST') return await handleTranscribeAndExtract(request, env);
       if (url.pathname === '/ping' && request.method === 'POST') return await handlePing(request, env);
       if (url.pathname === '/sync' && request.method === 'POST') return await handleSync(request, env);
       if (url.pathname === '/admin/stats' && request.method === 'GET') return await handleAdminStats(request, env);
