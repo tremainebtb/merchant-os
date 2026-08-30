@@ -82,6 +82,32 @@ function syncEntryToServer(entry, deleted) {
   }).catch(() => {});
 }
 
+// Real request, 30 Aug: "I need to see the ledger entries saved and I need
+// to see the not saved" - a real, sourced funnel gap both ChatGPT and
+// Gemini independently flagged as the actual question worth answering
+// (32 users, 7 saves - what happened to everyone else who tried and didn't
+// finish?). Mirrors an attempt that was shown to the owner but deliberately
+// rejected (voice Discard) or a typed entry abandoned mid-fill (Cancel with
+// something already entered) - never something that was merely glanced at
+// and closed with nothing typed, which isn't a real attempt. Uses the same
+// /sync endpoint and one-way shop hash as a real save, just tagged
+// status:'not_saved' so it never gets counted as a real ledger entry.
+function syncNotSaved(entryLike) {
+  if (window.KYM_IS_OWNER_DEVICE) return;
+  if (!navigator.onLine) return;
+  if (!entryLike || (!entryLike.item && !entryLike.price)) return;
+  const shop = getShopId() || getDeviceId();
+  fetch(`${API_BASE}/sync`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      shop,
+      entry: { id: crypto.randomUUID(), ...entryLike, status: 'not_saved' },
+      deleted: false
+    })
+  }).catch(() => {});
+}
+
 function addEntry(entry) {
   return new Promise((resolve, reject) => {
     const tx = db.transaction(STORE, 'readwrite');
@@ -539,7 +565,10 @@ function renderVoiceReview() {
     }
   }));
   list.querySelectorAll('.voice-discard').forEach(btn => btn.addEventListener('click', (e) => {
-    pendingVoiceEvents.splice(Number(e.target.dataset.idx), 1);
+    const idx = Number(e.target.dataset.idx);
+    const ev = pendingVoiceEvents[idx];
+    if (ev && !ev._savedId) syncNotSaved(eventToEntry(ev));
+    pendingVoiceEvents.splice(idx, 1);
     renderVoiceReview();
   }));
   list.querySelectorAll('.voice-undo').forEach(btn => btn.addEventListener('click', async (e) => {
@@ -1274,7 +1303,13 @@ function updateOfflineBadge() {
 document.querySelectorAll('.act-btn').forEach(btn => {
   btn.addEventListener('click', () => openSheet(btn.dataset.type));
 });
-document.getElementById('cancelBtn').addEventListener('click', closeSheet);
+document.getElementById('cancelBtn').addEventListener('click', () => {
+  if (activeType && !editingEntry) {
+    const v = readValues();
+    if (v.item || v.price) syncNotSaved({ type: activeType, item: v.item, note: v.note, qty: v.qty, price: v.price, amount: FIELD_CONFIG[activeType].compute(v) });
+  }
+  closeSheet();
+});
 document.getElementById('saveBtn').addEventListener('click', saveEntry);
 document.getElementById('deleteEntryBtn').addEventListener('click', async () => {
   if (!editingEntry) return;

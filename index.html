@@ -437,6 +437,13 @@ input[type="number"]{-moz-appearance:textfield}
       <div class="plan-pay-hint">This tells us the payment is from you.</div>
       <div class="plan-pay-label">Step 2 &#x2014; Please send 99 cedis by MoMo to</div>
       <div class="plan-pay-number">020 909 0019</div>
+      <!-- Real, sourced risk, 30 Aug: independent research (own + ChatGPT +
+           Gemini) found this exact "send money to a number" mechanic
+           structurally matches documented 2025-2026 Ghanaian MoMo scam
+           patterns. Showing the real registered name in advance lets someone
+           check it against what their own phone displays before confirming,
+           turning a blind trust ask into a self-verifiable one. -->
+      <div class="plan-pay-hint">You should see the name "CountMy Ltd" before you confirm &#x2014; if you see a different name, stop and don't send.</div>
     </div>
     <!-- Real feedback, 28 Aug: "never call or message asking for your pin
          was something made me feel unwell and overthinking so they
@@ -465,7 +472,7 @@ input[type="number"]{-moz-appearance:textfield}
      string is what forces a fresh script fetch even before any service worker logic
      runs, independent of it. Found live 27 Aug: without this, an already-visited
      browser can keep running old code from plain HTTP cache regardless of SW strategy. -->
-<script src="app.js?v=39"></script>
+<script src="app.js?v=40"></script>
 
 <!-- Analytics for the Silent Alpha pilot only (27 Aug) - added to observe real
      merchant behavior (what they tap first, voice vs manual usage), NOT to

@@ -88,16 +88,22 @@ async function handleSync(request, env) {
   }
 
   const shopHash = (await sha256Hex(shop)).slice(0, 32);
+  // status defaults to 'saved' - a real committed ledger entry. 'not_saved'
+  // (see app.js syncNotSaved) marks an attempt the owner deliberately backed
+  // out of (voice Discard, or Cancel with something already typed) - shown
+  // separately in the admin dashboard so "how many people tried and gave up"
+  // is a real, visible number instead of invisible churn.
+  const status = entry.status === 'not_saved' ? 'not_saved' : 'saved';
   await env.COUNTMY_DB.prepare(
-    `INSERT INTO entries (entry_id, shop_hash, type, item, note, qty, price, kind, method, paid, amount, source, day, ts, deleted, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `INSERT INTO entries (entry_id, shop_hash, status, type, item, note, qty, price, kind, method, paid, amount, source, day, ts, deleted, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(entry_id) DO UPDATE SET
-       shop_hash=excluded.shop_hash, type=excluded.type, item=excluded.item, note=excluded.note,
+       shop_hash=excluded.shop_hash, status=excluded.status, type=excluded.type, item=excluded.item, note=excluded.note,
        qty=excluded.qty, price=excluded.price, kind=excluded.kind, method=excluded.method,
        paid=excluded.paid, amount=excluded.amount, source=excluded.source, day=excluded.day,
        ts=excluded.ts, deleted=excluded.deleted, updated_at=excluded.updated_at`
   ).bind(
-    entryId, shopHash,
+    entryId, shopHash, status,
     String(entry.type || '').slice(0, 40), String(entry.item || '').slice(0, 500), String(entry.note || '').slice(0, 500),
     String(entry.qty || ''), String(entry.price || ''), String(entry.kind || ''), String(entry.method || ''),
     Number(entry.paid || 0), Number(entry.amount || 0), String(entry.source || '').slice(0, 40),
@@ -128,7 +134,7 @@ async function handleAdminEntries(request, env) {
   if (!shop && !rawHash) return cors(new Response(JSON.stringify({ error: 'missing shop id' }), { status: 400 }));
   const shopHash = rawHash || (await sha256Hex(shop)).slice(0, 32);
   const { results } = await env.COUNTMY_DB.prepare(
-    'SELECT entry_id, type, item, note, qty, price, kind, method, paid, amount, source, day, ts, deleted, updated_at FROM entries WHERE shop_hash = ? ORDER BY ts DESC'
+    'SELECT entry_id, status, type, item, note, qty, price, kind, method, paid, amount, source, day, ts, deleted, updated_at FROM entries WHERE shop_hash = ? ORDER BY ts DESC'
   ).bind(shopHash).all();
   return cors(new Response(JSON.stringify({ shop: shop || null, shopHash, entries: results || [] }), {
     headers: { 'Content-Type': 'application/json' }
@@ -163,7 +169,7 @@ async function handleAdminRecentEntries(request, env) {
     'SELECT shop_hash, COUNT(*) as total, MIN(ts) as firstSeen, MAX(ts) as lastSeen FROM entries WHERE ts >= ? GROUP BY shop_hash ORDER BY lastSeen DESC LIMIT 50'
   ).bind(since);
   const previewQuery = env.COUNTMY_DB.prepare(
-    `SELECT shop_hash, entry_id, type, item, note, amount, ts, deleted FROM (
+    `SELECT shop_hash, entry_id, status, type, item, note, amount, ts, deleted FROM (
        SELECT *, ROW_NUMBER() OVER (PARTITION BY shop_hash ORDER BY ts DESC) as rn
        FROM entries WHERE ts >= ?
      ) WHERE rn <= 3 ORDER BY shop_hash, ts DESC`
@@ -256,8 +262,17 @@ async function handleAdminStats(request, env) {
     stmts.push(env.COUNTMY_DB.prepare(
       'SELECT COUNT(DISTINCT shop_hash) as n FROM events WHERE ts >= ?'
     ).bind(since));
+    // Sourced from the entries table (real backed-up content), not the
+    // anonymous events ping - this is the accurate count now that every
+    // save is automatically backed up. notSaved is the same table's
+    // deliberately-abandoned attempts (see app.js syncNotSaved) - the real
+    // "how many people tried and gave up" number this dashboard never had
+    // a way to show before.
     stmts.push(env.COUNTMY_DB.prepare(
-      "SELECT COUNT(*) as n FROM events WHERE event_type = 'save' AND ts >= ?"
+      "SELECT COUNT(*) as n FROM entries WHERE status = 'saved' AND ts >= ?"
+    ).bind(since));
+    stmts.push(env.COUNTMY_DB.prepare(
+      "SELECT COUNT(*) as n FROM entries WHERE status = 'not_saved' AND ts >= ?"
     ).bind(since));
   }
   // Daily trend series, last 120 days - enough for the day/week/month views;
@@ -284,7 +299,8 @@ async function handleAdminStats(request, env) {
     out.periods[name] = {
       signups: ((results[i++].results || [])[0] || {}).n || 0,
       active: ((results[i++].results || [])[0] || {}).n || 0,
-      entries: ((results[i++].results || [])[0] || {}).n || 0
+      entries: ((results[i++].results || [])[0] || {}).n || 0,
+      notSaved: ((results[i++].results || [])[0] || {}).n || 0
     };
   }
   const bucketToDate = (b) => new Date(b * DAY).toISOString().slice(0, 10);
