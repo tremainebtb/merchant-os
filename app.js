@@ -812,14 +812,14 @@ function openSheet(type, entry) {
     }
     return `
     <div class="field">
-      <label>${f.label}</label>
-      <input type="${f.type}" inputmode="${f.type === 'number' ? 'decimal' : 'text'}" data-key="${f.key}" autocomplete="off" data-clarity-mask="True" value="${current !== undefined && current !== null ? String(current).replace(/"/g, '&quot;') : ''}">
+      <label for="field-${f.key}">${f.label}</label>
+      <input id="field-${f.key}" type="${f.type}" inputmode="${f.type === 'number' ? 'decimal' : 'text'}" data-key="${f.key}" autocomplete="off" data-clarity-mask="True" value="${current !== undefined && current !== null ? String(current).replace(/"/g, '&quot;') : ''}">
     </div>
   `;
   }).join('') + (entry && cfg.isDebt ? `
     <div class="field">
-      <label>Paid so far (cedis)</label>
-      <input type="number" inputmode="decimal" data-key="paid" autocomplete="off" data-clarity-mask="True" value="${entry.paid || 0}">
+      <label for="field-paid">Paid so far (cedis)</label>
+      <input id="field-paid" type="number" inputmode="decimal" data-key="paid" autocomplete="off" data-clarity-mask="True" value="${entry.paid || 0}">
     </div>` : '');
   document.getElementById('deleteEntryBtn').hidden = !entry;
   fieldsEl.querySelectorAll('input').forEach(inp => inp.addEventListener('input', updateConfirm));
