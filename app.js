@@ -687,8 +687,8 @@ async function toggleMic(btn, statusId) {
           // English. Added to every instruction that asks the owner to do
           // something, not to plain statements of fact.
           const msg = recordedMs < 1200
-            ? 'That was too quick \u2014 please tap once, say what happened out loud, THEN tap again to stop.'
-            : 'Didn\u2019t catch any words \u2014 please hold the phone closer and speak clearly, then try again.';
+            ? 'Too quick \u2014 tap, speak, then tap again to stop.'
+            : 'Didn\u2019t catch that \u2014 hold the phone closer and speak clearly.';
           setMicStatus(msg, 'err', statusId);
           return;
         }
@@ -864,7 +864,6 @@ function openSheet(type, entry) {
   document.getElementById('confirmLine').classList.remove('show');
   document.getElementById('saveBtn').disabled = true;
   document.getElementById('saveBtn').textContent = entry ? 'Save changes' : 'Save';
-  setMicStatus('Please tap the mic and say ONE item and its price, then check the numbers before saving.');
   document.getElementById('sheet').classList.add('open');
   document.getElementById('sheet').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   fieldsEl.querySelector('input').focus();
