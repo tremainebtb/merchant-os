@@ -752,7 +752,30 @@ async function toggleMic(btn, statusId) {
           speakVoiceReview(pendingVoiceEvents);
           await render();
         } else {
-          setMicStatus(`Heard: \u201c${heard}\u201d \u2014 but couldn\u2019t work out what happened. Try again, saying an amount in cedis.`, 'err', statusId);
+          // Real bug, found 30 Aug from real UK-based Ghanaian tester feedback
+          // ("when I say cedis it don't recognise"): the AI extraction step
+          // can fail to find an event (a mis-heard currency word, a quota
+          // hiccup, an odd phrasing) with NO fallback at all on the home mic
+          // path - even though the exact same local number-parser one branch
+          // up already solves this. It was only ever wired to the
+          // activeType branch. Now tried here too before giving up, guessing
+          // the entry type from the words actually heard.
+          const guessedType = /\bowe(s)?\b/i.test(heard) && /\bi\s+owe\b/i.test(heard) ? 'debt_out'
+            : /\bowe(s)?\b/i.test(heard) ? 'debt_in'
+            : /\b(spent|bought|paid for)\b/i.test(heard) ? 'expense'
+            : 'sale';
+          const parsed = parseHeardText(guessedType, heard);
+          if (parsed.price) {
+            pendingVoiceEvents = [{ type: guessedType, item: parsed.item, price: parsed.price, qty: parsed.qty, note: '' }];
+            await autoSaveReadyEvents(pendingVoiceEvents);
+            renderVoiceReview();
+            setMicStatus(`Heard: \u201c${heard}\u201d \u2014 saved, check it below.`, 'heard', statusId);
+            document.getElementById('voiceReview').scrollIntoView({ behavior: 'smooth', block: 'start' });
+            speakVoiceReview(pendingVoiceEvents);
+            await render();
+          } else {
+            setMicStatus(`Heard: \u201c${heard}\u201d \u2014 but couldn\u2019t work out what happened. Try again, saying an amount in cedis.`, 'err', statusId);
+          }
         }
       } catch (err) {
         track('mic_error', { reason: 'transcribe_failed' });

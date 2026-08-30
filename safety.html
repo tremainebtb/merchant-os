@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<!-- Real feedback, 30 Aug, from a UK-based Ghanaian tester passing this to
+     his father: "some people that age like to read first and check its
+     safe etc... just another page explaining the website and where stuff
+     goes." A one-line trust badge inside the app isn't enough for a
+     careful, skeptical reader who wants to check before they trust -
+     they want something to actually read. This page exists for exactly
+     that reader: short, plain, no jargon, same voice as the app itself. -->
+<title>Is CountMy safe? - CountMy</title>
+<meta name="description" content="A plain explanation of where your CountMy records are kept, who can see them, and how the free/paid parts work.">
+<meta name="robots" content="index, follow">
+<link rel="canonical" href="https://countmy.app/safety.html">
+<meta name="theme-color" content="#D9541A">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&family=Work+Sans:wght@400;500;600&display=swap">
+<style>
+:root{
+  --paper:#F8F3EC; --surface:#FFFFFF; --ink:#221A12; --ink-soft:#5C5142; --muted:#6E6353;
+  --rule:#E7DDCD; --flame:#D9541A; --flame-deep:#A83F12; --flame-soft:#FBE3D2;
+  --leaf:#1B7A43; --leaf-deep:#125C32; --leaf-soft:#E1F2E7;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#161009; --surface:#1F1810; --ink:#F3EBDF; --ink-soft:#CDBFA9; --muted:#93876F;
+    --rule:#372B1D; --flame:#F0713A; --flame-deep:#F79764; --flame-soft:#3A2415;
+    --leaf:#4CC585; --leaf-deep:#6FD79E; --leaf-soft:#15301F;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#161009; --surface:#1F1810; --ink:#F3EBDF; --ink-soft:#CDBFA9; --muted:#93876F;
+  --rule:#372B1D; --flame:#F0713A; --flame-deep:#F79764; --flame-soft:#3A2415;
+  --leaf:#4CC585; --leaf-deep:#6FD79E; --leaf-soft:#15301F;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:"Work Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;line-height:1.55}
+.wrap{max-width:480px;margin:0 auto;padding:20px 16px 50px}
+a.back{color:var(--muted);text-decoration:none;font-size:.86rem;font-weight:600}
+h1{font-family:"Manrope",sans-serif;font-size:1.4rem;font-weight:800;margin:14px 0 4px}
+.sub{color:var(--muted);font-size:.9rem;margin:0 0 24px}
+.card{background:var(--surface);border:1px solid var(--rule);border-radius:14px;padding:18px;margin-bottom:14px}
+.card h2{font-family:"Manrope",sans-serif;font-size:1.02rem;margin:0 0 8px;display:flex;align-items:center;gap:8px}
+.card p{margin:0 0 8px;font-size:.94rem;color:var(--ink-soft)}
+.card p:last-child{margin-bottom:0}
+.leaf-card{background:var(--leaf-soft);border-color:var(--leaf-soft)}
+.leaf-card h2,.leaf-card p{color:var(--leaf-deep)}
+footer{margin-top:24px;text-align:center;font-size:.8rem;color:var(--muted)}
+footer a{color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<a class="back" href="index.html">&larr; Back to CountMy</a>
+<h1>Is CountMy safe?</h1>
+<p class="sub">A plain answer, so you can check for yourself before you trust it.</p>
+
+<div class="card leaf-card">
+  <h2>&#x1F512; Short answer</h2>
+  <p>Your sales, spending, and customer records are saved on your own phone. Nobody at CountMy can see your name, your prices, or your customers' names unless you send us that yourself.</p>
+</div>
+
+<div class="card">
+  <h2>Where your records live</h2>
+  <p>Every time you record a sale, expense, or a debt, it is saved directly on your phone first - the same as writing it in a notebook.</p>
+  <p>A safety copy is also kept so your records are never lost if your phone is lost, broken, or something is deleted by mistake. That copy is locked to your shop's own name, turned into a code nobody can read backwards - not even us.</p>
+</div>
+
+<div class="card">
+  <h2>Who can see your records</h2>
+  <p>Only you, on your own phone. The safety copy can only be found again by someone who already knows your exact shop name - there is no list, no search, and no way to browse other people's shops.</p>
+</div>
+
+<div class="card">
+  <h2>What we never ask for</h2>
+  <p>We never ask for your PIN, your bank details, or your Mobile Money PIN - not by phone, not by message, not ever. If anyone contacts you claiming to be CountMy and asks for these, it is not us.</p>
+</div>
+
+<div class="card">
+  <h2>What "free" actually means</h2>
+  <p>CountMy costs nothing to use, with no signup. If you ever want to see your full history instead of just the last 7 days, that is 99 cedis once a year - entirely optional, and the free app keeps working either way.</p>
+</div>
+
+<div class="card">
+  <h2>Talking to the app</h2>
+  <p>When you speak into CountMy, your words are sent once to understand what you said, then thrown away - they are not kept, listened to by a person, or used for anything else.</p>
+</div>
+
+<footer>
+  Still unsure about something? <a href="https://wa.me/233209090019?text=Hello%2C%20I%20have%20a%20question%20about%20CountMy">Message us on WhatsApp</a> and ask directly.
+</footer>
+
+</div>
+</body>
+</html>
