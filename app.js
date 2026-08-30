@@ -780,21 +780,32 @@ function ping(eventType) {
   }).catch(() => {});
 }
 
-function openSheet(type) {
-  track('open_sheet', { type });
+// Real gap, found 30 Aug from a live screenshot: a garbled voice entry sat
+// in Recent as a wrong 1,000 cedis "sale" with no way for the owner to fix
+// or remove it themselves - the only fix was messaging me. editingEntry
+// reuses the same typed-entry sheet used for adding, prefilled with the
+// tapped entry's own values, so correcting a mistake looks exactly like
+// making one - no separate edit UI to learn.
+let editingEntry = null;
+
+function openSheet(type, entry) {
+  track('open_sheet', { type, editing: !!entry });
   activeType = type;
+  editingEntry = entry || null;
   sheetVoiceFilled = false;
   const cfg = FIELD_CONFIG[type];
-  document.getElementById('sheetTitle').textContent = cfg.title;
+  document.getElementById('sheetTitle').textContent = entry ? 'Edit entry' : cfg.title;
   const fieldsEl = document.getElementById('fields');
   fieldsEl.innerHTML = cfg.fields.map(f => {
+    const current = entry ? entry[f.key] : undefined;
     if (f.type === 'choice') {
+      const val = (current !== undefined && current !== '') ? current : f.default;
       return `
         <div class="field">
           <label>${f.label}</label>
-          <input type="hidden" data-key="${f.key}" value="${f.default || ''}">
+          <input type="hidden" data-key="${f.key}" value="${val || ''}">
           <div class="choice-row">
-            ${f.options.map(o => `<button type="button" class="choice-btn${o.value === f.default ? ' active' : ''}" data-value="${o.value}">${o.label}</button>`).join('')}
+            ${f.options.map(o => `<button type="button" class="choice-btn${o.value === val ? ' active' : ''}" data-value="${o.value}">${o.label}</button>`).join('')}
           </div>
         </div>
       `;
@@ -802,10 +813,15 @@ function openSheet(type) {
     return `
     <div class="field">
       <label>${f.label}</label>
-      <input type="${f.type}" inputmode="${f.type === 'number' ? 'decimal' : 'text'}" data-key="${f.key}" autocomplete="off" data-clarity-mask="True">
+      <input type="${f.type}" inputmode="${f.type === 'number' ? 'decimal' : 'text'}" data-key="${f.key}" autocomplete="off" data-clarity-mask="True" value="${current !== undefined && current !== null ? String(current).replace(/"/g, '&quot;') : ''}">
     </div>
   `;
-  }).join('');
+  }).join('') + (entry && cfg.isDebt ? `
+    <div class="field">
+      <label>Paid so far (cedis)</label>
+      <input type="number" inputmode="decimal" data-key="paid" autocomplete="off" data-clarity-mask="True" value="${entry.paid || 0}">
+    </div>` : '');
+  document.getElementById('deleteEntryBtn').hidden = !entry;
   fieldsEl.querySelectorAll('input').forEach(inp => inp.addEventListener('input', updateConfirm));
   // Choice fields render as two big tap targets rather than a dropdown or
   // radio buttons - consistent with every other either/or decision in this
@@ -822,16 +838,19 @@ function openSheet(type) {
   });
   document.getElementById('confirmLine').classList.remove('show');
   document.getElementById('saveBtn').disabled = true;
+  document.getElementById('saveBtn').textContent = entry ? 'Save changes' : 'Save';
   setMicStatus('Please tap the mic and say ONE item and its price, then check the numbers before saving.');
   document.getElementById('sheet').classList.add('open');
   document.getElementById('sheet').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   fieldsEl.querySelector('input').focus();
+  if (entry) updateConfirm();
 }
 
 function closeSheet() {
   document.getElementById('sheet').classList.remove('open');
   if (mediaRecorder && mediaRecorder.state === 'recording') mediaRecorder.stop();
   activeType = null;
+  editingEntry = null;
 }
 
 function readValues() {
@@ -872,15 +891,32 @@ async function saveEntry() {
   const saveBtn = document.getElementById('saveBtn');
   saveBtn.disabled = true;
   saveBtn.textContent = 'Saving\u2026';
-  const ts = Date.now();
-  // Client-generated id, not IndexedDB autoIncrement \u2014 this is the idempotency key.
-  // Defense in depth beyond the button-disable above: if this same save ever got
-  // dispatched twice (a future sync retry, a bug), the store rejects the duplicate
-  // key instead of silently creating a second transaction. Kept simple deliberately \u2014
-  // no backend to reconcile against yet, so this only protects the local device today,
-  // but the id shape is what a future sync layer would need anyway.
-  const id = crypto.randomUUID();
   try {
+    if (editingEntry) {
+      const patch = {
+        item: v.item,
+        note: v.note || '',
+        qty: v.qty || '',
+        price: v.price || '',
+        kind: v.kind || '',
+        method: v.method || '',
+        amount: amount
+      };
+      if (cfg.isDebt) patch.paid = Number(v.paid) || 0;
+      await updateEntry(editingEntry.id, patch);
+      track('edit_entry', { type: activeType });
+      closeSheet();
+      await render();
+      return;
+    }
+    const ts = Date.now();
+    // Client-generated id, not IndexedDB autoIncrement \u2014 this is the idempotency key.
+    // Defense in depth beyond the button-disable above: if this same save ever got
+    // dispatched twice (a future sync retry, a bug), the store rejects the duplicate
+    // key instead of silently creating a second transaction. Kept simple deliberately \u2014
+    // no backend to reconcile against yet, so this only protects the local device today,
+    // but the id shape is what a future sync layer would need anyway.
+    const id = crypto.randomUUID();
     await addEntry({
       id,
       type: activeType,
@@ -1086,7 +1122,7 @@ async function render() {
         <button type="button" class="debt-pay-btn" data-id="${e.id}">Save</button>
       </div>` : '';
     const settledTag = cfg.isDebt && isSettled ? '<span class="debt-settled-tag">\u2713 Paid in full</span>' : '';
-    return `<div class="hist-item${cfg.isDebt ? ' is-debt' : ''}">
+    return `<div class="hist-item${cfg.isDebt ? ' is-debt' : ''}" data-edit-id="${e.id}">
       <div class="desc" data-clarity-mask="True">${cfg.desc(e)}${settledTag}<small>${when}</small>${agingLine}${remind}${paymentRow}</div>
       <div class="amt ${cls}" data-clarity-mask="True">${sign}${fmt(displayAmount)}</div>
     </div>`;
@@ -1101,6 +1137,22 @@ document.getElementById('history').addEventListener('click', async (e) => {
   const fullBtn = e.target.closest('.debt-full-btn');
   const payBtn = e.target.closest('.debt-pay-btn');
   const toggleBtn = e.target.closest('.debt-partial-toggle');
+  const remindLink = e.target.closest('.remind-btn');
+  const payInput = e.target.closest('.debt-pay-input');
+  // Real gap, found 30 Aug: once an entry landed here there was no way for
+  // the owner to fix a mistake (wrong amount, a garbled voice entry, an
+  // accidental "Paid in full") without messaging me - tapping anywhere on
+  // the row that isn't one of its own controls now reopens it in the same
+  // typed-entry sheet used to create it, prefilled, with a Delete option.
+  if (!fullBtn && !payBtn && !toggleBtn && !remindLink && !payInput) {
+    const item = e.target.closest('.hist-item');
+    if (item) {
+      const entries = await getAllEntries();
+      const entry = entries.find(x => x.id === item.dataset.editId);
+      if (entry) openSheet(entry.type, entry);
+    }
+    return;
+  }
   if (toggleBtn) {
     const row = document.querySelector(`.debt-pay-input-row[data-id="${toggleBtn.dataset.id}"]`);
     if (row) row.hidden = false;
@@ -1200,6 +1252,14 @@ document.querySelectorAll('.act-btn').forEach(btn => {
 });
 document.getElementById('cancelBtn').addEventListener('click', closeSheet);
 document.getElementById('saveBtn').addEventListener('click', saveEntry);
+document.getElementById('deleteEntryBtn').addEventListener('click', async () => {
+  if (!editingEntry) return;
+  if (!confirm('Delete this entry? This cannot be undone.')) return;
+  await deleteEntry(editingEntry.id);
+  track('delete_entry', { type: editingEntry.type });
+  closeSheet();
+  await render();
+});
 document.getElementById('hearBtn').addEventListener('click', speakToday);
 if (!('speechSynthesis' in window)) document.getElementById('hearBtn').style.display = 'none';
 document.getElementById('planPill').addEventListener('click', () => document.getElementById('planSheet').classList.add('open'));
@@ -1271,10 +1331,28 @@ document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible') render();
 });
 
+// Real feedback, 30 Aug: the "Free. No signup." trust line under the mic is
+// there for a first-time user who doesn't yet trust the app - a shop owner
+// on their 20th visit doesn't need it repeated every single day. Counts
+// visits (capped, never decrements) and hides the line after the first few -
+// the line stays in the HTML either way, so nothing breaks if this count is
+// ever reset or unavailable.
+function bumpVisitCount() {
+  try {
+    const n = Math.min((Number(localStorage.getItem('kym_visits')) || 0) + 1, 999);
+    localStorage.setItem('kym_visits', String(n));
+    return n;
+  } catch { return 1; }
+}
+
 (async function init() {
   db = await openDB();
   updateOfflineBadge();
   await render();
+  if (bumpVisitCount() > 5) {
+    const trustLine = document.querySelector('.mic-trust-line');
+    if (trustLine) trustLine.hidden = true;
+  }
   refreshPaidStatus();
   ping('open');
   if ('serviceWorker' in navigator) {

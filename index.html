@@ -162,6 +162,7 @@ input[type="number"]{-moz-appearance:textfield}
 .safety-block{background:var(--surface);border:1px solid var(--rule);border-radius:14px;padding:16px;margin-top:26px}
 .export-btn{width:100%;background:var(--paper);border:1px solid var(--rule);border-radius:12px;padding:12px;font-size:.86rem;font-weight:700;color:var(--ink);cursor:pointer}
 .export-note{font-size:.78rem;color:var(--muted);margin-top:8px;line-height:1.4}
+.delete-entry-btn{display:block;width:100%;margin-top:14px;padding:10px;background:transparent;border:1px solid var(--rule);border-radius:10px;color:var(--brick);font-family:inherit;font-size:.85rem;font-weight:700;cursor:pointer}
 .trust-block{background:var(--leaf-soft);border-radius:14px;padding:14px 16px;margin-top:14px}
 .trust-line{font-size:.82rem;color:var(--leaf-deep);font-weight:600;line-height:1.6}
 .plan-pay-name{font-size:.8rem;color:var(--ink-soft);font-weight:600;margin:-6px 0 10px;padding-bottom:8px;border-bottom:1px dashed var(--rule)}
@@ -215,7 +216,7 @@ input[type="number"]{-moz-appearance:textfield}
 .remind-btn{display:inline-block;margin-top:4px;font-size:.76rem;font-weight:700;color:var(--leaf-deep);background:var(--leaf-soft);padding:4px 9px;border-radius:100px;text-decoration:none}
 .btn-cancel{background:var(--rule);color:var(--ink)}
 .hist-label{font-size:.72rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:700;margin:20px 0 10px}
-.hist-item{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;padding:11px 0;border-bottom:1px solid var(--rule);font-size:.9rem}
+.hist-item{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;padding:11px 0;border-bottom:1px solid var(--rule);font-size:.9rem;cursor:pointer}
 .hist-item .desc{color:var(--ink);flex:1;min-width:0}
 .hist-item .desc small{display:block;color:var(--muted);font-size:.76rem}
 .hist-item .amt{font-family:"IBM Plex Mono",monospace;font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}
@@ -396,6 +397,7 @@ input[type="number"]{-moz-appearance:textfield}
     </div>
     <div id="fields"></div>
     <div id="confirmLine" class="confirm-line" data-clarity-mask="True"></div>
+    <button type="button" id="deleteEntryBtn" class="delete-entry-btn" hidden>Delete this entry</button>
     <div class="sheet-btns">
       <button class="btn btn-cancel" id="cancelBtn">Cancel</button>
       <button class="btn btn-save" id="saveBtn">Save</button>
@@ -462,7 +464,7 @@ input[type="number"]{-moz-appearance:textfield}
      string is what forces a fresh script fetch even before any service worker logic
      runs, independent of it. Found live 27 Aug: without this, an already-visited
      browser can keep running old code from plain HTTP cache regardless of SW strategy. -->
-<script src="app.js?v=32"></script>
+<script src="app.js?v=33"></script>
 
 <!-- Analytics for the Silent Alpha pilot only (27 Aug) - added to observe real
      merchant behavior (what they tap first, voice vs manual usage), NOT to
