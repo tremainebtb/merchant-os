@@ -120,12 +120,68 @@ async function handleAdminEntries(request, env) {
     return cors(new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401 }));
   }
   const shop = (url.searchParams.get('shop') || '').trim().toLowerCase();
-  if (!shop) return cors(new Response(JSON.stringify({ error: 'missing shop id' }), { status: 400 }));
-  const shopHash = (await sha256Hex(shop)).slice(0, 32);
+  const rawHash = (url.searchParams.get('shopHash') || '').trim().toLowerCase();
+  // Accepts either a plaintext shop id (hashed here, same as always) or an
+  // already-hashed shopHash - the latter lets handleAdminRecentEntries's
+  // browse view link straight into a full lookup once Bobby recognizes a
+  // shop's content, without ever needing to learn its real name or id.
+  if (!shop && !rawHash) return cors(new Response(JSON.stringify({ error: 'missing shop id' }), { status: 400 }));
+  const shopHash = rawHash || (await sha256Hex(shop)).slice(0, 32);
   const { results } = await env.COUNTMY_DB.prepare(
     'SELECT entry_id, type, item, note, qty, price, kind, method, paid, amount, source, day, ts, deleted, updated_at FROM entries WHERE shop_hash = ? ORDER BY ts DESC'
   ).bind(shopHash).all();
-  return cors(new Response(JSON.stringify({ shop, entries: results || [] }), {
+  return cors(new Response(JSON.stringify({ shop: shop || null, shopHash, entries: results || [] }), {
+    headers: { 'Content-Type': 'application/json' }
+  }));
+}
+
+// Owner-only "recent backups" browse, added 30 Aug: handleAdminEntries above
+// only works if you already know the exact Shop ID - but most users, his mum
+// included, never type one in at all (the app silently falls back to a random
+// per-device id - see getShopId() || getDeviceId() in app.js), so there is
+// often no name to look up. This is a real, deliberate widening of this
+// file's own "never a list of shops" privacy rule stated above: it lists
+// recently-active shop hashes (still one-way hashes, never a name or id) and,
+// for each, a preview of its most recent real entries - real item names,
+// notes, amounts, timestamps. The hash itself never identifies anyone; the
+// entry CONTENT is what lets an owner who knows their own family's shop
+// recognize which row is theirs, without ever needing to know its hash or id
+// up front. Same ADMIN_KEY gate as every other /admin/* route - this is
+// exactly as sensitive as it sounds, which is why it exists only behind that
+// key, not as a feature reachable from the app itself.
+async function handleAdminRecentEntries(request, env) {
+  if (!env.COUNTMY_DB) return cors(new Response(JSON.stringify({ error: 'not configured' }), { status: 503 }));
+  const url = new URL(request.url);
+  const key = url.searchParams.get('key') || '';
+  if (!env.ADMIN_KEY || key !== env.ADMIN_KEY) {
+    return cors(new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401 }));
+  }
+  const days = Math.max(1, Math.min(365, Number(url.searchParams.get('days')) || 30));
+  const since = Date.now() - days * 86400000;
+
+  const summaryQuery = env.COUNTMY_DB.prepare(
+    'SELECT shop_hash, COUNT(*) as total, MIN(ts) as firstSeen, MAX(ts) as lastSeen FROM entries WHERE ts >= ? GROUP BY shop_hash ORDER BY lastSeen DESC LIMIT 50'
+  ).bind(since);
+  const previewQuery = env.COUNTMY_DB.prepare(
+    `SELECT shop_hash, entry_id, type, item, note, amount, ts, deleted FROM (
+       SELECT *, ROW_NUMBER() OVER (PARTITION BY shop_hash ORDER BY ts DESC) as rn
+       FROM entries WHERE ts >= ?
+     ) WHERE rn <= 3 ORDER BY shop_hash, ts DESC`
+  ).bind(since);
+  const [summaryRes, previewRes] = await env.COUNTMY_DB.batch([summaryQuery, previewQuery]);
+
+  const previewsByShop = {};
+  for (const row of (previewRes.results || [])) {
+    (previewsByShop[row.shop_hash] = previewsByShop[row.shop_hash] || []).push(row);
+  }
+  const shops = (summaryRes.results || []).map(s => ({
+    shopHash: s.shop_hash,
+    total: s.total,
+    firstSeen: s.firstSeen,
+    lastSeen: s.lastSeen,
+    preview: previewsByShop[s.shop_hash] || []
+  }));
+  return cors(new Response(JSON.stringify({ days, shops }), {
     headers: { 'Content-Type': 'application/json' }
   }));
 }
@@ -539,6 +595,7 @@ export default {
       if (url.pathname === '/admin/stats' && request.method === 'GET') return await handleAdminStats(request, env);
       if (url.pathname === '/admin/shop' && request.method === 'GET') return await handleShopActivity(request, env);
       if (url.pathname === '/admin/entries' && request.method === 'GET') return await handleAdminEntries(request, env);
+      if (url.pathname === '/admin/entries/recent' && request.method === 'GET') return await handleAdminRecentEntries(request, env);
       return cors(new Response('Not found', { status: 404 }));
     } catch (err) {
       return cors(new Response(JSON.stringify({ error: 'server error', detail: String(err) }), { status: 500 }));
