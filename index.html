@@ -166,6 +166,7 @@ input[type="number"]{-moz-appearance:textfield}
 .trust-line{font-size:.82rem;color:var(--leaf-deep);font-weight:600;line-height:1.6}
 .plan-pay-name{font-size:.8rem;color:var(--ink-soft);font-weight:600;margin:-6px 0 10px;padding-bottom:8px;border-bottom:1px dashed var(--rule)}
 .site-footer{max-width:480px;margin:0 auto;padding:0 16px 20px;text-align:center;font-size:.74rem;color:var(--muted)}
+.support-link{display:inline-block;margin-top:6px;color:var(--muted);text-decoration:underline}
 .plan-link{display:block;width:100%;max-width:480px;margin:0 auto 20px;background:none;border:none;padding:6px 16px;font-family:inherit;font-size:.76rem;font-weight:600;color:var(--muted);text-decoration:underline;text-underline-offset:2px;cursor:pointer;text-align:center}
 .plan-sheet{display:none}
 .plan-sheet.open{display:block;margin-top:14px}
@@ -221,11 +222,12 @@ input[type="number"]{-moz-appearance:textfield}
 .debt-aging{color:var(--amber) !important;font-weight:600}
 .debt-settled-tag{display:inline-block;margin-left:6px;font-size:.72rem;font-weight:700;color:var(--leaf-deep);background:var(--leaf-soft);padding:2px 8px;border-radius:100px}
 .debt-pay-row{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
-.debt-pay-hint{display:block;color:var(--muted);font-size:.74rem;margin-top:5px}
+.debt-pay-input-row{display:flex;gap:6px;margin-top:6px;flex-wrap:wrap}
 .debt-pay-input{width:110px;padding:8px 10px;border:1px solid var(--rule);border-radius:8px;font-size:.86rem;background:var(--paper);color:var(--ink)}
-.debt-pay-btn,.debt-full-btn{font-family:inherit;border:none;border-radius:100px;padding:8px 12px;font-size:.78rem;font-weight:700;cursor:pointer}
+.debt-pay-btn,.debt-full-btn,.debt-partial-toggle{font-family:inherit;border:none;border-radius:100px;padding:8px 12px;font-size:.78rem;font-weight:700;cursor:pointer}
 .debt-pay-btn{background:var(--amber-soft);color:var(--amber)}
 .debt-full-btn{background:var(--leaf-soft);color:var(--leaf-deep)}
+.debt-partial-toggle{background:transparent;color:var(--muted);text-decoration:underline;padding:8px 4px}
 .amt.pos{color:var(--leaf-deep)}
 .amt.neg{color:var(--brick)}
 .empty{color:var(--muted);font-size:.88rem;text-align:center;padding:24px 0}
@@ -326,7 +328,7 @@ input[type="number"]{-moz-appearance:textfield}
          there's something to show. -->
     <div id="tStockRow" class="today-row tappable" data-speak="Stock bought" style="display:none"><span>Stock bought</span><span id="tStock" data-clarity-mask="True">0 cedis</span></div>
     <div id="tOwedRow" class="today-row tappable" data-speak="Customers owe you" style="display:none"><span>Customers owe me</span><span id="tOwedMe" data-clarity-mask="True">0 cedis</span></div>
-    <div class="today-row balance tappable" data-speak="Sales minus expenses"><span>Sales minus expenses<small class="today-hint">&#x2014; not what's owed to you, not cash count, not counting stock you bought</small></span><span id="tBalance" class="balance-amt" data-clarity-mask="True">0 cedis</span></div>
+    <div class="today-row balance tappable" data-speak="Sales minus expenses"><span>Sales minus expenses</span><span id="tBalance" class="balance-amt" data-clarity-mask="True">0 cedis</span></div>
   </div>
 
   <button id="homeMicBtn" class="home-mic-btn" type="button" aria-label="Tap and speak what happened">
@@ -410,7 +412,7 @@ input[type="number"]{-moz-appearance:textfield}
        copy ends up. -->
   <div class="safety-block">
     <button id="exportBtn" class="export-btn">&#x1F4BE; Send my records to my own WhatsApp</button>
-    <div class="export-note">Tapping this is safe &#x2014; just like sending a photo to yourself, nothing on your phone changes. It sends your records to your own WhatsApp so you still have them if this phone is ever lost.</div>
+    <div class="export-note">Safe to tap &#x2014; sends your records to your own WhatsApp, nothing changes on your phone.</div>
   </div>
 
   <!-- Real advice, 28 Aug, from real testing (Bobby's mum, born 1964, and
@@ -423,10 +425,6 @@ input[type="number"]{-moz-appearance:textfield}
        genuinely strong free tier - this app's free tier should look and
        feel unconditionally free, with the option to see full history
        reachable, but not pushed. -->
-  <div class="trust-block">
-    <div class="trust-line">&#x2713; Always free to use &#x2014; no signup &#x2014; your records stay on your phone</div>
-  </div>
-
   <div id="planSheet" class="sheet plan-sheet">
     <h2>See all your old records</h2>
     <p class="plan-copy">Free shows your last 7 days. Pay 99 cedis once a year to see everything, always &#x2014; less than 2 cedis a week.</p>
@@ -453,7 +451,7 @@ input[type="number"]{-moz-appearance:textfield}
   <!-- Real advice, 28 Aug: an independent review flagged "nothing more" as
        reading unserious - free should describe the price, not the app's
        ambition. -->
-  <footer class="site-footer">CountMy &#x2014; your shop's money book, free.</footer>
+  <footer class="site-footer">CountMy &#x2014; your shop's money book, free.<br><a class="support-link" target="_blank" rel="noopener" href="https://wa.me/233209090019?text=Hello%2C%20I%20have%20a%20question%20about%20CountMy">Mistake or question? Message us on WhatsApp</a></footer>
 </div>
 <!-- Moved out of the main screen (see note above the trust-block) - still
      fully reachable for the small number of people who want it, just no
@@ -464,7 +462,7 @@ input[type="number"]{-moz-appearance:textfield}
      string is what forces a fresh script fetch even before any service worker logic
      runs, independent of it. Found live 27 Aug: without this, an already-visited
      browser can keep running old code from plain HTTP cache regardless of SW strategy. -->
-<script src="app.js?v=31"></script>
+<script src="app.js?v=32"></script>
 
 <!-- Analytics for the Silent Alpha pilot only (27 Aug) - added to observe real
      merchant behavior (what they tap first, voice vs manual usage), NOT to

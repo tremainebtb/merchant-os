@@ -371,6 +371,23 @@ function voiceEventComplete(ev) {
   return true;
 }
 
+// Real bug, found 29 Aug from a live screenshot: a garbled transcript ("5 x
+// Hello, today t-shirts cds jeans cds soap cds shoe think cds. Thank you.")
+// got auto-saved as a real 1,000 cedis sale. The extraction was technically
+// "correct" - the item text really was a substring of what was heard - but a
+// long, run-on, multi-item-sounding string is itself the tell that the
+// transcript was garbage, not a real item name. This does NOT block the
+// entry (that would bring back the "stuck, can't save" problem); it only
+// takes away the free pass to auto-save, so a merchant still has to look at
+// it once before it counts as money - the same bar a genuinely incomplete
+// entry already has to clear.
+function looksGarbled(item) {
+  if (!item) return false;
+  if (item.length > 40) return true;
+  if (item.trim().split(/\s+/).length > 6) return true;
+  return false;
+}
+
 let pendingVoiceEvents = [];
 
 // Provenance signal Gemini/ChatGPT both asked for, after the live finding that the
@@ -415,7 +432,7 @@ function speakVoiceReview(events) {
   events.forEach(ev => {
     const entry = eventToEntry(ev);
     if (!entry.item) return;
-    (voiceEventComplete(ev) ? saved : incomplete).push(entry);
+    (voiceEventComplete(ev) && !looksGarbled(ev.item) ? saved : incomplete).push(entry);
   });
   const lines = [];
   saved.forEach(entry => lines.push(`Saved: ${entry.item}, ${fmt(entry.amount)}.`));
@@ -440,7 +457,7 @@ function speakVoiceReview(events) {
 // render, so a complete entry shows already in its saved state.
 async function autoSaveReadyEvents(events) {
   for (const ev of events) {
-    if (ev._savedId || !voiceEventComplete(ev)) continue;
+    if (ev._savedId || !voiceEventComplete(ev) || looksGarbled(ev.item)) continue;
     const entry = eventToEntry(ev);
     const ts = Date.now();
     const id = crypto.randomUUID();
@@ -459,9 +476,9 @@ function renderVoiceReview() {
   list.innerHTML = pendingVoiceEvents.map((ev, i) => {
     const nameLabel = ev.type === 'debt_in' ? 'Customer name' : ev.type === 'debt_out' ? 'Supplier name' : 'What';
     const priceLabel = ev.type === 'sale' ? 'Price each (cedis)' : 'Amount (cedis)';
-    const ready = voiceEventComplete(ev);
+    const ready = voiceEventComplete(ev) && !looksGarbled(ev.item);
     const statusCls = ev._savedId ? 'saved' : (ready ? 'ready' : 'pending');
-    const statusText = ev._savedId ? '\u2713 Saved' : (ready ? 'Ready' : 'Needs a number');
+    const statusText = ev._savedId ? '\u2713 Saved' : (ready ? 'Ready' : 'Please check this before saving');
     const btns = ev._savedId
       ? `<div class="voice-card-btns"><button class="btn btn-cancel voice-undo" data-idx="${i}">Undo save</button></div>`
       : `<div class="voice-card-btns">
@@ -1061,11 +1078,13 @@ async function render() {
     // match for what this specific control does.
     const paymentRow = cfg.isDebt && !isSettled ? `
       <div class="debt-pay-row">
-        <input type="number" inputmode="decimal" class="debt-pay-input" data-id="${e.id}" placeholder="Amount paid" data-clarity-mask="True">
-        <button type="button" class="debt-pay-btn" data-id="${e.id}">Record payment</button>
         <button type="button" class="debt-full-btn" data-id="${e.id}">Paid in full</button>
+        <button type="button" class="debt-partial-toggle" data-id="${e.id}">Paid small small</button>
       </div>
-      <small class="debt-pay-hint">They can pay small small &#x2014; record whatever they gave you.</small>` : '';
+      <div class="debt-pay-input-row" data-id="${e.id}" hidden>
+        <input type="number" inputmode="decimal" class="debt-pay-input" data-id="${e.id}" placeholder="Amount paid" data-clarity-mask="True">
+        <button type="button" class="debt-pay-btn" data-id="${e.id}">Save</button>
+      </div>` : '';
     const settledTag = cfg.isDebt && isSettled ? '<span class="debt-settled-tag">\u2713 Paid in full</span>' : '';
     return `<div class="hist-item${cfg.isDebt ? ' is-debt' : ''}">
       <div class="desc" data-clarity-mask="True">${cfg.desc(e)}${settledTag}<small>${when}</small>${agingLine}${remind}${paymentRow}</div>
@@ -1081,6 +1100,12 @@ async function render() {
 document.getElementById('history').addEventListener('click', async (e) => {
   const fullBtn = e.target.closest('.debt-full-btn');
   const payBtn = e.target.closest('.debt-pay-btn');
+  const toggleBtn = e.target.closest('.debt-partial-toggle');
+  if (toggleBtn) {
+    const row = document.querySelector(`.debt-pay-input-row[data-id="${toggleBtn.dataset.id}"]`);
+    if (row) row.hidden = false;
+    return;
+  }
   if (fullBtn) {
     // Real bug, caught in testing 28 Aug: this used to set paid to the
     // *remaining* balance shown on the button, not the entry's full
