@@ -160,7 +160,8 @@ input[type="number"]{-moz-appearance:textfield}
 .confirm-line{background:var(--leaf-soft);color:var(--leaf-deep);border-radius:10px;padding:14px;font-size:1.05rem;margin-bottom:14px;font-weight:600;display:none}
 .confirm-line.show{display:block}
 .safety-block{background:var(--surface);border:1px solid var(--rule);border-radius:14px;padding:16px;margin-top:26px}
-.export-btn{width:100%;background:var(--paper);border:1px solid var(--rule);border-radius:12px;padding:12px;font-size:.86rem;font-weight:700;color:var(--ink);cursor:pointer}
+.export-btn{width:100%;background:var(--paper);border:1px solid var(--rule);border-radius:12px;padding:12px;font-size:.86rem;font-weight:700;color:var(--ink);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px}
+.export-icon{flex:none;width:20px;height:20px}
 .export-note{font-size:.78rem;color:var(--muted);margin-top:8px;line-height:1.4}
 .delete-entry-btn{display:block;width:100%;margin-top:14px;padding:10px;background:transparent;border:1px solid var(--rule);border-radius:10px;color:var(--brick);font-family:inherit;font-size:.85rem;font-weight:700;cursor:pointer}
 .trust-block{background:var(--leaf-soft);border-radius:14px;padding:14px 16px;margin-top:14px}
@@ -329,7 +330,7 @@ input[type="number"]{-moz-appearance:textfield}
          there's something to show. -->
     <div id="tStockRow" class="today-row tappable" data-speak="Stock bought" style="display:none"><span>Stock bought</span><span id="tStock" data-clarity-mask="True">0 cedis</span></div>
     <div id="tOwedRow" class="today-row tappable" data-speak="Customers owe you" style="display:none"><span>Customers owe me</span><span id="tOwedMe" data-clarity-mask="True">0 cedis</span></div>
-    <div class="today-row balance tappable" data-speak="Sales minus expenses"><span>Sales minus expenses</span><span id="tBalance" class="balance-amt" data-clarity-mask="True">0 cedis</span></div>
+    <div class="today-row balance tappable" data-speak="Money left over"><span>Money left over</span><span id="tBalance" class="balance-amt" data-clarity-mask="True">0 cedis</span></div>
   </div>
 
   <button id="homeMicBtn" class="home-mic-btn" type="button" aria-label="Tap and speak what happened">
@@ -377,11 +378,11 @@ input[type="number"]{-moz-appearance:textfield}
     </button>
     <button class="act-btn act-owe-me" data-type="debt_in">
       <svg class="act-icon" viewBox="0 0 24 24" fill="none"><circle cx="9" cy="8" r="3" stroke="currentColor" stroke-width="2"/><path d="M3 20c0-3.3 2.7-5.5 6-5.5S15 16.7 15 20" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M18 8v6M15 11h6" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>
-      <span>Customer owes me<small>Track who owes you</small></span>
+      <span>Customer owes me<small>Track who owes me</small></span>
     </button>
     <button class="act-btn act-owe-supplier" data-type="debt_out">
       <svg class="act-icon" viewBox="0 0 24 24" fill="none"><circle cx="9" cy="8" r="3" stroke="currentColor" stroke-width="2"/><path d="M3 20c0-3.3 2.7-5.5 6-5.5S15 16.7 15 20" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M15 11h6" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>
-      <span>I owe supplier<small>Track what you owe</small></span>
+      <span>I owe supplier<small>Track what I owe</small></span>
     </button>
   </div>
 
@@ -413,7 +414,7 @@ input[type="number"]{-moz-appearance:textfield}
        by tapping it), with the "why" second, and says exactly where the
        copy ends up. -->
   <div class="safety-block">
-    <button id="exportBtn" class="export-btn">&#x1F4BE; Send my records to my own WhatsApp</button>
+    <button id="exportBtn" class="export-btn"><svg class="export-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 12v6a2 2 0 002 2h12a2 2 0 002-2v-6M16 6l-4-4-4 4M12 2v14" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg> Send my records to my own WhatsApp</button>
     <div class="export-note">Safe to tap &#x2014; sends your records to your own WhatsApp, nothing changes on your phone.</div>
   </div>
 
@@ -464,7 +465,7 @@ input[type="number"]{-moz-appearance:textfield}
      string is what forces a fresh script fetch even before any service worker logic
      runs, independent of it. Found live 27 Aug: without this, an already-visited
      browser can keep running old code from plain HTTP cache regardless of SW strategy. -->
-<script src="app.js?v=34"></script>
+<script src="app.js?v=35"></script>
 
 <!-- Analytics for the Silent Alpha pilot only (27 Aug) - added to observe real
      merchant behavior (what they tap first, voice vs manual usage), NOT to

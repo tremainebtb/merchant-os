@@ -1203,7 +1203,7 @@ function speakToday() {
     : t.salesDiff < 0 ? `You sold ${fmt(-t.salesDiff)} less than yesterday. `
     : `Same sales as yesterday. `;
   const text = `Today. Sales: ${fmt(t.sales)}. Expenses: ${fmt(t.expenses)}. ${stockLine}`
-    + `Customers owe you: ${fmt(t.owedMe)}. Sales minus expenses: ${fmt(t.balance)}. ${vsLine}`;
+    + `Customers owe you: ${fmt(t.owedMe)}. Money left over: ${fmt(t.balance)}. ${vsLine}`;
   const utter = speakClearly(new SpeechSynthesisUtterance(text));
   utter.rate = 0.8;
   const btn = document.getElementById('hearBtn');
