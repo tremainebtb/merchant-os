@@ -478,7 +478,12 @@ input[type="number"]{-moz-appearance:textfield}
   <!-- Real advice, 28 Aug: an independent review flagged "nothing more" as
        reading unserious - free should describe the price, not the app's
        ambition. -->
-  <footer class="site-footer">CountMy &#x2014; your shop's money book, free.<br><a class="support-link" href="safety.html">Is CountMy safe?</a> &#xb7; <a class="support-link" target="_blank" rel="noopener" href="https://wa.me/233209090019?text=Hello%2C%20I%20have%20a%20question%20about%20CountMy">Message us on WhatsApp</a></footer>
+  <!-- Real feedback, 1 Sep: this used to repeat "CountMy - your shop's money
+       book, free" here too - nearly word-for-word the same claim already
+       made once at the very top of the page ("your free money notebook").
+       Saying "it's free" twice doesn't make it more true, it's just more to
+       read. Cut down to the two links that actually do something. -->
+  <footer class="site-footer"><a class="support-link" href="safety.html">Is CountMy safe?</a> &#xb7; <a class="support-link" target="_blank" rel="noopener" href="https://wa.me/233209090019?text=Hello%2C%20I%20have%20a%20question%20about%20CountMy">Message us on WhatsApp</a></footer>
 </div>
 <!-- Moved out of the main screen (see note above the trust-block) - still
      fully reachable for the small number of people who want it, just no
@@ -489,7 +494,7 @@ input[type="number"]{-moz-appearance:textfield}
      string is what forces a fresh script fetch even before any service worker logic
      runs, independent of it. Found live 27 Aug: without this, an already-visited
      browser can keep running old code from plain HTTP cache regardless of SW strategy. -->
-<script src="app.js?v=44"></script>
+<script src="app.js?v=45"></script>
 
 <!-- Analytics for the Silent Alpha pilot only (27 Aug) - added to observe real
      merchant behavior (what they tap first, voice vs manual usage), NOT to

@@ -1437,9 +1437,19 @@ function bumpVisitCount() {
   db = await openDB();
   updateOfflineBadge();
   await render();
+  // Real feedback, 1 Sep ("there's too much going on... if you're a trader
+  // you don't need to define everything, they already know what it means"):
+  // the subtext under each of the 4 category buttons ("What you sold, how
+  // many, price" etc.) is genuinely useful the very first time someone sees
+  // an unfamiliar button, and genuinely just clutter on the 50th time. Same
+  // fade-after-first-use mechanism as the mic trust line above, same
+  // threshold - a brand new user still gets every bit of guidance, a
+  // returning one stops being told what a button she already understands
+  // does, every single day.
   if (bumpVisitCount() > 5) {
     const trustLine = document.querySelector('.mic-trust-line');
     if (trustLine) trustLine.hidden = true;
+    document.querySelectorAll('.act-btn small').forEach(el => { el.hidden = true; });
   }
   refreshPaidStatus();
   ping('open');
