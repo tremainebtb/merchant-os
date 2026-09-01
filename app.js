@@ -1361,6 +1361,39 @@ if (!micSupported()) {
   document.getElementById('homeMicBtn').style.display = 'none';
   document.querySelector('.or-row').style.display = 'none';
 }
+
+// Real feedback, 1 Sep: people needed the app explained in words before it
+// made sense, and still read it as "for educated people." Explaining in
+// text just adds more reading, which is the opposite of what a low-literacy
+// user needs. So show, don't tell - speak one real example aloud and pulse
+// the real mic button, so a first-time user watches/hears exactly what
+// happens before trying it herself. Triggered only by a direct tap (not on
+// page load) because iOS Safari refuses to play speechSynthesis without a
+// user gesture unlocking it - real constraint, confirmed against Clarity's
+// own session data showing MobileSafari as roughly half to three-quarters
+// of real visits.
+const demoBtn = document.getElementById('demoBtn');
+if (demoBtn) {
+  if (!('speechSynthesis' in window)) {
+    demoBtn.style.display = 'none';
+  } else {
+    demoBtn.addEventListener('click', () => {
+      track('demo_play');
+      demoBtn.disabled = true;
+      const micBtn = document.getElementById('homeMicBtn');
+      micBtn.classList.add('demo-pulse');
+      const utter = new SpeechSynthesisUtterance(
+        'Watch this button. Tap it, then say what happened. Like this. I sold two shirts for ten cedis. Now you try.'
+      );
+      speakClearly(utter);
+      const stop = () => { micBtn.classList.remove('demo-pulse'); demoBtn.disabled = false; };
+      utter.onend = stop;
+      utter.onerror = stop;
+      speechSynthesis.cancel();
+      speechSynthesis.speak(utter);
+    });
+  }
+}
 document.getElementById('shopIdInput').addEventListener('change', async (e) => {
   setShopId(e.target.value);
   ping('open');
@@ -1450,6 +1483,8 @@ function bumpVisitCount() {
     const trustLine = document.querySelector('.mic-trust-line');
     if (trustLine) trustLine.hidden = true;
     document.querySelectorAll('.act-btn small').forEach(el => { el.hidden = true; });
+    const demoBtnEl = document.getElementById('demoBtn');
+    if (demoBtnEl) demoBtnEl.hidden = true;
   }
   refreshPaidStatus();
   ping('open');
