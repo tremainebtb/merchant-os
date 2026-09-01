@@ -1308,8 +1308,18 @@ function speakToday() {
 // confusing for older, less tech-familiar users), no file, no "what is a CSV."
 // She sends it to herself or a family member and that's the backup, done.
 async function exportBackup() {
+  // Real bug, found 2 Sep from a real iOS Safari report ("the send button
+  // doesn't work" - no error, just silence): window.open() called after an
+  // await/.then() is no longer inside the original tap's "user gesture" as
+  // far as Safari is concerned, and Safari silently blocks it as a popup -
+  // no console error, no visible failure, it just does nothing. iOS Safari
+  // is far stricter about this than Android Chrome, which is why this went
+  // unnoticed until now. Fix: open the (blank) tab SYNCHRONOUSLY, in the
+  // same tick as the click, then fill in its destination once the data
+  // (from IndexedDB, itself async) is ready.
+  const win = window.open('', '_blank');
   const entries = await getAllEntries();
-  if (!entries.length) { alert('Nothing to back up yet.'); return; }
+  if (!entries.length) { if (win) win.close(); alert('Nothing to back up yet.'); return; }
   const typeLabel = { sale: 'Sale', expense: 'Expense', debt_in: 'Owed to me', debt_out: 'I owe' };
   const ordered = entries.slice().reverse(); // oldest first, reads like a diary
   const MAX_LINES = 200; // keeps the WhatsApp message and its URL a sane length
@@ -1322,7 +1332,8 @@ async function exportBackup() {
   const shopName = getShopId() || 'My shop';
   const truncNote = shown.length < ordered.length ? ` (most recent ${MAX_LINES})` : '';
   const text = `${shopName} records${truncNote}:\n\n${lines.join('\n')}`;
-  window.open('https://wa.me/?text=' + encodeURIComponent(text), '_blank');
+  const url = 'https://wa.me/?text=' + encodeURIComponent(text);
+  if (win) win.location = url; else window.open(url, '_blank');
 }
 
 // Real ask, 1 Sep: an automatic end-of-day WhatsApp send, with zero taps.
@@ -1339,10 +1350,13 @@ async function exportBackup() {
 // with sales recorded and nothing sent yet, put the send one tap in front
 // of her instead of waiting for her to remember the Export button exists.
 function exportTodaySummary() {
+  // Same Safari popup-block fix as exportBackup above - open synchronously
+  // at tap-time, fill in the destination once IndexedDB responds.
+  const win = window.open('', '_blank');
   getAllEntries().then(entries => {
     const today = todayKey(Date.now());
     const todayEntries = entries.filter(e => e.day === today).slice().reverse();
-    if (!todayEntries.length) return;
+    if (!todayEntries.length) { if (win) win.close(); return; }
     const typeLabel = { sale: 'Sale', expense: 'Expense', debt_in: 'Owed to me', debt_out: 'I owe' };
     const lines = todayEntries.map(e => {
       const cfg = FIELD_CONFIG[e.type];
@@ -1350,7 +1364,8 @@ function exportTodaySummary() {
     });
     const shopName = getShopId() || 'My shop';
     const text = `${shopName} - today's summary:\n\n${lines.join('\n')}`;
-    window.open('https://wa.me/?text=' + encodeURIComponent(text), '_blank');
+    const url = 'https://wa.me/?text=' + encodeURIComponent(text);
+    if (win) win.location = url; else window.open(url, '_blank');
   });
 }
 
