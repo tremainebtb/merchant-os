@@ -59,7 +59,7 @@
 </script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&family=Work+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@600;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&family=Work+Sans:wght@400;500;600&display=swap">
 <style>
 /* Same design system as the landing page &#x2014; one product, one identity. */
 :root{
@@ -74,19 +74,26 @@
   --leaf:#1B7A43; --leaf-deep:#125C32; --leaf-soft:#E1F2E7;
   --brick:#A83F2E; --brick-soft:#F6E1DC; --amber:#8C5F0F; --amber-soft:#FBEFD9;
 }
+/* Real issue, 1 Sep ("dark and doesn't look top elite/western SaaS"): the
+   old dark palette was a muddy brown-black (#161009 - literally black mixed
+   with the flame orange, not a neutral), which reads as murky rather than
+   deliberate. Real dark-mode SaaS apps (Stripe, Linear, Wise) use a cool,
+   near-neutral charcoal/slate for the ground, then let the brand accent do
+   the color work on top of it - so the ground is fixed here to a clean
+   slate-charcoal, same accent hues carried over. */
 @media (prefers-color-scheme: dark){
   :root:not([data-theme="light"]){
-    --paper:#161009; --surface:#1F1810; --ink:#F3EBDF; --ink-soft:#CDBFA9; --muted:#93876F;
-    --rule:#372B1D; --flame:#F0713A; --flame-deep:#F79764; --flame-soft:#3A2415;
-    --leaf:#4CC585; --leaf-deep:#6FD79E; --leaf-soft:#15301F;
-    --brick:#E08670; --brick-soft:#3A1F17; --amber:#E0B25C; --amber-soft:#2E2411;
+    --paper:#121417; --surface:#1B1E23; --ink:#F2F1EE; --ink-soft:#C7C9CE; --muted:#8B8F97;
+    --rule:#2E323A; --flame:#F0713A; --flame-deep:#F79764; --flame-soft:#2E2119;
+    --leaf:#4CC585; --leaf-deep:#6FD79E; --leaf-soft:#152420;
+    --brick:#E08670; --brick-soft:#2E1E1A; --amber:#E0B25C; --amber-soft:#2A2216;
   }
 }
 :root[data-theme="dark"]{
-  --paper:#161009; --surface:#1F1810; --ink:#F3EBDF; --ink-soft:#CDBFA9; --muted:#93876F;
-  --rule:#372B1D; --flame:#F0713A; --flame-deep:#F79764; --flame-soft:#3A2415;
-  --leaf:#4CC585; --leaf-deep:#6FD79E; --leaf-soft:#15301F;
-  --brick:#E08670; --brick-soft:#3A1F17; --amber:#E0B25C; --amber-soft:#2E2411;
+  --paper:#121417; --surface:#1B1E23; --ink:#F2F1EE; --ink-soft:#C7C9CE; --muted:#8B8F97;
+  --rule:#2E323A; --flame:#F0713A; --flame-deep:#F79764; --flame-soft:#2E2119;
+  --leaf:#4CC585; --leaf-deep:#6FD79E; --leaf-soft:#152420;
+  --brick:#E08670; --brick-soft:#2E1E1A; --amber:#E0B25C; --amber-soft:#2A2216;
 }
 *{box-sizing:border-box}
 /* Base size bumped from the 16px browser default - real feedback (mum, five
@@ -126,7 +133,13 @@ body{margin:0;background:var(--paper);color:var(--ink);font-family:"Work Sans",-
 .history-flash{animation:history-flash 1.1s ease-out}
 @keyframes history-flash{0%{background:var(--flame-soft)}100%{background:transparent}}
 .today-row span:first-child{color:var(--ink-soft);font-size:1.02rem}
-.today-row span:last-child{font-family:"IBM Plex Mono",monospace;font-weight:700;font-variant-numeric:tabular-nums}
+/* Real issue, 1 Sep: money figures were set in IBM Plex Mono, a typewriter-
+   style monospace face - no real fintech app (Stripe, Wise, Mercury) sets
+   money that way, and it read as a dated accounting ledger rather than a
+   modern app. Manrope (already loaded for headings) at 800 weight, with
+   tabular-nums so digits still line up in a column, gets the same "numbers
+   that don't jump around" benefit without the typewriter look. */
+.today-row span:last-child{font-family:"Manrope",sans-serif;font-weight:800;font-variant-numeric:tabular-nums}
 .today-row.balance{border-top:1px solid var(--rule);margin-top:6px;padding-top:12px}
 .today-row.balance span:first-child{color:var(--ink);font-weight:700}
 .today-row.balance span:last-child{font-size:1.7rem}
@@ -222,7 +235,7 @@ input[type="number"]{-moz-appearance:textfield}
 .hist-item{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;padding:11px 0;border-bottom:1px solid var(--rule);font-size:.9rem;cursor:pointer}
 .hist-item .desc{color:var(--ink);flex:1;min-width:0}
 .hist-item .desc small{display:block;color:var(--muted);font-size:.85rem}
-.hist-item .amt{font-family:"IBM Plex Mono",monospace;font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}
+.hist-item .amt{font-family:"Manrope",sans-serif;font-weight:800;font-variant-numeric:tabular-nums;white-space:nowrap}
 .debt-aging{color:var(--amber) !important;font-weight:600}
 .debt-settled-tag{display:inline-block;margin-left:6px;font-size:.82rem;font-weight:700;color:var(--leaf-deep);background:var(--leaf-soft);padding:2px 8px;border-radius:100px}
 .debt-pay-row{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
@@ -522,7 +535,7 @@ input[type="number"]{-moz-appearance:textfield}
      string is what forces a fresh script fetch even before any service worker logic
      runs, independent of it. Found live 27 Aug: without this, an already-visited
      browser can keep running old code from plain HTTP cache regardless of SW strategy. -->
-<script src="app.js?v=46"></script>
+<script src="app.js?v=47"></script>
 
 <!-- Analytics for the Silent Alpha pilot only (27 Aug) - added to observe real
      merchant behavior (what they tap first, voice vs manual usage), NOT to
