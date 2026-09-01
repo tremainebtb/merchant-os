@@ -293,6 +293,11 @@ input[type="number"]{-moz-appearance:textfield}
 .home-mic-status.err{color:var(--brick);font-weight:600}
 .or-row{display:flex;align-items:center;gap:10px;margin:0 0 14px;color:var(--muted);font-size:.85rem;font-weight:700}
 .or-row::before,.or-row::after{content:'';flex:1;height:1px;background:var(--rule)}
+.eod-banner{display:flex;flex-direction:column;gap:10px;background:var(--leaf-soft);border:1px solid var(--leaf);border-radius:14px;padding:14px;margin-bottom:16px}
+.eod-banner span{font-weight:700;color:var(--ink);font-size:1rem}
+.eod-banner-actions{display:flex;gap:10px}
+.eod-send-btn{flex:1;background:var(--leaf-deep);color:#fff;border:none;border-radius:10px;padding:10px;font-family:"Manrope",sans-serif;font-weight:800;font-size:.95rem;cursor:pointer}
+.eod-dismiss-btn{background:none;border:none;color:var(--muted);font-family:inherit;font-weight:700;font-size:.9rem;cursor:pointer;padding:10px}
 </style>
 </head>
 <body>
@@ -311,6 +316,21 @@ input[type="number"]{-moz-appearance:textfield}
        different sizes. Down to one line: the name, self-explained in the
        same breath, nothing above it, nothing to read before it. -->
   <h1 class="pitch">CountMy <span class="brand-sub">&#x2014; your free money notebook</span></h1>
+
+  <!-- Real ask, 1 Sep: get today's records to WhatsApp without her having to
+       remember the Export button exists. True zero-tap/silent send isn't
+       real (no personal WhatsApp API, see exportTodaySummary's comment) -
+       this is the honest, buildable version: the first time she opens the
+       app after 6pm with something recorded today, put the send one tap in
+       front of her instead of waiting for her to go looking for it. Shown
+       once per day at most (app.js tracks the date it last showed). -->
+  <div id="eodBanner" class="eod-banner" hidden>
+    <span>Send today's records to WhatsApp?</span>
+    <div class="eod-banner-actions">
+      <button id="eodSendBtn" type="button" class="eod-send-btn">Send</button>
+      <button id="eodDismissBtn" type="button" class="eod-dismiss-btn">Not now</button>
+    </div>
+  </div>
 
   <div class="today">
     <div class="today-top">
@@ -535,7 +555,7 @@ input[type="number"]{-moz-appearance:textfield}
      string is what forces a fresh script fetch even before any service worker logic
      runs, independent of it. Found live 27 Aug: without this, an already-visited
      browser can keep running old code from plain HTTP cache regardless of SW strategy. -->
-<script src="app.js?v=47"></script>
+<script src="app.js?v=48"></script>
 
 <!-- Analytics for the Silent Alpha pilot only (27 Aug) - added to observe real
      merchant behavior (what they tap first, voice vs manual usage), NOT to

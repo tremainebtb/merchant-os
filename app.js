@@ -1325,6 +1325,49 @@ async function exportBackup() {
   window.open('https://wa.me/?text=' + encodeURIComponent(text), '_blank');
 }
 
+// Real ask, 1 Sep: an automatic end-of-day WhatsApp send, with zero taps.
+// Honest limit checked before building anything: there is no way for a
+// website or PWA to silently send a WhatsApp message on its own - WhatsApp
+// has no public API for a personal account, only the paid, business-
+// verified WhatsApp Business Platform, which needs a registered business
+// number and per-conversation cost, not something to bolt onto a free app
+// overnight. A real background push notification (so this fires even with
+// the app closed) needs its own backend - a stored per-shop subscription,
+// VAPID keys, and a server-side cron - which is a genuine, separate build,
+// not a same-day fix, and not worth shipping half-tested. What IS real and
+// buildable today: the moment she actually opens the app in the evening
+// with sales recorded and nothing sent yet, put the send one tap in front
+// of her instead of waiting for her to remember the Export button exists.
+function exportTodaySummary() {
+  getAllEntries().then(entries => {
+    const today = todayKey(Date.now());
+    const todayEntries = entries.filter(e => e.day === today).slice().reverse();
+    if (!todayEntries.length) return;
+    const typeLabel = { sale: 'Sale', expense: 'Expense', debt_in: 'Owed to me', debt_out: 'I owe' };
+    const lines = todayEntries.map(e => {
+      const cfg = FIELD_CONFIG[e.type];
+      return `${typeLabel[e.type]}: ${cfg.desc(e)} - ${fmt(e.amount)}`;
+    });
+    const shopName = getShopId() || 'My shop';
+    const text = `${shopName} - today's summary:\n\n${lines.join('\n')}`;
+    window.open('https://wa.me/?text=' + encodeURIComponent(text), '_blank');
+  });
+}
+
+function maybeShowEodPrompt() {
+  const hour = new Date().getHours();
+  if (hour < 18) return; // only from evening onward - a lunchtime interruption helps no one
+  const today = todayKey(Date.now());
+  if (localStorage.getItem('kym_eod_prompted') === today) return; // once per day, ever
+  getAllEntries().then(entries => {
+    const hasToday = entries.some(e => e.day === today);
+    if (!hasToday) return;
+    localStorage.setItem('kym_eod_prompted', today);
+    const banner = document.getElementById('eodBanner');
+    if (banner) banner.hidden = false;
+  });
+}
+
 function updateOfflineBadge() {
   document.getElementById('offlineBadge').classList.toggle('show', !navigator.onLine);
 }
@@ -1353,6 +1396,14 @@ if (!('speechSynthesis' in window)) document.getElementById('hearBtn').style.dis
 document.getElementById('planPill').addEventListener('click', () => document.getElementById('planSheet').classList.add('open'));
 document.getElementById('planCloseBtn').addEventListener('click', () => document.getElementById('planSheet').classList.remove('open'));
 document.getElementById('exportBtn').addEventListener('click', exportBackup);
+const eodBanner = document.getElementById('eodBanner');
+if (eodBanner) {
+  document.getElementById('eodSendBtn').addEventListener('click', () => {
+    exportTodaySummary();
+    eodBanner.hidden = true;
+  });
+  document.getElementById('eodDismissBtn').addEventListener('click', () => { eodBanner.hidden = true; });
+}
 document.getElementById('homeMicBtn').addEventListener('click', () => {
   track('open_sheet', { type: 'home_mic' });
   toggleMic(document.getElementById('homeMicBtn'), 'homeMicStatus');
@@ -1487,6 +1538,7 @@ function bumpVisitCount() {
     if (demoBtnEl) demoBtnEl.hidden = true;
   }
   refreshPaidStatus();
+  maybeShowEodPrompt();
   ping('open');
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('service-worker.js').catch(() => {});
