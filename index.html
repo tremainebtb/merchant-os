@@ -8,6 +8,36 @@
      Ghanaian shop owners. The <title> tag is the single strongest on-page
      ranking signal there is; a brand name alone wastes it. -->
 <title>CountMy - Free Sales &amp; Expense Ledger for Ghana Shop Owners</title>
+<!-- Real, temporary diagnostic, 2 Sep: a real report of "every button is
+     broken" that doesn't reproduce in testing across desktop, mobile
+     emulation, or incognito - which rules out caching. The only way left to
+     find a real device-specific crash is to see the actual error, and a
+     silent JS failure gives a phone user nothing to report back. This runs
+     before any other script, so it catches a failure even if the rest of
+     app.js never finishes loading, and shows it as plain visible text
+     instead of a console message nobody on a phone can see. Safe to leave
+     in permanently - it only ever shows something when a real error fires,
+     which for a real user is currently a silent total break anyway. -->
+<script>
+(function(){
+  function show(msg){
+    var el = document.getElementById('kymErrBanner');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'kymErrBanner';
+      el.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;background:#A83F2E;color:#fff;font:14px/1.4 monospace;padding:10px;white-space:pre-wrap;word-break:break-word;max-height:40vh;overflow:auto';
+      document.documentElement.appendChild(el);
+    }
+    el.textContent += msg + '\n';
+  }
+  window.addEventListener('error', function(e){
+    show('JS ERROR: ' + e.message + ' (' + e.filename + ':' + e.lineno + ')');
+  });
+  window.addEventListener('unhandledrejection', function(e){
+    show('PROMISE ERROR: ' + (e.reason && e.reason.message ? e.reason.message : e.reason));
+  });
+})();
+</script>
 <meta name="description" content="Know your money. A free daily ledger for Ghanaian shop owners - works offline, no signup, your records stay on your phone.">
 <meta name="theme-color" content="#D9541A">
 <link rel="canonical" href="https://countmy.app/">
@@ -555,7 +585,7 @@ input[type="number"]{-moz-appearance:textfield}
      string is what forces a fresh script fetch even before any service worker logic
      runs, independent of it. Found live 27 Aug: without this, an already-visited
      browser can keep running old code from plain HTTP cache regardless of SW strategy. -->
-<script src="app.js?v=48"></script>
+<script src="app.js?v=49"></script>
 
 <!-- Analytics for the Silent Alpha pilot only (27 Aug) - added to observe real
      merchant behavior (what they tap first, voice vs manual usage), NOT to
