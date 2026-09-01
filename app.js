@@ -1105,6 +1105,14 @@ async function render() {
   // of truth everywhere a debt's outstanding balance is shown.
   const owedMe = entries.filter(e => e.type === 'debt_in').reduce((s, e) => s + Math.max(0, e.amount - (e.paid || 0)), 0);
   const balance = sales - expenses;
+  // Real gap, found 1 Sep from a real accounting critique: "Money left over"
+  // never subtracted stock purchases, so buying 2,000 cedis of stock on a
+  // 500-cedis sales day still showed a positive number - true for "how did
+  // the business do" (buying stock isn't a loss) but false for "how much
+  // cash do I actually have right now" (that cash is genuinely gone today).
+  // This is the second, honest answer to the second question - never shown
+  // unless it actually differs from Money left over (stockBought > 0).
+  const cashInHand = balance - stockBought;
 
   document.getElementById('tSales').textContent = fmt(sales);
   const cashMomoEl = document.getElementById('tCashMomo');
@@ -1119,6 +1127,11 @@ async function render() {
   // never disappears the moment after someone actually used it.
   if (stockBought > 0) document.getElementById('tStockRow').style.display = '';
   if (owedMe > 0) document.getElementById('tOwedRow').style.display = '';
+  const cashInHandEl = document.getElementById('tCashInHand');
+  cashInHandEl.textContent = fmt(cashInHand);
+  cashInHandEl.classList.toggle('pos', cashInHand >= 0);
+  cashInHandEl.classList.toggle('neg', cashInHand < 0);
+  if (stockBought > 0) document.getElementById('tCashRow').style.display = '';
   const balanceEl = document.getElementById('tBalance');
   balanceEl.textContent = fmt(balance);
   balanceEl.classList.toggle('pos', balance >= 0);
@@ -1137,7 +1150,7 @@ async function render() {
     vsYesterdayEl.className = 'today-vs';
   }
 
-  window._kymToday = { sales, expenses, stockBought, owedMe, balance, salesDiff };
+  window._kymToday = { sales, expenses, stockBought, owedMe, balance, cashInHand, salesDiff };
 
   const histEl = document.getElementById('history');
   if (!entries.length) {
@@ -1254,16 +1267,25 @@ document.getElementById('history').addEventListener('click', async (e) => {
 // first, not an invented script.
 function speakToday() {
   if (!('speechSynthesis' in window)) return;
-  const t = window._kymToday || { sales: 0, expenses: 0, stockBought: 0, owedMe: 0, balance: 0, salesDiff: 0 };
+  const t = window._kymToday || { sales: 0, expenses: 0, stockBought: 0, owedMe: 0, balance: 0, cashInHand: 0, salesDiff: 0 };
   // Matches the on-screen labels word for word \u2014 hearing something different from
   // what's on the screen is confusing, not helpful. Short, plain sentences, slow
   // pace \u2014 this is read aloud, not read silently.
+  // Real bug, found 1 Sep from real feedback ("the voice changes between 0
+  // sales and any sales, sounds weirder"): this line used to say "You sold
+  // X more/less than yesterday" / "Same sales as yesterday" - three
+  // different sentence shapes, and none of them matched the on-screen text
+  // ("Up X from yesterday" / "Down X from yesterday" / "Same as
+  // yesterday"), which is exactly the inconsistency the comment above
+  // already warned against. Now genuinely the same three short phrases as
+  // what's on screen, every time.
   const stockLine = t.stockBought > 0 ? `Stock bought: ${fmt(t.stockBought)}. ` : '';
-  const vsLine = t.salesDiff > 0 ? `You sold ${fmt(t.salesDiff)} more than yesterday. `
-    : t.salesDiff < 0 ? `You sold ${fmt(-t.salesDiff)} less than yesterday. `
-    : `Same sales as yesterday. `;
+  const cashLine = t.stockBought > 0 ? `Cash you have now: ${fmt(t.cashInHand)}. ` : '';
+  const vsLine = t.salesDiff > 0 ? `Up ${fmt(t.salesDiff)} from yesterday. `
+    : t.salesDiff < 0 ? `Down ${fmt(-t.salesDiff)} from yesterday. `
+    : `Same as yesterday. `;
   const text = `Today. Sales: ${fmt(t.sales)}. Expenses: ${fmt(t.expenses)}. ${stockLine}`
-    + `Customers owe you: ${fmt(t.owedMe)}. Money left over: ${fmt(t.balance)}. ${vsLine}`;
+    + `Customers owe you: ${fmt(t.owedMe)}. Money left over: ${fmt(t.balance)}. ${cashLine}${vsLine}`;
   const utter = speakClearly(new SpeechSynthesisUtterance(text));
   utter.rate = 0.8;
   const btn = document.getElementById('hearBtn');

@@ -113,6 +113,8 @@ body{margin:0;background:var(--paper);color:var(--ink);font-family:"Work Sans",-
 .hear-btn.speaking{background:var(--flame);color:#fff}
 .balance-amt.pos{color:var(--leaf-deep)}
 .balance-amt.neg{color:var(--brick)}
+#tCashInHand.pos{color:var(--leaf-deep)}
+#tCashInHand.neg{color:var(--brick);font-weight:800}
 .today-row{display:flex;justify-content:space-between;align-items:center;padding:7px 0}
 .today-cash-momo{font-size:.89rem;font-weight:500;color:var(--muted);margin:-4px 0 4px}
 .today-vs{font-size:.89rem;font-weight:600;color:var(--muted);margin:-4px 0 4px}
@@ -331,6 +333,21 @@ input[type="number"]{-moz-appearance:textfield}
     <div id="tStockRow" class="today-row tappable" data-speak="Stock bought" style="display:none"><span>Stock bought</span><span id="tStock" data-clarity-mask="True">0 cedis</span></div>
     <div id="tOwedRow" class="today-row tappable" data-speak="Customers owe you" style="display:none"><span>Customers owe me</span><span id="tOwedMe" data-clarity-mask="True">0 cedis</span></div>
     <div class="today-row balance tappable" data-speak="Money left over"><span>Money left over</span><span id="tBalance" class="balance-amt" data-clarity-mask="True">0 cedis</span></div>
+    <!-- Real feedback, 1 Sep, from a genuinely valid accounting critique: "Money
+         left over" (Sales - Expenses) never subtracted stock purchases, so a
+         500-cedis sales day with 2,000 cedis of stock bought still showed a
+         positive "480 left over" - reading as spendable cash when the real
+         cash position that day was actually negative. Rather than make stock
+         purchases drag down "Money left over" itself (which would reopen the
+         original problem this session already solved - a restock day looking
+         like a scary loss even though nothing was actually lost), this adds a
+         second, honestly-named number for the different real question stock
+         purchases actually affect: not "how did the business do" but "how
+         much cash do I physically have right now." Hidden until stock is
+         actually bought today, same as the Stock row above - the two numbers
+         are identical otherwise, so showing both when there's nothing to
+         reconcile would just be confusing duplication. -->
+    <div id="tCashRow" class="today-row tappable" data-speak="Cash you have now" style="display:none"><span>Cash you have now</span><span id="tCashInHand" data-clarity-mask="True">0 cedis</span></div>
   </div>
 
   <button id="homeMicBtn" class="home-mic-btn" type="button" aria-label="Tap and speak what happened">
@@ -472,7 +489,7 @@ input[type="number"]{-moz-appearance:textfield}
      string is what forces a fresh script fetch even before any service worker logic
      runs, independent of it. Found live 27 Aug: without this, an already-visited
      browser can keep running old code from plain HTTP cache regardless of SW strategy. -->
-<script src="app.js?v=43"></script>
+<script src="app.js?v=44"></script>
 
 <!-- Analytics for the Silent Alpha pilot only (27 Aug) - added to observe real
      merchant behavior (what they tap first, voice vs manual usage), NOT to
