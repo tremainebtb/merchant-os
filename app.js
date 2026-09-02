@@ -1355,7 +1355,8 @@ function exportTodaySummary() {
   getAllEntries().then(entries => {
     const today = todayKey(Date.now());
     const todayEntries = entries.filter(e => e.day === today).slice().reverse();
-    if (!todayEntries.length) return;
+    // Never fail silently - a tap must always visibly do something.
+    if (!todayEntries.length) { alert('Nothing recorded today yet.'); return; }
     const typeLabel = { sale: 'Sale', expense: 'Expense', debt_in: 'Owed to me', debt_out: 'I owe' };
     const lines = todayEntries.map(e => {
       const cfg = FIELD_CONFIG[e.type];

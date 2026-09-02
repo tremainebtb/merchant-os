@@ -126,6 +126,16 @@
   --brick:#E08670; --brick-soft:#2E1E1A; --amber:#E0B25C; --amber-soft:#2A2216;
 }
 *{box-sizing:border-box}
+/* Real bug, found 2 Sep from a real phone screenshot: the end-of-day
+   "Send today's records?" banner was visible at 00:14 with nothing
+   recorded - it is only ever meant to show after 6pm with entries. It has
+   the HTML `hidden` attribute, but the class rule `display:flex` (an author
+   style) beats the browser's default `[hidden]{display:none}` (a UA style),
+   so `hidden` did nothing. Tapping Send with zero records then hit a silent
+   early return, which is exactly the "button doesn't work, no error" report.
+   Same trap for the "See how it works" fade-out. This makes `hidden` mean
+   hidden, everywhere, regardless of any display rule on the class. */
+[hidden]{display:none !important}
 /* Base size bumped from the 16px browser default - real feedback (mum, five
    aunties, all 60s-70s, several without formal schooling) said the app read
    as "complicated" before anyone even reached a button. Small text is a tax
@@ -585,7 +595,7 @@ input[type="number"]{-moz-appearance:textfield}
      string is what forces a fresh script fetch even before any service worker logic
      runs, independent of it. Found live 27 Aug: without this, an already-visited
      browser can keep running old code from plain HTTP cache regardless of SW strategy. -->
-<script src="app.js?v=51"></script>
+<script src="app.js?v=52"></script>
 
 <!-- Analytics for the Silent Alpha pilot only (27 Aug) - added to observe real
      merchant behavior (what they tap first, voice vs manual usage), NOT to
