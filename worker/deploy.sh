@@ -22,7 +22,9 @@ cat > "$TMP_META" <<'EOF'
   "bindings": [
     {"type": "ai", "name": "AI"},
     {"type": "kv_namespace", "name": "COUNTMY_STATUS", "namespace_id": "453b08cd0db84e9e946d94e066f91f88"},
-    {"type": "d1", "name": "COUNTMY_DB", "id": "73ec3c6d-1ed0-4a83-b909-da4413946855"}
+    {"type": "d1", "name": "COUNTMY_DB", "id": "73ec3c6d-1ed0-4a83-b909-da4413946855"},
+    {"type": "ratelimit", "name": "AI_LIMIT", "namespace_id": "1001", "simple": {"limit": 60, "period": 60}},
+    {"type": "ratelimit", "name": "WRITE_LIMIT", "namespace_id": "1002", "simple": {"limit": 120, "period": 60}}
   ]
 }
 EOF

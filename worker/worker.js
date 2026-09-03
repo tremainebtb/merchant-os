@@ -7,10 +7,103 @@ function cors(resp) {
   return resp;
 }
 
+// Abuse limits, added 2 Sep. The real reason: every AI route below runs on
+// Workers AI's free quota - 10,000 neurons/day shared across the WHOLE
+// Cloudflare account - and the routes are unauthenticated (they have to be,
+// the app has no accounts). Anyone with curl in a loop could burn the entire
+// day's quota in minutes and voice entry would silently stop working for
+// the real shop owners it exists for. /sync and /ping write to D1 and are
+// just as open.
+//
+// Built on Cloudflare's Workers Rate Limiting binding (env.AI_LIMIT and
+// env.WRITE_LIMIT, declared in worker/deploy.sh): atomic, per-edge, free
+// plan, and costs nothing per request. The first version of this used KV
+// counters - caught in review before deploy: the free tier allows 1,000 KV
+// writes per DAY account-wide, and a counter that writes on every allowed
+// request would have exhausted that by mid-afternoon on normal usage, after
+// which every put fails, the limiter silently stops limiting, and worse,
+// marking a shop as paid in KV that day could fail too. The binding has no
+// such cost. Its one real constraint is that periods are 10 or 60 seconds
+// only, so there is no per-day cap - the per-minute cap already bounds one
+// IP to far less than the quota (60/min is 86k/day in theory, but a flood
+// that steady is exactly what the cap makes pointless).
+//
+// Real caveat: Ghanaian mobile carriers (MTN, Telecel, AT) put many
+// subscribers behind one shared public IP (carrier-grade NAT), so "one IP"
+// here can be a whole neighbourhood of real shops on the same network. The
+// per-minute numbers are therefore deliberately several times what any
+// single human needs, so real users sharing a carrier IP don't collide.
+// (Limits themselves are set in deploy.sh: AI 60/min, writes 120/min.)
+const ADMIN_FAIL_LIMIT_PER_MINUTE = 20; // wrong ADMIN_KEY attempts only - slows brute force
+const MINUTE = 60;
+
+function clientIp(request) {
+  return request.headers.get('CF-Connecting-IP') || 'unknown';
+}
+
+// Returns true when the request may proceed. Fails OPEN: a missing binding
+// (older deploy metadata) or a thrown error lets the request through - the
+// limiter must never be the thing that takes voice entry down for a real user.
+async function allowedByLimiter(limiter, ip) {
+  try {
+    if (!limiter || typeof limiter.limit !== 'function') return true;
+    const { success } = await limiter.limit({ key: ip });
+    return success !== false;
+  } catch (err) {
+    return true;
+  }
+}
+
+// The admin wrong-key counter is the one place KV is still used for limiting:
+// it only ever writes on a FAILED key (a handful of writes at most, never on
+// real traffic), so the free-tier write budget is not a concern here. The
+// 'rl:' prefix keeps these keys apart from shop ids, and handleStatus refuses
+// to read them as a paid flag. Minute-window key: a new minute starts a
+// fresh key and the old one expires on its own.
+function adminFailKey(ip) {
+  const nowSec = Math.floor(Date.now() / 1000);
+  return 'rl:adminfail:' + (nowSec - (nowSec % MINUTE)) + ':' + ip;
+}
+
+async function adminFailLimited(env, ip) {
+  try {
+    const kv = env.COUNTMY_STATUS;
+    if (!kv) return false;
+    return (Number(await kv.get(adminFailKey(ip))) || 0) >= ADMIN_FAIL_LIMIT_PER_MINUTE;
+  } catch (err) {
+    return false;
+  }
+}
+
+async function bumpAdminFail(env, ip) {
+  try {
+    const kv = env.COUNTMY_STATUS;
+    if (!kv) return;
+    const key = adminFailKey(ip);
+    const current = Number(await kv.get(key)) || 0;
+    await kv.put(key, String(current + 1), { expirationTtl: MINUTE * 2 });
+  } catch (err) {
+    // Fail open.
+  }
+}
+
+// The error string is read aloud to phone users by the app, so it is a plain
+// sentence, not a status word.
+function tooManyRequests(retryAfter) {
+  return cors(new Response(JSON.stringify({ error: 'Too many tries right now - please wait a minute and try again.', retryAfter }), {
+    status: 429,
+    headers: { 'Content-Type': 'application/json', 'Retry-After': String(retryAfter) }
+  }));
+}
+
 async function handleStatus(request, env) {
   const url = new URL(request.url);
   const shop = (url.searchParams.get('shop') || '').trim().toLowerCase();
   if (!shop) return cors(new Response(JSON.stringify({ error: 'missing shop id' }), { status: 400 }));
+  // Limiter counters share this KV namespace; they must never read as paid.
+  if (shop.startsWith('rl:')) {
+    return cors(new Response(JSON.stringify({ shop, paid: false }), { headers: { 'Content-Type': 'application/json' } }));
+  }
   const val = await env.COUNTMY_STATUS.get(shop);
   return cors(new Response(JSON.stringify({ shop, paid: val === '1' }), {
     headers: { 'Content-Type': 'application/json' }
@@ -505,23 +598,32 @@ function fieldValue(raw, transcriptNorm) {
   return raw.value;
 }
 
-function sanitizeEvents(rawEvents, transcript) {
+// Split 2 Sep so the photo path (sanitizeImageEvents below) shares the exact
+// same typing, bounding, and drop rules as the voice path - one set of rules
+// for what an event is allowed to look like, so the client never has to know
+// which route produced it. The only thing that differs between the two is
+// HOW a field's value is read out of the model's raw output (getField): the
+// voice path evidence-checks each one against the transcript, the photo path
+// has no transcript to check against (see sanitizeImageEvents).
+function buildCleanEvents(rawEvents, getField) {
   if (!Array.isArray(rawEvents)) return [];
-  const transcriptNorm = normalizeForMatch(transcript || '');
+  // Number.isFinite, not !isNaN: JSON from a model can carry 1e999, which
+  // parses to Infinity and would reach the client as a null price. Capped
+  // at 1e9 - no cedi amount in a shop is a billion.
   const toNumOrUndefined = (v) => {
     const n = Number(v);
-    return (typeof v !== 'object' && v !== '' && v !== null && !isNaN(n)) ? n : undefined;
+    return (typeof v !== 'object' && v !== '' && v !== null && Number.isFinite(n) && n <= 1e9) ? n : undefined;
   };
   return rawEvents
     .filter(e => e && typeof e === 'object' && ['sale', 'expense', 'debt_in', 'debt_out'].includes(e.type))
     .map(e => {
       const clean = { type: e.type };
-      const item = fieldValue(e.item, transcriptNorm);
-      const customer = fieldValue(e.customer, transcriptNorm);
-      const supplier = fieldValue(e.supplier, transcriptNorm);
-      const note = fieldValue(e.note, transcriptNorm);
-      const qty = toNumOrUndefined(fieldValue(e.qty, transcriptNorm));
-      let price = toNumOrUndefined(fieldValue(e.price, transcriptNorm));
+      const item = getField(e, 'item');
+      const customer = getField(e, 'customer');
+      const supplier = getField(e, 'supplier');
+      const note = getField(e, 'note');
+      const qty = toNumOrUndefined(getField(e, 'qty'));
+      let price = toNumOrUndefined(getField(e, 'price'));
       // "total" exists ONLY for sale events, and ONLY as a spoken amount divided
       // by an ALSO-verified qty - deterministically, in our own code, never by
       // trusting the model's own division. This is what fixes "2 bags for 300":
@@ -531,8 +633,17 @@ function sanitizeEvents(rawEvents, transcript) {
       // fabricate evidence text for a number that was never spoken. Computing it
       // here instead means the model only ever has to point at real words.
       if (price === undefined && e.type === 'sale' && qty !== undefined && qty > 0) {
-        const total = toNumOrUndefined(fieldValue(e.total, transcriptNorm));
+        const total = toNumOrUndefined(getField(e, 'total'));
         if (total !== undefined && total > 0) price = total / qty;
+      }
+      // For everything that is not a sale, "price" already means the whole
+      // amount (what was spent, what is owed), so a "total" IS the price -
+      // no division. Found 2 Sep testing the photo path: a receipt line is
+      // almost always "2 x Milo ... 60.00", and the model handing that back
+      // as qty 2 / total 60 used to lose the 60 entirely for an expense.
+      if (price === undefined && e.type !== 'sale') {
+        const total = toNumOrUndefined(getField(e, 'total'));
+        if (total !== undefined && total > 0) price = total;
       }
       if (typeof item === 'string' && item.trim()) clean.item = item.trim().slice(0, 60);
       if (typeof customer === 'string' && customer.trim()) clean.customer = customer.trim().slice(0, 60);
@@ -552,6 +663,28 @@ function sanitizeEvents(rawEvents, transcript) {
     // case - "Kwame took shirts" with no price still survives with item verified,
     // surfacing correctly as "needs a number" rather than vanishing.
     .filter(clean => clean.item || clean.customer || clean.supplier);
+}
+
+function sanitizeEvents(rawEvents, transcript) {
+  const transcriptNorm = normalizeForMatch(transcript || '');
+  return buildCleanEvents(rawEvents, (e, key) => fieldValue(e[key], transcriptNorm));
+}
+
+// Photo path, 2 Sep. Honest difference from the voice path above: there is
+// no transcript to evidence-check against - the image IS the source, and the
+// model's own "text" field is its own reading of it, so verifying the model
+// against itself would prove nothing. A fabricated event is therefore NOT
+// caught server-side here the way it is for voice. That is exactly why the
+// client never auto-saves photo events (see handleSnap in app.js): every
+// card from a photo needs a real Save tap after the owner looks at it. The
+// typing/bounding/drop rules are still the shared ones - a bare value or an
+// {value: ...} object are both accepted so a model that copies the voice
+// prompt's shape still parses.
+function sanitizeImageEvents(rawEvents) {
+  return buildCleanEvents(rawEvents, (e, key) => {
+    const raw = e[key];
+    return (raw && typeof raw === 'object' && !Array.isArray(raw)) ? raw.value : raw;
+  });
 }
 
 // Split out 30 Aug for the same reason as transcribeAudio above - lets
@@ -649,6 +782,185 @@ async function handleTranscribeAndExtract(request, env) {
   }));
 }
 
+// Photo entry, added 2 Sep: a shop owner who already writes sales in a paper
+// notebook, or gets a printed receipt from a supplier, can snap it instead of
+// reading it out or typing it. Same job as the voice pipeline above - free
+// text (here, whatever is written or printed in the picture) in, the same
+// structured events out - so the client reuses the exact same review cards.
+//
+// Model choice, verified against Cloudflare's live model catalog on 2 Sep:
+// gemma-4-26b-a4b-it is on the free tier, takes an image, and its vendor
+// card claims handwriting recognition, OCR and document parsing - the three
+// things a Ghanaian notebook page and a supplier receipt actually need.
+// llama-3.2-11b-vision-instruct is the fallback if Gemma errors (it needs a
+// one-time license agreement on the account; if THAT comes back as a license
+// error there is nothing more to try, so it is surfaced, not retried).
+// Gemma is not on Workers AI's JSON-mode list, so the prompt asks for strict
+// JSON and parseModelJson below is deliberately forgiving about fences and
+// stray prose around it. Cost is roughly 20 neurons a photo out of the same
+// 10,000/day account-wide pool Whisper draws from - it sits behind the same
+// 'ai' rate-limit bucket as every other AI route for exactly that reason.
+const IMAGE_MODEL = '@cf/google/gemma-4-26b-a4b-it';
+const IMAGE_FALLBACK_MODEL = '@cf/meta/llama-3.2-11b-vision-instruct';
+const IMAGE_MAX_BYTES = 6 * 1024 * 1024; // the client sends ~200-500KB (1400px JPEG); anything near this is not from the app
+
+// Same event types and field names as EXTRACT_SYSTEM_PROMPT / sanitizeEvents,
+// on purpose - the client's eventToEntry() and review cards must not need to
+// know which route produced an event. Plain values, not {value, evidence}
+// pairs: there is no transcript for evidence to point at (see
+// sanitizeImageEvents). "total" stays a separate field for the same reason
+// as the voice prompt - a receipt line "2 x Milo ... 60.00" is qty 2, total
+// 60, and the per-unit price is computed here, never by the model.
+const IMAGE_EXTRACT_PROMPT = `This is a photo from a Ghanaian shop owner: a supplier receipt, a till slip, or a handwritten page from their sales notebook (amounts are in Ghana cedis; "GHS", "GHc", "GH", "c" or a plain number all mean cedis). Read everything written or printed in it, then list every distinct business event as JSON.
+Each event has a "type" of "sale" (the owner sold something: fields item, qty, and EITHER price (per-unit) OR total (line total) - never divide yourself), "expense" (the owner bought or paid for something, including each line of a supplier receipt: fields item, qty if shown, and total = the amount paid for that line), "debt_in" (a customer owes the owner: fields customer, price, note) or "debt_out" (the owner owes a supplier: fields supplier, price, note).
+Rules: only include a field you can actually read in the picture - never guess a number, never fill in a typical price, never invent an item that is not there. qty, price and total must be plain numbers. Skip totals, subtotals, tax lines, change, dates, phone numbers and shop names - they are not events. A receipt from a supplier is a list of "expense" events (one per line item), unless the picture clearly shows the owner's own sales.
+Respond with ONLY this JSON object and nothing else - no explanation, no markdown fences:
+{"text": "<one short line saying what the picture is, e.g. 'Receipt from Melcom, 3 items' or 'Notebook page, 5 sales'>", "events": [{"type":"expense","item":"Milo 400g","qty":2,"total":60}, {"type":"sale","item":"sugar","qty":5,"price":4}]}
+If you cannot read any business event in the picture, respond with {"text": "<what you could see>", "events": []}.`;
+
+// Gemma is not on the JSON-mode list, and vision models in general like to
+// wrap their answer in ```json fences or a sentence of prose no matter how
+// firmly the prompt says not to. Take whatever came back and pull out the
+// first {...} or [...] span; anything unparseable is "nothing extracted",
+// never a crash (the client already has a plain-language path for that).
+function parseModelJson(raw) {
+  if (raw && typeof raw === 'object') return raw; // already parsed by the runtime
+  let s = String(raw || '').trim();
+  s = s.replace(/^```[a-zA-Z]*\s*/, '').replace(/```\s*$/, '');
+  // The prompt always asks for an object, so prefer '{' whenever one exists -
+  // a stray "[Note]" before the object must not make us slice as an array.
+  const firstObj = s.indexOf('{');
+  const firstArr = s.indexOf('[');
+  const start = firstObj !== -1 ? firstObj : firstArr;
+  if (start === -1) return null;
+  const closer = s[start] === '{' ? '}' : ']';
+  const end = s.lastIndexOf(closer);
+  if (end <= start) return null;
+  try { return JSON.parse(s.slice(start, end + 1)); } catch (e) { return null; }
+}
+
+// The text of a chat-style Workers AI reply, whichever of the two shapes the
+// runtime hands back: the plain { response } used by the text models above,
+// or the OpenAI-style { choices: [{ message: { content } }] } the newer
+// multimodal models return.
+function modelReplyText(result) {
+  if (!result) return '';
+  if (typeof result === 'string') return result;
+  if (result.response !== undefined && result.response !== null) return result.response;
+  const choice = Array.isArray(result.choices) && result.choices[0];
+  const content = choice && choice.message && choice.message.content;
+  if (typeof content === 'string') return content;
+  if (Array.isArray(content)) return content.map(c => (c && c.text) || '').join('');
+  return '';
+}
+
+async function runImageModel(model, dataUri, env) {
+  const input = {
+    messages: [{
+      role: 'user',
+      content: [
+        { type: 'text', text: IMAGE_EXTRACT_PROMPT },
+        { type: 'image_url', image_url: { url: dataUri, detail: 'auto' } }
+      ]
+    }],
+    max_tokens: 900
+  };
+  // Gemma's chat template has a "thinking" mode that spends tokens (and
+  // neurons, and the owner's wait) reasoning out loud before the JSON.
+  // Off, on purpose - and only sent to Gemma, since Llama's input schema
+  // does not know the key and Workers AI's validator rejects unknown ones.
+  if (model === IMAGE_MODEL) input.chat_template_kwargs = { enable_thinking: false };
+  return env.AI.run(model, input);
+}
+
+async function extractFromImage(imageBytes, imageType, env) {
+  if (!imageBytes.length) return { text: '', events: [], error: 'no photo received' };
+  // Chunked base64, same reason as transcribeAudio: spreading a whole image's
+  // bytes into one String.fromCharCode call blows the stack.
+  let binary = '';
+  const CHUNK = 8192;
+  for (let i = 0; i < imageBytes.length; i += CHUNK) {
+    binary += String.fromCharCode.apply(null, imageBytes.subarray(i, i + CHUNK));
+  }
+  const dataUri = 'data:' + (imageType || 'image/jpeg') + ';base64,' + btoa(binary);
+
+  let result;
+  let usedModel = IMAGE_MODEL;
+  try {
+    result = await runImageModel(IMAGE_MODEL, dataUri, env);
+  } catch (primaryErr) {
+    usedModel = IMAGE_FALLBACK_MODEL;
+    try {
+      result = await runImageModel(IMAGE_FALLBACK_MODEL, dataUri, env);
+    } catch (fallbackErr) {
+      // Both models failed - quota (4006/5035), a license gate on the
+      // fallback, or an outage. Same honest-error shape as the voice
+      // routes; the client tells the owner to type instead. The detail
+      // names both errors so a real failure is diagnosable from the
+      // response, not a guess.
+      return {
+        text: '', events: [],
+        error: 'could not read the photo right now - try again shortly, or type instead',
+        detail: ('gemma: ' + String(primaryErr).slice(0, 120) + ' | llama: ' + String(fallbackErr).slice(0, 120))
+      };
+    }
+  }
+
+  const parsed = parseModelJson(modelReplyText(result));
+  let rawEvents = [];
+  let text = '';
+  if (Array.isArray(parsed)) {
+    rawEvents = parsed;
+  } else if (parsed && typeof parsed === 'object') {
+    rawEvents = Array.isArray(parsed.events) ? parsed.events : [];
+    text = typeof parsed.text === 'string' ? parsed.text : '';
+  }
+  return { text: text.slice(0, 200), events: sanitizeImageEvents(rawEvents), model: usedModel };
+}
+
+// POST /extract-from-image - multipart form with one 'image' file, the same
+// shape as the audio routes so the client code is a near copy of
+// transcribeAndExtract(). Returns { text, events } like /transcribe-and-
+// extract does, so the client review flow needs no new code path.
+async function handleExtractFromImage(request, env) {
+  if (!env.AI) {
+    return cors(new Response(JSON.stringify({ text: '', events: [], error: 'photo reading not configured yet' }), { status: 503 }));
+  }
+  // Refuse oversized uploads from the header, BEFORE formData() buffers the
+  // whole body into the isolate's memory (a 100MB body would otherwise be
+  // parsed in full just to be rejected).
+  const declared = Number(request.headers.get('Content-Length')) || 0;
+  if (declared > IMAGE_MAX_BYTES + 4096) {
+    return cors(new Response(JSON.stringify({ text: '', events: [], error: 'photo too large' }), { status: 413 }));
+  }
+  let incomingForm;
+  try { incomingForm = await request.formData(); } catch (e) {
+    return cors(new Response(JSON.stringify({ text: '', events: [], error: 'invalid request' }), { status: 400 }));
+  }
+  const image = incomingForm.get('image');
+  if (!image || typeof image === 'string') {
+    return cors(new Response(JSON.stringify({ text: '', events: [], error: 'no photo received' }), { status: 400 }));
+  }
+  const imageType = String(image.type || '');
+  if (!imageType.startsWith('image/')) {
+    return cors(new Response(JSON.stringify({ text: '', events: [], error: 'not an image' }), { status: 400 }));
+  }
+  if (image.size > IMAGE_MAX_BYTES) {
+    return cors(new Response(JSON.stringify({ text: '', events: [], error: 'photo too large' }), { status: 400 }));
+  }
+  const imageBytes = new Uint8Array(await image.arrayBuffer());
+  const result = await extractFromImage(imageBytes, imageType, env);
+  if (result.error) {
+    return cors(new Response(JSON.stringify({ text: '', events: [], error: result.error, detail: result.detail }), {
+      status: result.detail ? 502 : 400,
+      headers: { 'Content-Type': 'application/json' }
+    }));
+  }
+  return cors(new Response(JSON.stringify({ text: result.text, events: result.events }), {
+    headers: { 'Content-Type': 'application/json' }
+  }));
+}
+
 export default {
   async fetch(request, env) {
     if (request.method === 'OPTIONS') {
@@ -664,15 +976,42 @@ export default {
       // catch block. Awaiting closes that hole for every route, not just the one
       // that happened to hit it first.
       if (url.pathname === '/status' && request.method === 'GET') return await handleStatus(request, env);
-      if (url.pathname === '/transcribe' && request.method === 'POST') return await handleTranscribe(request, env);
-      if (url.pathname === '/extract' && request.method === 'POST') return await handleExtract(request, env);
-      if (url.pathname === '/transcribe-and-extract' && request.method === 'POST') return await handleTranscribeAndExtract(request, env);
-      if (url.pathname === '/ping' && request.method === 'POST') return await handlePing(request, env);
-      if (url.pathname === '/sync' && request.method === 'POST') return await handleSync(request, env);
-      if (url.pathname === '/admin/stats' && request.method === 'GET') return await handleAdminStats(request, env);
-      if (url.pathname === '/admin/shop' && request.method === 'GET') return await handleShopActivity(request, env);
-      if (url.pathname === '/admin/entries' && request.method === 'GET') return await handleAdminEntries(request, env);
-      if (url.pathname === '/admin/entries/recent' && request.method === 'GET') return await handleAdminRecentEntries(request, env);
+
+      // Abuse limits (see the constants at the top). Checked before the
+      // handler runs so a capped request never touches Workers AI or D1.
+      const path = url.pathname;
+      const isAiRoute = path === '/transcribe' || path === '/extract' || path === '/transcribe-and-extract' || path === '/extract-from-image';
+      const isWriteRoute = path === '/ping' || path === '/sync';
+      const isAdminRoute = path.startsWith('/admin/');
+      const ip = clientIp(request);
+      if (isAiRoute && request.method === 'POST') {
+        if (!(await allowedByLimiter(env.AI_LIMIT, ip))) return tooManyRequests(MINUTE);
+      }
+      if (isWriteRoute && request.method === 'POST') {
+        if (!(await allowedByLimiter(env.WRITE_LIMIT, ip))) return tooManyRequests(MINUTE);
+      }
+      if (isAdminRoute && request.method === 'GET') {
+        // Check only - the counter is bumped further down, and only when the
+        // request actually failed the key, so the real owner is never counted.
+        if (await adminFailLimited(env, ip)) return tooManyRequests(MINUTE);
+      }
+
+      if (path === '/transcribe' && request.method === 'POST') return await handleTranscribe(request, env);
+      if (path === '/extract' && request.method === 'POST') return await handleExtract(request, env);
+      if (path === '/transcribe-and-extract' && request.method === 'POST') return await handleTranscribeAndExtract(request, env);
+      if (path === '/extract-from-image' && request.method === 'POST') return await handleExtractFromImage(request, env);
+      if (path === '/ping' && request.method === 'POST') return await handlePing(request, env);
+      if (path === '/sync' && request.method === 'POST') return await handleSync(request, env);
+
+      let adminResp = null;
+      if (path === '/admin/stats' && request.method === 'GET') adminResp = await handleAdminStats(request, env);
+      else if (path === '/admin/shop' && request.method === 'GET') adminResp = await handleShopActivity(request, env);
+      else if (path === '/admin/entries' && request.method === 'GET') adminResp = await handleAdminEntries(request, env);
+      else if (path === '/admin/entries/recent' && request.method === 'GET') adminResp = await handleAdminRecentEntries(request, env);
+      if (adminResp) {
+        if (adminResp.status === 401) await bumpAdminFail(env, ip);
+        return adminResp;
+      }
       return cors(new Response('Not found', { status: 404 }));
     } catch (err) {
       return cors(new Response(JSON.stringify({ error: 'server error', detail: String(err) }), { status: 500 }));

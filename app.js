@@ -287,7 +287,41 @@ function micSupported() {
 function setMicStatus(text, cls, statusId) {
   const el = document.getElementById(statusId || 'homeMicStatus');
   el.textContent = text;
-  el.className = 'home-mic-status' + (cls ? ' ' + cls : '');
+  // Toggle only the state classes - overwriting className used to wipe the
+  // 'snap-status' class off #snapStatus and leave a blank line under the grid.
+  el.classList.remove('heard', 'err');
+  if (cls) el.classList.add(cls);
+}
+
+// Review finding, 2 Sep: a fetch with no timeout can sit in "Reading your
+// photo..." for minutes on the everyday MTN state of signal bars but no
+// data (the browser's own socket timeout is minutes long). 45s is well past
+// any real round trip on a working connection. And a response that is not
+// JSON (a captive portal page, a proxy error page) is a failed request, not
+// an empty result - it must not be read as "the model found nothing".
+const API_TIMEOUT_MS = 45000;
+async function postToApi(path, form) {
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), API_TIMEOUT_MS);
+  try {
+    const res = await fetch(`${API_BASE}${path}`, { method: 'POST', body: form, signal: ac.signal });
+    const ctype = res.headers.get('content-type') || '';
+    if (ctype.indexOf('json') === -1) throw new Error('No connection \u2014 please try again, or type it.');
+    const data = await res.json().catch(() => ({}));
+    return { res, data };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// Server/transport error text is spoken aloud to the user, so it has to be a
+// plain sentence, never a status word like "too many requests".
+function plainApiError(err, res, data, fallback) {
+  if (err && err.name === 'AbortError') return 'Taking too long \u2014 please check your connection and try again.';
+  if (res && res.status === 429) return 'Too many tries right now \u2014 please wait a minute and try again.';
+  if (res && res.status === 413) return 'That photo is too big \u2014 please take it again.';
+  if (err && /connection/i.test(err.message || '')) return err.message;
+  return fallback;
 }
 
 // Deliberately simple, not NLP: pulls every number out of what was heard, and treats
@@ -379,10 +413,81 @@ async function transcribeAndExtract(blob) {
   const ext = blob.type.indexOf('mp4') !== -1 ? 'mp4' : (blob.type.indexOf('ogg') !== -1 ? 'ogg' : 'webm');
   const form = new FormData();
   form.append('audio', blob, `voice.${ext}`);
-  const res = await fetch(`${API_BASE}/transcribe-and-extract`, { method: 'POST', body: form });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok && !data.text) throw new Error(data.error || 'Could not hear that \u2014 try again');
+  let res, data;
+  try {
+    ({ res, data } = await postToApi('/transcribe-and-extract', form));
+  } catch (err) {
+    throw new Error(plainApiError(err, null, null, 'Could not hear that \u2014 try again'));
+  }
+  if (!res.ok && !data.text) throw new Error(plainApiError(null, res, data, 'Could not hear that \u2014 try again'));
   return { text: data.text || '', events: Array.isArray(data.events) ? data.events : [] };
+}
+
+// Photo entry, 2 Sep - the picture-shaped twin of transcribeAndExtract():
+// one multipart upload to worker.js handleExtractFromImage, which reads the
+// receipt or notebook page with a vision model and hands back the same
+// { text, events } shape, so everything downstream (eventToEntry, the review
+// cards) is shared, not duplicated.
+async function extractFromImage(blob) {
+  const form = new FormData();
+  form.append('image', blob, 'photo.jpg');
+  const fallback = 'Could not read that photo \u2014 please try again, or type it.';
+  let res, data;
+  try {
+    ({ res, data } = await postToApi('/extract-from-image', form));
+  } catch (err) {
+    throw new Error(plainApiError(err, null, null, fallback));
+  }
+  if (!res.ok) throw new Error(plainApiError(null, res, data, fallback));
+  return { text: data.text || '', events: Array.isArray(data.events) ? data.events : [] };
+}
+
+// Shrinks a camera photo ON the phone before it is uploaded. A modern phone
+// camera produces a 3-5MB, 4000px image; sending that over the mobile data
+// this audience pays for per megabyte, to read a few lines of handwriting, is
+// the wrong trade. 1400px on the long edge is the smallest size at which
+// receipt print and handwritten cedi amounts are still cleanly legible -
+// deliberately NOT smaller, and JPEG quality deliberately not lower than 0.8:
+// heavy compression is exactly what turns a "5" into a "6" for the model.
+// Also strips EXIF (no GPS or device details leave the phone) and hands the
+// Worker a plain JPEG whatever the phone's native format was (HEIC on
+// iPhone, WebP on some Androids). Any decode failure throws so handleSnap can
+// say so in words - a photo the phone cannot open must never look like the
+// app silently doing nothing.
+const PHOTO_MAX_EDGE = 1400;
+async function shrinkPhoto(file) {
+  // Decoded through <img> on purpose, not createImageBitmap: on iOS 15-16
+  // createImageBitmap silently ignores the EXIF rotation (the
+  // imageOrientation option only landed in Safari 17) and does not throw, so
+  // a receipt shot in portrait would reach the model on its side. <img> has
+  // honoured EXIF everywhere modern since Chrome 81 / Safari 13.1. One code
+  // path, correct orientation.
+  const source = await new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => { URL.revokeObjectURL(url); resolve(img); };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('cannot decode image')); };
+    img.src = url;
+  });
+  const srcW = source.width || source.naturalWidth;
+  const srcH = source.height || source.naturalHeight;
+  if (!srcW || !srcH) throw new Error('empty image');
+  const scale = Math.min(1, PHOTO_MAX_EDGE / Math.max(srcW, srcH));
+  const w = Math.max(1, Math.round(srcW * scale));
+  const h = Math.max(1, Math.round(srcH * scale));
+  const canvas = document.createElement('canvas');
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext('2d');
+  // White under the photo: a transparent PNG (e.g. a screenshot of a note)
+  // would otherwise come out black where it was transparent once it's JPEG.
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(0, 0, w, h);
+  ctx.drawImage(source, 0, 0, w, h);
+  if (source.close) source.close();
+  const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.8));
+  if (!blob) throw new Error('could not encode image');
+  return blob;
 }
 
 const TYPE_LABEL = { sale: 'Sale', expense: 'Expense', debt_in: 'Customer owes me', debt_out: 'I owe supplier' };
@@ -425,6 +530,11 @@ function looksGarbled(item) {
 }
 
 let pendingVoiceEvents = [];
+// Where the cards currently in the review came from - 'voice' (the mic) or
+// 'photo' (a snapped receipt/notebook page). Stored on each saved entry as
+// its source, the pilot's own success metric ("voice vs typing vs tap" -
+// and now vs photo). Also decides the review's heading and what is spoken.
+let pendingVoiceSource = 'voice';
 
 // Provenance signal Gemini/ChatGPT both asked for, after the live finding that the
 // extraction model can invent a plausible-looking number for one that was never
@@ -436,7 +546,9 @@ let pendingVoiceEvents = [];
 function fieldMarkup(value, idx, key, type, extraAttrs) {
   const has = value !== undefined && value !== '' && value !== null;
   const cls = has ? 'ai-detected' : 'needs-input';
-  const caption = has ? 'AI heard this - check it' : "Didn't catch this - tap to enter";
+  const caption = has
+    ? (pendingVoiceSource === 'photo' ? 'Read from your photo - check it' : 'AI heard this - check it')
+    : "Didn't catch this - tap to enter";
   return `<div class="field ${cls}">
       <input type="${type}" ${extraAttrs || ''} data-idx="${idx}" data-key="${key}" value="${has ? String(value).replace(/"/g, '&quot;') : ''}" placeholder="${has ? '' : 'tap to enter'}" data-clarity-mask="True">
       <div class="field-caption">${caption}</div>
@@ -483,6 +595,22 @@ function speakVoiceReview(events) {
   speechSynthesis.speak(utter);
 }
 
+// Spoken version of the photo review. Unlike speakVoiceReview above this
+// never says "Saved" - nothing from a photo is saved until the owner taps
+// Save on the card (see handleSnap for why), so the one thing to say is
+// how many entries were found and what to do next.
+function speakPhotoReview(events) {
+  if (!('speechSynthesis' in window)) return;
+  const n = events.length;
+  const text = n === 1
+    ? 'I read one entry from your photo. Please check it, then tap Save.'
+    : `I read ${n} entries from your photo. Please check each one, then tap Save.`;
+  const utter = speakClearly(new SpeechSynthesisUtterance(text));
+  utter.rate = 0.8;
+  speechSynthesis.cancel();
+  speechSynthesis.speak(utter);
+}
+
 // Real bug, found 29 Aug from real user feedback: the auto-save behavior
 // this file already describes in comments above ("anything the AI heard
 // clearly is saved the instant it's heard - no tap needed") was never
@@ -497,8 +625,8 @@ async function autoSaveReadyEvents(events) {
     const entry = eventToEntry(ev);
     const ts = Date.now();
     const id = crypto.randomUUID();
-    await addEntry({ id, type: entry.type, item: entry.item, note: entry.note, qty: entry.qty, price: entry.price, paid: 0, amount: entry.amount, source: 'voice', day: todayKey(ts), ts });
-    track('save_entry', { type: entry.type, source: 'voice' });
+    await addEntry({ id, type: entry.type, item: entry.item, note: entry.note, qty: entry.qty, price: entry.price, paid: 0, amount: entry.amount, source: pendingVoiceSource, day: todayKey(ts), ts });
+    track('save_entry', { type: entry.type, source: pendingVoiceSource });
     ping('save');
     ev._savedId = id;
   }
@@ -509,6 +637,12 @@ function renderVoiceReview() {
   const wrap = document.getElementById('voiceReview');
   if (!pendingVoiceEvents.length) { wrap.classList.remove('open'); return; }
   wrap.classList.add('open');
+  const title = document.getElementById('voiceReviewTitle');
+  if (title) {
+    title.textContent = pendingVoiceSource === 'photo'
+      ? 'From your photo - check each one, then Save'
+      : 'What I heard - check each one, then Save';
+  }
   list.innerHTML = pendingVoiceEvents.map((ev, i) => {
     const nameLabel = ev.type === 'debt_in' ? 'Customer name' : ev.type === 'debt_out' ? 'Supplier name' : 'What';
     const priceLabel = ev.type === 'sale' ? 'Price each (cedis)' : 'Amount (cedis)';
@@ -572,8 +706,8 @@ function renderVoiceReview() {
     const entry = eventToEntry(ev);
     const ts = Date.now();
     const id = crypto.randomUUID();
-    await addEntry({ id, type: entry.type, item: entry.item, note: entry.note, qty: entry.qty, price: entry.price, paid: 0, amount: entry.amount, source: 'voice', day: todayKey(ts), ts });
-    track('save_entry', { type: entry.type, source: 'voice' });
+    await addEntry({ id, type: entry.type, item: entry.item, note: entry.note, qty: entry.qty, price: entry.price, paid: 0, amount: entry.amount, source: pendingVoiceSource, day: todayKey(ts), ts });
+    track('save_entry', { type: entry.type, source: pendingVoiceSource });
     ping('save');
     ev._savedId = id;
     renderVoiceReview();
@@ -670,6 +804,7 @@ async function toggleMic(btn, statusId) {
       stream.getTracks().forEach(t => t.stop());
       stopMicLevelMeter();
       btn.classList.remove('recording');
+      pendingVoiceSource = 'voice';
       setMicStatus('Listening to what you said\u2026', null, statusId);
       // If nothing was actually captured (mic muted at the OS level, a
       // permission edge case, or the recording stopped instantly) the old
@@ -1386,7 +1521,9 @@ function updateOfflineBadge() {
   document.getElementById('offlineBadge').classList.toggle('show', !navigator.onLine);
 }
 
-document.querySelectorAll('.act-btn').forEach(btn => {
+// [data-type] only - the photo button (#snapBtn) shares .act-btn for its
+// size and look but opens the camera, not a typed sheet.
+document.querySelectorAll('.act-btn[data-type]').forEach(btn => {
   btn.addEventListener('click', () => openSheet(btn.dataset.type));
 });
 document.getElementById('cancelBtn').addEventListener('click', () => {
@@ -1425,6 +1562,95 @@ document.getElementById('homeMicBtn').addEventListener('click', () => {
 if (!micSupported()) {
   document.getElementById('homeMicBtn').style.display = 'none';
   document.querySelector('.or-row').style.display = 'none';
+}
+
+// Photo entry, 2 Sep. One tap opens the camera; the chosen photo is shrunk
+// on the phone, sent to the Worker, and whatever it reads comes back as the
+// same events voice produces - shown in the same review cards. Two things
+// are deliberately different from the mic path: (1) nothing is auto-saved.
+// Voice earns auto-save because the Worker evidence-checks every field
+// against the actual transcript; a photo has no transcript, so a misread
+// "50" for "500" or an invented line has no server-side catch - the owner's
+// own eyes are the only check, so every card here needs a real Save tap.
+// (2) Every failure says what happened, in words and out loud, right under
+// the button that was tapped - a camera that opens and then nothing
+// appears is the exact "button does nothing" report this app keeps getting.
+let snapBusy = false;
+async function handleSnap(file) {
+  const btn = document.getElementById('snapBtn');
+  const say = (msg, cls) => {
+    setMicStatus(msg, cls, 'snapStatus');
+    if (cls === 'err' && 'speechSynthesis' in window) {
+      const utter = speakClearly(new SpeechSynthesisUtterance(msg));
+      utter.rate = 0.8;
+      speechSynthesis.cancel();
+      speechSynthesis.speak(utter);
+    }
+  };
+  if (snapBusy) return;
+  // Some Android builds fire 'change' with no file when the camera is
+  // cancelled - that was a deliberate back-out, not an error to speak at.
+  if (!file) return;
+  if (!navigator.onLine) {
+    track('photo_error', { reason: 'offline' });
+    say('No connection \u2014 reading a photo needs internet. Please type it instead.', 'err');
+    return;
+  }
+  snapBusy = true;
+  btn.classList.add('busy');
+  btn.disabled = true; // a second tap mid-read must not open the camera again
+  try {
+    say('Reading your photo\u2026');
+    let blob;
+    try {
+      blob = await shrinkPhoto(file);
+    } catch (err) {
+      track('photo_error', { reason: 'decode_failed' });
+      say('Couldn\u2019t open that photo. Please take a new one with the camera.', 'err');
+      return;
+    }
+    const { text, events } = await extractFromImage(blob);
+    track('photo_extract', { event_count: events.length, bytes: blob.size });
+    if (events.length >= 1) {
+      pendingVoiceSource = 'photo';
+      pendingVoiceEvents = events;
+      renderVoiceReview();
+      closeSheet();
+      setMicStatus('', null, 'snapStatus');
+      setMicStatus('From your photo \u2014 check each one below, then tap Save.', 'heard', 'homeMicStatus');
+      document.getElementById('voiceReview').scrollIntoView({ behavior: 'smooth', block: 'start' });
+      speakPhotoReview(events);
+    } else {
+      const seen = text.trim() ? `I saw: \u201c${text.trim()}\u201d \u2014 but ` : '';
+      say(`${seen}couldn\u2019t find any amounts in that photo. Please take it again in good light, close up, or type it with the buttons above.`, 'err');
+    }
+  } catch (err) {
+    track('photo_error', { reason: 'extract_failed' });
+    say(err.message || 'Could not read that photo \u2014 please try again, or type it.', 'err');
+  } finally {
+    snapBusy = false;
+    btn.classList.remove('busy');
+    btn.disabled = false;
+  }
+}
+const snapBtn = document.getElementById('snapBtn');
+const snapInput = document.getElementById('snapInput');
+if (snapBtn && snapInput) {
+  snapBtn.addEventListener('click', () => {
+    track('open_sheet', { type: 'snap' });
+    // iOS only lets a page speak after a real tap has unlocked speech; the
+    // error messages later come after an await, so unlock it here with an
+    // empty utterance while we still have the gesture.
+    if ('speechSynthesis' in window) { try { speechSynthesis.speak(new SpeechSynthesisUtterance('')); } catch (e) {} }
+    snapInput.click();
+  });
+  snapInput.addEventListener('change', () => {
+    const file = snapInput.files && snapInput.files[0];
+    // Cleared right away so taking the exact same photo again still fires
+    // 'change' - the second attempt after a bad read is the common case.
+    snapInput.value = '';
+    handleSnap(file);
+  });
 }
 
 // Real feedback, 1 Sep: people needed the app explained in words before it

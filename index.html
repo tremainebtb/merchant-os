@@ -196,6 +196,20 @@ body{margin:0;background:var(--paper);color:var(--ink);font-family:"Work Sans",-
 .act-expense{background:var(--brick)}
 .act-owe-me{background:var(--amber)}
 .act-owe-supplier{background:#5C5347}
+/* Photo entry, 2 Sep. Sits IN the same grid as the four typed buttons, at
+   the same size, on purpose: it is one more way to get an entry in without
+   speaking, not a second headline feature competing with the mic. Full
+   width so the grid stays even with five items. Fixed hex, like the
+   supplier button above - white text on a solid fill reads the same in
+   both themes, so this deliberately does not swap with the palette. A
+   plain slate blue: not leaf (money in), not brick (money out), not amber
+   (owed) - a photo can turn into any of those, so it borrows none of them. */
+.act-snap{background:#2E5E86;grid-column:1 / -1}
+.act-btn.busy{opacity:.7;cursor:default}
+/* Same look as the mic status line, but no reserved blank line under the
+   grid when there is nothing to say - it only takes space while it has text. */
+.home-mic-status.snap-status{min-height:0;margin:-8px 0 16px}
+.home-mic-status.snap-status:empty{display:none}
 .sheet{background:var(--surface);border:1px solid var(--rule);border-radius:16px;padding:18px;margin-bottom:20px;display:none}
 .sheet.open{display:block}
 .sheet h2{font-family:"Manrope",sans-serif;font-size:1rem;margin:0 0 14px}
@@ -467,10 +481,10 @@ input[type="number"]{-moz-appearance:textfield}
        plainly, right where the decision to speak is made. -->
   <div class="mic-lang-line">Speak English, Twi, or Pidgin</div>
   <div class="mic-trust-line">&#x1F512; Free. No signup. Backed up safely, so it's never lost.</div>
-  <div id="homeMicStatus" class="home-mic-status"></div>
+  <div id="homeMicStatus" class="home-mic-status" aria-live="polite"></div>
   <div id="voiceReview" class="voice-review">
     <div class="voice-review-head">
-      <span>What I heard - check each one, then Save</span>
+      <span id="voiceReviewTitle">What I heard - check each one, then Save</span>
       <button id="voiceReviewCloseBtn" class="admin-close">&#x2715;</button>
     </div>
     <div id="voiceReviewList"></div>
@@ -484,8 +498,23 @@ input[type="number"]{-moz-appearance:textfield}
        buttons are the fallback for someone who'd rather type, not the main
        decision on the screen. Moved below Recent so voice and the Today
        card are the only things competing for attention on first load. -->
-  <div class="or-row">or type it yourself</div>
+  <div class="or-row">or snap it or type it</div>
   <div class="actions">
+    <!-- Photo entry, 2 Sep. Real, everyday habit this meets: most of the
+         traders this is for already write the day's sales in an exercise
+         book, and every supplier hands over a printed receipt - so a photo
+         of what they already have is often less work than reading it out
+         loud. The camera opens straight from the tap (capture=environment
+         asks the phone for the back camera, no gallery picker to figure
+         out); the photo is shrunk on the phone before upload (app.js
+         shrinkPhoto) so it is not a multi-megabyte send on mobile data.
+         Nothing from a photo is ever saved on its own - every entry read
+         from it lands in the same check-then-Save cards as voice. -->
+    <button id="snapBtn" type="button" class="act-btn act-snap">
+      <svg class="act-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 8.5A1.5 1.5 0 015.5 7h2.2l1.1-2h6.4l1.1 2h2.2A1.5 1.5 0 0120 8.5V18a1.5 1.5 0 01-1.5 1.5h-13A1.5 1.5 0 014 18V8.5z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><circle cx="12" cy="13" r="3.2" stroke="currentColor" stroke-width="2"/></svg>
+      <span>Snap your book or receipt<small>Take a photo, it reads the amounts</small></span>
+    </button>
+    <input id="snapInput" type="file" accept="image/*" capture="environment" hidden>
     <button class="act-btn act-sale" data-type="sale">
       <svg class="act-icon" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/><path d="M12 7v10M9 9.5c0-1 1-1.8 3-1.8s3 .8 3 1.8-1 1.5-3 1.5-3 .5-3 1.5 1 1.8 3 1.8 3-.8 3-1.8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
       <span>+ Sale<small>What you sold, how many, price</small></span>
@@ -503,6 +532,7 @@ input[type="number"]{-moz-appearance:textfield}
       <span>I owe supplier<small>Track what I owe</small></span>
     </button>
   </div>
+  <div id="snapStatus" class="home-mic-status snap-status" aria-live="polite"></div>
 
   <div id="sheet" class="sheet">
     <!-- The mic used to also live here, duplicated per sheet - real feedback:
@@ -595,7 +625,7 @@ input[type="number"]{-moz-appearance:textfield}
      string is what forces a fresh script fetch even before any service worker logic
      runs, independent of it. Found live 27 Aug: without this, an already-visited
      browser can keep running old code from plain HTTP cache regardless of SW strategy. -->
-<script src="app.js?v=52"></script>
+<script src="app.js?v=53"></script>
 
 <!-- Analytics for the Silent Alpha pilot only (27 Aug) - added to observe real
      merchant behavior (what they tap first, voice vs manual usage), NOT to
