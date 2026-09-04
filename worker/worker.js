@@ -44,13 +44,33 @@ function clientIp(request) {
 // Returns true when the request may proceed. Fails OPEN: a missing binding
 // (older deploy metadata) or a thrown error lets the request through - the
 // limiter must never be the thing that takes voice entry down for a real user.
+// Also records WHY in limiterWhy (read by the fetch handler into an
+// X-Limit response header), because a fail-open limiter is invisible from
+// outside: live-tested 4 Sep, 120 rapid requests never got a 429 even with
+// both bindings attached, and without this there was no way to tell
+// "binding missing", "binding threw" and "binding said yes" apart.
+let limiterWhy = 'unchecked';
 async function allowedByLimiter(limiter, ip) {
   try {
-    if (!limiter || typeof limiter.limit !== 'function') return true;
+    if (!limiter || typeof limiter.limit !== 'function') { limiterWhy = 'no-binding'; return true; }
     const { success } = await limiter.limit({ key: ip });
+    limiterWhy = success === false ? 'blocked' : 'ok';
     return success !== false;
   } catch (err) {
+    limiterWhy = 'error:' + String(err && err.message ? err.message : err).slice(0, 80);
     return true;
+  }
+}
+
+// Copies a handler's response and stamps the limiter verdict on it. The
+// header carries no user data - only ok / no-binding / blocked / error text.
+function withLimitHeader(resp) {
+  try {
+    const out = new Response(resp.body, resp);
+    out.headers.set('X-Limit', limiterWhy);
+    return out;
+  } catch (err) {
+    return resp;
   }
 }
 
@@ -996,12 +1016,12 @@ export default {
         if (await adminFailLimited(env, ip)) return tooManyRequests(MINUTE);
       }
 
-      if (path === '/transcribe' && request.method === 'POST') return await handleTranscribe(request, env);
-      if (path === '/extract' && request.method === 'POST') return await handleExtract(request, env);
-      if (path === '/transcribe-and-extract' && request.method === 'POST') return await handleTranscribeAndExtract(request, env);
-      if (path === '/extract-from-image' && request.method === 'POST') return await handleExtractFromImage(request, env);
-      if (path === '/ping' && request.method === 'POST') return await handlePing(request, env);
-      if (path === '/sync' && request.method === 'POST') return await handleSync(request, env);
+      if (path === '/transcribe' && request.method === 'POST') return withLimitHeader(await handleTranscribe(request, env));
+      if (path === '/extract' && request.method === 'POST') return withLimitHeader(await handleExtract(request, env));
+      if (path === '/transcribe-and-extract' && request.method === 'POST') return withLimitHeader(await handleTranscribeAndExtract(request, env));
+      if (path === '/extract-from-image' && request.method === 'POST') return withLimitHeader(await handleExtractFromImage(request, env));
+      if (path === '/ping' && request.method === 'POST') return withLimitHeader(await handlePing(request, env));
+      if (path === '/sync' && request.method === 'POST') return withLimitHeader(await handleSync(request, env));
 
       let adminResp = null;
       if (path === '/admin/stats' && request.method === 'GET') adminResp = await handleAdminStats(request, env);
