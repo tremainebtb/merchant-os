@@ -19,11 +19,11 @@ database_id = "73ec3c6d-1ed0-4a83-b909-da4413946855"
 # Must match worker/deploy.sh. Workers Rate Limiting binding: atomic, free
 # plan, no KV writes. Period may only be 10 or 60 seconds.
 [[ratelimits]]
-binding = "AI_LIMIT"
+name = "AI_LIMIT"
 namespace_id = "1001"
 simple = { limit = 60, period = 60 }
 
 [[ratelimits]]
-binding = "WRITE_LIMIT"
+name = "WRITE_LIMIT"
 namespace_id = "1002"
 simple = { limit = 120, period = 60 }
