@@ -97,7 +97,17 @@
 </script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&family=Work+Sans:wght@400;500;600&display=swap">
+<!-- Fonts are loaded OFF the critical path (media="print" until onload).
+     Measured 4 Sep: Clarity put LCP at 3.8s and flagged it, on connections
+     far better than the ones this app is actually for. A blocking
+     stylesheet on fonts.googleapis.com costs two DNS lookups, two TLS
+     handshakes and six font files BEFORE a single word appears - on Accra
+     mobile data that is the whole delay. Now the text paints immediately in
+     the system font and the webfont swaps in when it arrives. A brief font
+     swap is a fair price for text seconds earlier; a blank orange screen is
+     not something you can explain to someone using their first smartphone. -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&family=Work+Sans:wght@400;500;600&display=swap" media="print" onload="this.media='all'">
+<noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&family=Work+Sans:wght@400;500;600&display=swap"></noscript>
 <style>
 /* Same design system as the landing page &#x2014; one product, one identity. */
 :root{
@@ -733,7 +743,7 @@ input[type="number"]{-moz-appearance:textfield}
      string is what forces a fresh script fetch even before any service worker logic
      runs, independent of it. Found live 27 Aug: without this, an already-visited
      browser can keep running old code from plain HTTP cache regardless of SW strategy. -->
-<script src="app.js?v=56"></script>
+<script src="app.js?v=57"></script>
 
 <!-- Analytics for the Silent Alpha pilot only (27 Aug) - added to observe real
      merchant behavior (what they tap first, voice vs manual usage), NOT to
