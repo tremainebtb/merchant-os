@@ -2,7 +2,15 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<!-- maximum-scale=1 removed 4 Sep after an external audit flagged it. It
+     blocks pinch-zoom entirely, which is a real accessibility failure for
+     the exact people this app is built for: users in their 60s and 70s,
+     often with reading glasses, frequently outdoors in bright sun. It was
+     almost certainly there to stop iOS Safari force-zooming the page when
+     an input under 16px is focused - so the one input that was under 16px
+     (.debt-pay-input) has been raised instead, which fixes the cause rather
+     than disabling zoom for everyone. -->
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <!-- Real finding, 28 Aug: the bare "CountMy" title carried no keywords at all
      for what people actually search - a free sales/expense ledger for
      Ghanaian shop owners. The <title> tag is the single strongest on-page
@@ -294,7 +302,12 @@ input[type="number"]{-moz-appearance:textfield}
 .debt-settled-tag{display:inline-block;margin-left:6px;font-size:.82rem;font-weight:700;color:var(--leaf-deep);background:var(--leaf-soft);padding:2px 8px;border-radius:100px}
 .debt-pay-row{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
 .debt-pay-input-row{display:flex;gap:6px;margin-top:6px;flex-wrap:wrap}
-.debt-pay-input{width:110px;padding:8px 10px;border:1px solid var(--rule);border-radius:8px;font-size:.86rem;background:var(--paper);color:var(--ink)}
+/* 1rem = 18px here, deliberately not smaller: iOS Safari force-zooms the
+   whole page when you focus an input under 16px, which is the only reason
+   the viewport tag used to block pinch-zoom at all. Every input in this app
+   is now at or above 16px, so zoom could be given back to the people who
+   need it (see the viewport meta at the top of this file). */
+.debt-pay-input{width:120px;padding:8px 10px;border:1px solid var(--rule);border-radius:8px;font-size:1rem;background:var(--paper);color:var(--ink)}
 .debt-pay-btn,.debt-full-btn,.debt-partial-toggle{font-family:inherit;border:none;border-radius:100px;padding:9px 14px;font-size:.88rem;font-weight:700;cursor:pointer}
 .debt-pay-btn{background:var(--amber-soft);color:var(--amber)}
 .debt-full-btn{background:var(--leaf-soft);color:var(--leaf-deep)}
@@ -716,7 +729,7 @@ input[type="number"]{-moz-appearance:textfield}
      string is what forces a fresh script fetch even before any service worker logic
      runs, independent of it. Found live 27 Aug: without this, an already-visited
      browser can keep running old code from plain HTTP cache regardless of SW strategy. -->
-<script src="app.js?v=54"></script>
+<script src="app.js?v=55"></script>
 
 <!-- Analytics for the Silent Alpha pilot only (27 Aug) - added to observe real
      merchant behavior (what they tap first, voice vs manual usage), NOT to
