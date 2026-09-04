@@ -612,10 +612,77 @@ function evidenceVerified(evidence, transcriptNorm) {
   return transcriptNorm.includes(norm);
 }
 
+// Spells an integer the way a person says it, so a value the model returned
+// as a digit can still be matched against a transcript that spelled it out.
+// Bounded to what a market sentence actually contains.
+function numberWordForms(n) {
+  if (!Number.isInteger(n) || n < 0 || n > 999999) return [];
+  const ones = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten',
+    'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen', 'seventeen', 'eighteen', 'nineteen'];
+  const tens = ['', '', 'twenty', 'thirty', 'forty', 'fifty', 'sixty', 'seventy', 'eighty', 'ninety'];
+  const under100 = (v) => {
+    if (v < 20) return [ones[v]];
+    const t = tens[Math.floor(v / 10)];
+    const r = v % 10;
+    return r === 0 ? [t] : [t + ' ' + ones[r]];
+  };
+  const under1000 = (v) => {
+    if (v < 100) return under100(v);
+    const h = ones[Math.floor(v / 100)] + ' hundred';
+    const r = v % 100;
+    if (r === 0) return [h];
+    // Both "one hundred and twenty" and "one hundred twenty" are said.
+    return under100(r).flatMap(tail => [h + ' and ' + tail, h + ' ' + tail]);
+  };
+  if (n < 1000) return under1000(n);
+  const th = Math.floor(n / 1000);
+  const rest = n % 1000;
+  const head = under1000(th).map(w => w + ' thousand');
+  if (rest === 0) return head;
+  return head.flatMap(h => under1000(rest).flatMap(tail => [h + ' and ' + tail, h + ' ' + tail]));
+}
+
+// Second, independent way to verify a value - and a stronger one than the
+// model's own claim about which words it used.
+//
+// Real bug, found by live testing 4 Sep: the evidence check above trusts the
+// model to report WHICH words a value came from, and the model is simply not
+// reliable about that. Measured against the live endpoint, 7 of 11 ordinary
+// trader sentences lost data or produced nothing at all: "Ama owes me 120
+// cedis" returned no events, "Kofi owes me fifty cedis" returned no events,
+// "I sold two shirts for 50 cedis" silently dropped the 50, and the identical
+// sentence gave different answers on different runs. The values were right;
+// the model's pointer to its own evidence was not.
+//
+// So: check the VALUE against the transcript ourselves. A number the trader
+// actually said, or a name that is actually in the sentence, is grounded no
+// matter what the model claims about it. This does NOT reopen the fabrication
+// hole this layer exists to close - an invented item ("pencils") is still not
+// in the transcript, an invented amount is still not in the transcript, and
+// an event with no verified identity is still dropped entirely below.
+function valueGroundedInTranscript(value, transcriptNorm) {
+  if (value === null || value === undefined) return false;
+  if (typeof value === 'number') {
+    if (!Number.isFinite(value)) return false;
+    const asDigits = String(value);
+    if (transcriptNorm.includes(asDigits)) return true;
+    // 30.5 is never spoken as words; only whole numbers get the word check.
+    return numberWordForms(value).some(w => transcriptNorm.includes(w));
+  }
+  if (typeof value === 'string') {
+    const norm = normalizeForMatch(value);
+    // Two chars or fewer would match almost anything.
+    if (!norm || norm.length < 3 || norm.length > 60) return false;
+    return transcriptNorm.includes(norm);
+  }
+  return false;
+}
+
 function fieldValue(raw, transcriptNorm) {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return undefined;
-  if (!evidenceVerified(raw.evidence, transcriptNorm)) return undefined;
-  return raw.value;
+  if (evidenceVerified(raw.evidence, transcriptNorm)) return raw.value;
+  if (valueGroundedInTranscript(raw.value, transcriptNorm)) return raw.value;
+  return undefined;
 }
 
 // Split 2 Sep so the photo path (sanitizeImageEvents below) shares the exact
