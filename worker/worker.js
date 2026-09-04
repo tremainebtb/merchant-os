@@ -585,7 +585,15 @@ const EXTRACT_SYSTEM_PROMPT = `You read a rough, possibly messy speech-to-text t
 - "debt_out": the owner owes a supplier money. Fields: type, supplier (the person/business name), price (amount owed in cedis), note (optional).
 CRITICAL RULE: every field except "type" must be an object of the form {"value": ..., "evidence": "..."}, where "evidence" is the EXACT short substring copied word-for-word from the transcript that this value is based on (e.g. evidence "three" for qty 3, evidence "300" for total 300, evidence "Kwame" for customer). NEVER invent evidence text for a number you calculated yourself (like a divided-out per-unit price) - only use evidence for words that were ACTUALLY spoken. If you cannot point to actual words in the transcript supporting a field, DO NOT include that field at all - do not guess, do not use general knowledge about typical prices. qty, price, and total "value" must be plain numbers. Ignore transcription noise words that don't fit any product (like a stray "cds" or "think" with no context) - do not turn noise into a fabricated item.
 Respond with ONLY a raw JSON array, no prose, no markdown fences, no extra fields beyond what's listed above. If nothing extractable, respond with [].
-Example: [{"type":"sale","item":{"value":"rice","evidence":"rice"},"qty":{"value":5,"evidence":"five"},"price":{"value":10,"evidence":"ten cedis"}}, {"type":"sale","item":{"value":"bags","evidence":"bags"},"qty":{"value":2,"evidence":"two"},"total":{"value":300,"evidence":"300"}}]`;
+If someone owes the owner money and no personal name was said (e.g. "a customer owes me 80 cedis"), still return debt_in and use the exact word that was spoken for the person, such as "customer".
+Examples, one per type - every type below is equally likely, do NOT assume an utterance is a sale:
+[{"type":"sale","item":{"value":"rice","evidence":"rice"},"qty":{"value":5,"evidence":"five"},"price":{"value":10,"evidence":"ten cedis"}}]
+[{"type":"sale","item":{"value":"bags","evidence":"bags"},"qty":{"value":2,"evidence":"two"},"total":{"value":300,"evidence":"300"}}]
+[{"type":"expense","item":{"value":"transport","evidence":"transport"},"price":{"value":35,"evidence":"35 cedis"}}]
+[{"type":"expense","item":{"value":"stock","evidence":"stock"},"price":{"value":200,"evidence":"200 cedis"}}]
+[{"type":"debt_in","customer":{"value":"Ama","evidence":"Ama"},"price":{"value":120,"evidence":"120 cedis"}}]
+[{"type":"debt_in","customer":{"value":"Kofi","evidence":"Kofi"},"price":{"value":50,"evidence":"fifty cedis"},"note":{"value":"soap","evidence":"soap"}}]
+[{"type":"debt_out","supplier":{"value":"Mensah","evidence":"Mensah"},"price":{"value":400,"evidence":"400 cedis"}}]`;
 
 // Deterministic, model-independent safety layer - takes whatever the LLM
 // returned (which may be malformed, missing fields, contain the literal string
