@@ -79,6 +79,11 @@ function syncEntryToServer(entry, deleted) {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ shop, entry, deleted: !!deleted })
+  }).then(res => {
+    // Only on a real server confirmation - claiming "backed up" because a
+    // request was merely sent would be the same broken promise the apps
+    // that lost people's records made.
+    if (res && res.ok) { markBackedUp(); renderBackupStatus(); }
   }).catch(() => {});
 }
 
@@ -208,11 +213,19 @@ const FIELD_CONFIG = {
     fields: [
       { key: 'item', label: 'What did you spend on?', type: 'text' },
       { key: 'price', label: 'Amount (cedis)', type: 'number' },
+      // Third choice added 4 Sep. Mixing household money with shop money is
+      // repeatedly documented as a real problem for Ghanaian traders, and
+      // "chop money" taken from the till is neither a shop cost nor a loss -
+      // it is the owner's own money leaving. Counted in neither Expenses nor
+      // Money left over (it is not a cost of trading, so it must not make a
+      // good day look bad), but it IS taken off Cash you have now, because
+      // that cash genuinely is not in the till any more.
       {
         key: 'kind', label: 'What kind of spend?', type: 'choice', default: 'running',
         options: [
-          { value: 'running', label: 'Shop running cost' },
-          { value: 'stock', label: 'Stock to sell again' }
+          { value: 'running', label: 'Shop cost' },
+          { value: 'stock', label: 'Stock to sell' },
+          { value: 'home', label: 'Took home' }
         ]
       }
     ],
@@ -221,7 +234,7 @@ const FIELD_CONFIG = {
       if (!v.item || !v.price) return '';
       return `${v.item} \u2014 ${fmt(v.price)}`;
     },
-    desc: v => v.item + (v.kind === 'stock' ? ' (stock)' : ''),
+    desc: v => v.item + (v.kind === 'stock' ? ' (stock)' : v.kind === 'home' ? ' (took home)' : ''),
     amountSign: -1
   },
   debt_in: {
@@ -496,13 +509,33 @@ const TYPE_LABEL = { sale: 'Sale', expense: 'Expense', debt_in: 'Customer owes m
 // the amount ourselves from the (already type-checked, by the Worker) qty/price -
 // never trusting a pre-computed "total" from the model, since that's one more
 // number it could get wrong independent of the two the owner can actually verify.
+// Voice is the main way entries get in here, so a category only reachable by
+// typing would barely exist for the people this is built for. The Worker's
+// extraction does not return a spend kind (adding one would mean loosening
+// the evidence-verification that stops the model inventing transactions), so
+// this tags the one case that is genuinely unambiguous in Ghanaian English:
+// money taken out for the house. "Chop money" is the everyday term for exactly
+// that. Narrow on purpose - "bought food" is NOT in this list, because food
+// bought to resell and food taken home are different things and guessing
+// between them would put a number in the wrong place.
+const TOOK_HOME_PHRASES = ['chop money', 'took home', 'take home', 'taken home', 'for the house', 'my pocket', 'for myself', 'housekeeping'];
+function spendKindFromText(text) {
+  const t = String(text || '').toLowerCase();
+  return TOOK_HOME_PHRASES.some(p => t.indexOf(p) !== -1) ? 'home' : '';
+}
+
 function eventToEntry(ev) {
   const type = ev.type;
   const item = ev.item || ev.customer || ev.supplier || '';
   const qty = type === 'sale' ? (ev.qty || 1) : '';
   const price = ev.price || '';
   const amount = type === 'sale' ? (Number(qty) || 0) * (Number(price) || 0) : (Number(price) || 0);
-  return { type, item, note: ev.note || '', qty, price, amount };
+  const entry = { type, item, note: ev.note || '', qty, price, amount };
+  if (type === 'expense') {
+    const kind = spendKindFromText(item + ' ' + (ev.note || ''));
+    if (kind) entry.kind = kind;
+  }
+  return entry;
 }
 
 function voiceEventComplete(ev) {
@@ -620,16 +653,22 @@ function speakPhotoReview(events) {
 // trigger: called once right after events are produced, before the first
 // render, so a complete entry shows already in its saved state.
 async function autoSaveReadyEvents(events) {
+  const saved = [];
   for (const ev of events) {
     if (ev._savedId || !voiceEventComplete(ev) || looksGarbled(ev.item)) continue;
     const entry = eventToEntry(ev);
     const ts = Date.now();
     const id = crypto.randomUUID();
-    await addEntry({ id, type: entry.type, item: entry.item, note: entry.note, qty: entry.qty, price: entry.price, paid: 0, amount: entry.amount, source: pendingVoiceSource, day: todayKey(ts), ts });
+    const record = { id, type: entry.type, item: entry.item, note: entry.note, qty: entry.qty, price: entry.price, kind: entry.kind || '', paid: 0, amount: entry.amount, source: pendingVoiceSource, day: todayKey(ts), ts };
+    await addEntry(record);
     track('save_entry', { type: entry.type, source: pendingVoiceSource });
     ping('save');
     ev._savedId = id;
+    saved.push(record);
   }
+  // One prompt for the whole batch, never one per entry. A debt wins if the
+  // batch contained one, since chasing the money beats counting entries.
+  if (saved.length) await afterEntrySaved(saved.find(r => r.type === 'debt_in') || null);
 }
 
 function renderVoiceReview() {
@@ -706,12 +745,14 @@ function renderVoiceReview() {
     const entry = eventToEntry(ev);
     const ts = Date.now();
     const id = crypto.randomUUID();
-    await addEntry({ id, type: entry.type, item: entry.item, note: entry.note, qty: entry.qty, price: entry.price, paid: 0, amount: entry.amount, source: pendingVoiceSource, day: todayKey(ts), ts });
+    const record = { id, type: entry.type, item: entry.item, note: entry.note, qty: entry.qty, price: entry.price, kind: entry.kind || '', paid: 0, amount: entry.amount, source: pendingVoiceSource, day: todayKey(ts), ts };
+    await addEntry(record);
     track('save_entry', { type: entry.type, source: pendingVoiceSource });
     ping('save');
     ev._savedId = id;
     renderVoiceReview();
     await render();
+    await afterEntrySaved(record);
   }));
 }
 
@@ -1112,7 +1153,7 @@ async function saveEntry() {
     // no backend to reconcile against yet, so this only protects the local device today,
     // but the id shape is what a future sync layer would need anyway.
     const id = crypto.randomUUID();
-    await addEntry({
+    const record = {
       id,
       type: activeType,
       item: v.item,
@@ -1126,11 +1167,13 @@ async function saveEntry() {
       source: sheetVoiceFilled ? 'voice' : 'manual',
       day: todayKey(ts),
       ts
-    });
+    };
+    await addEntry(record);
     track('save_entry', { type: activeType, source: sheetVoiceFilled ? 'voice' : 'manual' });
     ping('save');
     closeSheet();
     await render();
+    await afterEntrySaved(record);
   } catch (err) {
     if (err && err.name === 'ConstraintError') {
       // Same id already saved \u2014 treat as already-done, not a failure.
@@ -1230,8 +1273,13 @@ async function render() {
   // Anything not explicitly tagged "stock" (including every entry saved
   // before this existed, and every voice-created entry) counts as a running
   // cost - the exact same math as before, nothing silently changes.
-  const expenses = todayEntries.filter(e => e.type === 'expense' && e.kind !== 'stock').reduce((s, e) => s + e.amount, 0);
+  const expenses = todayEntries.filter(e => e.type === 'expense' && e.kind !== 'stock' && e.kind !== 'home').reduce((s, e) => s + e.amount, 0);
   const stockBought = todayEntries.filter(e => e.type === 'expense' && e.kind === 'stock').reduce((s, e) => s + e.amount, 0);
+  // Money the owner took out of the till for herself or the house. Not a
+  // shop cost (so it never drags down Money left over, the same reason
+  // stock does not), but genuinely gone from the till, so it comes off
+  // Cash you have now below.
+  const takenHome = todayEntries.filter(e => e.type === 'expense' && e.kind === 'home').reduce((s, e) => s + e.amount, 0);
   // Real bug, found 28 Aug: this used to read e.settled, a field nothing in
   // the app ever wrote - "Customers owe me" could only ever go UP, forever,
   // even after a real customer actually paid back what they owed. Debt
@@ -1247,7 +1295,7 @@ async function render() {
   // cash do I actually have right now" (that cash is genuinely gone today).
   // This is the second, honest answer to the second question - never shown
   // unless it actually differs from Money left over (stockBought > 0).
-  const cashInHand = balance - stockBought;
+  const cashInHand = balance - stockBought - takenHome;
 
   document.getElementById('tSales').textContent = fmt(sales);
   const cashMomoEl = document.getElementById('tCashMomo');
@@ -1262,11 +1310,15 @@ async function render() {
   // never disappears the moment after someone actually used it.
   if (stockBought > 0) document.getElementById('tStockRow').style.display = '';
   if (owedMe > 0) document.getElementById('tOwedRow').style.display = '';
+  document.getElementById('tHome').textContent = fmt(takenHome);
+  if (takenHome > 0) document.getElementById('tHomeRow').style.display = '';
   const cashInHandEl = document.getElementById('tCashInHand');
   cashInHandEl.textContent = fmt(cashInHand);
   cashInHandEl.classList.toggle('pos', cashInHand >= 0);
   cashInHandEl.classList.toggle('neg', cashInHand < 0);
-  if (stockBought > 0) document.getElementById('tCashRow').style.display = '';
+  // Shown once either thing that moves cash without being a cost has
+  // happened - otherwise it would just repeat Money left over.
+  if (stockBought > 0 || takenHome > 0) document.getElementById('tCashRow').style.display = '';
   const balanceEl = document.getElementById('tBalance');
   balanceEl.textContent = fmt(balance);
   balanceEl.classList.toggle('pos', balance >= 0);
@@ -1285,7 +1337,7 @@ async function render() {
     vsYesterdayEl.className = 'today-vs';
   }
 
-  window._kymToday = { sales, expenses, stockBought, owedMe, balance, cashInHand, salesDiff };
+  window._kymToday = { sales, expenses, stockBought, takenHome, owedMe, balance, cashInHand, salesDiff };
 
   const histEl = document.getElementById('history');
   if (!entries.length) {
@@ -1415,11 +1467,12 @@ function speakToday() {
   // already warned against. Now genuinely the same three short phrases as
   // what's on screen, every time.
   const stockLine = t.stockBought > 0 ? `Stock bought: ${fmt(t.stockBought)}. ` : '';
-  const cashLine = t.stockBought > 0 ? `Cash you have now: ${fmt(t.cashInHand)}. ` : '';
+  const homeLine = t.takenHome > 0 ? `Money you took home: ${fmt(t.takenHome)}. ` : '';
+  const cashLine = (t.stockBought > 0 || t.takenHome > 0) ? `Cash you have now: ${fmt(t.cashInHand)}. ` : '';
   const vsLine = t.salesDiff > 0 ? `Up ${fmt(t.salesDiff)} from yesterday. `
     : t.salesDiff < 0 ? `Down ${fmt(-t.salesDiff)} from yesterday. `
     : `Same as yesterday. `;
-  const text = `Today. Sales: ${fmt(t.sales)}. Expenses: ${fmt(t.expenses)}. ${stockLine}`
+  const text = `Today. Sales: ${fmt(t.sales)}. Expenses: ${fmt(t.expenses)}. ${stockLine}${homeLine}`
     + `Customers owe you: ${fmt(t.owedMe)}. Money left over: ${fmt(t.balance)}. ${cashLine}${vsLine}`;
   const utter = speakClearly(new SpeechSynthesisUtterance(text));
   utter.rate = 0.8;
@@ -1434,6 +1487,137 @@ function speakToday() {
 // ("no PIN ever asked") and real users found it confusing rather than reassuring,
 // with no offsetting benefit strong enough to justify the friction. Nothing reads
 // getPin()/kym_pin any more; the value is simply never set again.
+
+// Every exported book already lands in someone else's WhatsApp - a daughter,
+// a husband, the customer who owes. That message is the only place CountMy is
+// ever seen by someone who does not have it, and the research is blunt that
+// nobody in this market finds an app by searching for one: there is not a
+// single trader post about keeping records in Twi or Pidgin anywhere online,
+// and Google's own Ghana speech app failed on awareness alone. So the export
+// carries one plain line back. Deliberately not a slogan and not a pitch -
+// what it is, that it costs nothing, and the address.
+const SHARE_FOOTER = '\n\nI keep my shop money with CountMy. It is free: https://countmy.app';
+
+// Backup state, shown to the user 4 Sep. The single most repeated reason
+// traders abandon this category is losing their records: Kippa died with two
+// years of people's books inside it ("I have been totally blind about my
+// business since Kippa shut down"), and OZE's own reviews complain of records
+// clearing on login. CountMy already backs every entry up invisibly - but a
+// backup nobody can see does nothing for the fear that stops people trusting
+// the app in the first place. Written only when the server actually confirms
+// a save, never optimistically.
+function markBackedUp() {
+  try { localStorage.setItem('kym_last_backup', String(Date.now())); } catch (e) {}
+}
+
+function backupStatusText() {
+  let ts = 0;
+  try { ts = Number(localStorage.getItem('kym_last_backup')) || 0; } catch (e) { return ''; }
+  if (!ts) return 'Not backed up yet';
+  const day = todayKey(ts);
+  if (day === todayKey(Date.now())) return 'Backed up today';
+  if (day === todayKey(Date.now() - 24 * 60 * 60 * 1000)) return 'Backed up yesterday';
+  return 'Backed up ' + new Date(ts).toLocaleDateString('en-GH', { day: 'numeric', month: 'short' });
+}
+
+function renderBackupStatus() {
+  const el = document.getElementById('backupStatus');
+  if (!el) return;
+  const text = backupStatusText();
+  const backedUp = text.indexOf('Backed up') === 0;
+  el.textContent = (backedUp ? '\u2713 ' : '') + text;
+  el.classList.toggle('ok', backedUp);
+}
+
+// Item 1 of the queue, and the single strongest thing the outside evidence
+// supports. 27% of Ghanaian informal firms sell on credit, and the apps that
+// actually retained this exact kind of user elsewhere (OkCredit and Khatabook
+// in India, TallyKhata in Bangladesh) all did it by turning the debt record
+// into an ACTION - reminding the customer - not by being a better book. Until
+// now the reminder was buried in the Recent list, only findable by scrolling
+// back to the entry. This puts it in front of her the moment the debt is
+// written down, which is exactly when she is still thinking about that person.
+// Only ever one prompt on screen. Two stacked banners is precisely the "too
+// much going on" this app keeps being told about, and it is easy to hit for
+// real: record a debt in the evening and the end-of-day send banner is
+// already sitting there.
+function clearOtherPrompts(keepId) {
+  ['eodBanner', 'eveningNudge', 'debtReminder', 'milestone'].forEach(id => {
+    if (id === keepId) return;
+    const el = document.getElementById(id);
+    if (el) el.hidden = true;
+  });
+}
+
+let debtReminderTimer = null;
+function showDebtReminder(entry) {
+  const box = document.getElementById('debtReminder');
+  if (!box || !entry || entry.type !== 'debt_in') return;
+  clearOtherPrompts('debtReminder');
+  const owed = Math.max(0, (Number(entry.amount) || 0) - (Number(entry.paid) || 0));
+  const name = entry.item || 'Your customer';
+  document.getElementById('debtReminderText').textContent = `${name} owes you ${fmt(owed)}.`;
+  const link = document.getElementById('debtReminderSend');
+  const msg = `Hello ${name}, your balance is ${fmt(owed)}${entry.note ? ' for ' + entry.note : ''}. Please send by MoMo when you can. Thank you.`;
+  link.href = 'https://wa.me/?text=' + encodeURIComponent(msg);
+  link.textContent = `Remind ${name} on WhatsApp`;
+  box.hidden = false;
+  speakShort(`${name} owes you ${fmt(owed)}. Do you want to remind ${name} now?`);
+  clearTimeout(debtReminderTimer);
+  // Never permanent - it is a prompt about one debt, not a part of the page.
+  debtReminderTimer = setTimeout(() => { box.hidden = true; }, 25000);
+}
+
+// Item 2. The one retention lever with a real published number behind it:
+// Khatabook's 3-month retention sat at 20-25%, and DOUBLED for users who
+// logged 5 or more entries in their first month. Everything here exists to
+// get a brand new shop to five - counted out loud, because most of the people
+// this is for do not read the screen.
+const FIRST_ENTRIES_TARGET = 5;
+function showEntryMilestone(total) {
+  const box = document.getElementById('milestone');
+  if (!box) return;
+  const left = FIRST_ENTRIES_TARGET - total;
+  let msg;
+  if (total >= FIRST_ENTRIES_TARGET) {
+    msg = `That is ${total}. CountMy knows your shop now - come back tomorrow and it will tell you if you did better.`;
+  } else if (left === 1) {
+    msg = `That is ${total}. One more and CountMy can tell you if today beat yesterday.`;
+  } else {
+    msg = `That is ${total}. ${left} more and CountMy can tell you if today beat yesterday.`;
+  }
+  clearOtherPrompts('milestone');
+  box.textContent = msg;
+  box.hidden = false;
+  speakShort(msg);
+  clearTimeout(box._timer);
+  box._timer = setTimeout(() => { box.hidden = true; }, 12000);
+}
+
+// Short spoken confirmations reuse the same voice pick and slow rate as the
+// Today card, so the app never suddenly sounds like a different thing.
+function speakShort(text) {
+  if (!('speechSynthesis' in window)) return;
+  try {
+    const utter = speakClearly(new SpeechSynthesisUtterance(text));
+    utter.rate = 0.85;
+    speechSynthesis.cancel();
+    speechSynthesis.speak(utter);
+  } catch (e) { /* speech is a bonus, never a requirement */ }
+}
+
+// One place every save path ends up, so the typed sheet, a voice card and a
+// photo card all behave identically - a debt gets its reminder, an early
+// entry gets counted toward five. Deliberately never both at once: two
+// prompts stacked after one save is exactly the "too much going on" this
+// app keeps being told about.
+async function afterEntrySaved(entry) {
+  try {
+    if (entry && entry.type === 'debt_in') { showDebtReminder(entry); return; }
+    const all = await getAllEntries();
+    if (all.length <= FIRST_ENTRIES_TARGET) showEntryMilestone(all.length);
+  } catch (e) { /* never let a nicety break a save */ }
+}
 
 // Real answer to "what if the phone is lost" without building a sync backend or
 // asking a Makola market trader to understand a file system. WhatsApp is the one
@@ -1467,7 +1651,21 @@ async function exportBackup() {
   });
   const shopName = getShopId() || 'My shop';
   const truncNote = shown.length < ordered.length ? ` (most recent ${MAX_LINES})` : '';
-  const text = `${shopName} records${truncNote}:\n\n${lines.join('\n')}`;
+  // Real, dated reason this one line exists: since 1 July 2025 the GRA's
+  // Modified Taxation Scheme asks an informal trader for a yearly sales
+  // figure (a simplified annual return, and a turnover estimate at sign-up
+  // on *880#), and registers people through their trade association. This
+  // is the first time the state asks a market trader for a number a
+  // notebook actually produces, so the notebook should hand it over
+  // already added up instead of making her count a year of entries.
+  // Counted over the last 365 days from every sale recorded, whatever the
+  // 200-line display cap above shows.
+  const yearAgo = Date.now() - 365 * 24 * 60 * 60 * 1000;
+  const yearSales = entries
+    .filter(e => e.type === 'sale' && e.ts >= yearAgo)
+    .reduce((s, e) => s + (Number(e.amount) || 0), 0);
+  const yearLine = `Total sales in the last 12 months: ${fmt(yearSales)}\n`;
+  const text = `${shopName} records${truncNote}:\n\n${yearLine}\n${lines.join('\n')}${SHARE_FOOTER}`;
   location.href = 'https://wa.me/?text=' + encodeURIComponent(text);
 }
 
@@ -1498,9 +1696,23 @@ function exportTodaySummary() {
       return `${typeLabel[e.type]}: ${cfg.desc(e)} - ${fmt(e.amount)}`;
     });
     const shopName = getShopId() || 'My shop';
-    const text = `${shopName} - today's summary:\n\n${lines.join('\n')}`;
+    const text = `${shopName} - today's summary:\n\n${lines.join('\n')}${SHARE_FOOTER}`;
     location.href = 'https://wa.me/?text=' + encodeURIComponent(text);
   });
+}
+
+// How long a shop counts as "new" for the first-week nudges below. Seven
+// days is the window the five-entry evidence is about, not a guess at how
+// long someone stays interested.
+const FIRST_WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+function firstSeenAt() {
+  try {
+    const existing = Number(localStorage.getItem('kym_first_seen')) || 0;
+    if (existing) return existing;
+    const now = Date.now();
+    localStorage.setItem('kym_first_seen', String(now));
+    return now;
+  } catch (e) { return Date.now(); }
 }
 
 function maybeShowEodPrompt() {
@@ -1510,7 +1722,24 @@ function maybeShowEodPrompt() {
   if (localStorage.getItem('kym_eod_prompted') === today) return; // once per day, ever
   getAllEntries().then(entries => {
     const hasToday = entries.some(e => e.day === today);
-    if (!hasToday) return;
+    // The other half of the five-entry ritual. A brand new shop that has
+    // opened the app in the evening and recorded nothing is the exact
+    // moment the habit is won or lost, and the published number says a
+    // user who reaches five entries in month one retains at twice the
+    // rate. Only in the first week, only once a day, and it stops for
+    // good once the habit exists (five entries recorded) - a shop that is
+    // already using this must never be nagged.
+    if (!hasToday) {
+      const isNew = (Date.now() - firstSeenAt()) < FIRST_WEEK_MS && entries.length < FIRST_ENTRIES_TARGET;
+      const nudge = document.getElementById('eveningNudge');
+      if (isNew && nudge) {
+        localStorage.setItem('kym_eod_prompted', today);
+        nudge.hidden = false;
+        track('evening_nudge');
+        speakShort('What did you sell today? Tap the orange button and say it.');
+      }
+      return;
+    }
     localStorage.setItem('kym_eod_prompted', today);
     const banner = document.getElementById('eodBanner');
     if (banner) banner.hidden = false;
@@ -1547,6 +1776,51 @@ if (!('speechSynthesis' in window)) document.getElementById('hearBtn').style.dis
 document.getElementById('planPill').addEventListener('click', () => document.getElementById('planSheet').classList.add('open'));
 document.getElementById('planCloseBtn').addEventListener('click', () => document.getElementById('planSheet').classList.remove('open'));
 document.getElementById('exportBtn').addEventListener('click', exportBackup);
+
+const debtReminderDismiss = document.getElementById('debtReminderDismiss');
+if (debtReminderDismiss) {
+  debtReminderDismiss.addEventListener('click', () => {
+    document.getElementById('debtReminder').hidden = true;
+    clearTimeout(debtReminderTimer);
+  });
+}
+const debtReminderSend = document.getElementById('debtReminderSend');
+if (debtReminderSend) {
+  debtReminderSend.addEventListener('click', () => {
+    track('debt_reminder_sent');
+    document.getElementById('debtReminder').hidden = true;
+  });
+}
+// The nudge is a prompt to speak, so it hands straight over to the mic
+// rather than making her find the button herself. The tap on the nudge is
+// the same user gesture the mic needs, so nothing is blocked.
+const eveningNudgeBtn = document.getElementById('eveningNudgeBtn');
+if (eveningNudgeBtn) {
+  eveningNudgeBtn.addEventListener('click', () => {
+    document.getElementById('eveningNudge').hidden = true;
+    track('evening_nudge_tap');
+    const mic = document.getElementById('homeMicBtn');
+    if (mic) { mic.scrollIntoView({ behavior: 'smooth', block: 'center' }); mic.click(); }
+  });
+}
+const eveningNudgeDismiss = document.getElementById('eveningNudgeDismiss');
+if (eveningNudgeDismiss) {
+  eveningNudgeDismiss.addEventListener('click', () => { document.getElementById('eveningNudge').hidden = true; });
+}
+const recoverBtn = document.getElementById('recoverBtn');
+if (recoverBtn) {
+  recoverBtn.addEventListener('click', () => {
+    const shop = getShopId();
+    const nameEl = document.getElementById('recoverShopName');
+    if (nameEl) nameEl.textContent = shop || 'not set yet';
+    document.getElementById('recoverSheet').classList.add('open');
+    track('open_recover');
+  });
+}
+const recoverCloseBtn = document.getElementById('recoverCloseBtn');
+if (recoverCloseBtn) {
+  recoverCloseBtn.addEventListener('click', () => document.getElementById('recoverSheet').classList.remove('open'));
+}
 const eodBanner = document.getElementById('eodBanner');
 if (eodBanner) {
   document.getElementById('eodSendBtn').addEventListener('click', () => {
@@ -1777,6 +2051,8 @@ function bumpVisitCount() {
     const demoBtnEl = document.getElementById('demoBtn');
     if (demoBtnEl) demoBtnEl.hidden = true;
   }
+  firstSeenAt();
+  renderBackupStatus();
   refreshPaidStatus();
   maybeShowEodPrompt();
   ping('open');

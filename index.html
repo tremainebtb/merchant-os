@@ -352,6 +352,26 @@ input[type="number"]{-moz-appearance:textfield}
 .eod-banner-actions{display:flex;gap:10px}
 .eod-send-btn{flex:1;background:var(--leaf-deep);color:#fff;border:none;border-radius:10px;padding:10px;font-family:"Manrope",sans-serif;font-weight:800;font-size:.95rem;cursor:pointer}
 .eod-dismiss-btn{background:none;border:none;color:var(--muted);font-family:inherit;font-weight:700;font-size:.9rem;cursor:pointer;padding:10px}
+/* Debt reminder and evening nudge share the end-of-day banner's shape on
+   purpose - one banner pattern on this page, not three - but take the
+   flame accent because both are asking for an action now, where the
+   end-of-day one is only offering a copy of something already done. */
+.act-banner{display:flex;flex-direction:column;gap:10px;background:var(--flame-soft);border:1px solid var(--flame);border-radius:14px;padding:14px;margin-bottom:16px}
+.act-banner span{font-weight:700;color:var(--ink);font-size:1.02rem}
+.act-banner-actions{display:flex;gap:10px;align-items:center}
+.act-banner-go{flex:1;display:block;text-align:center;background:var(--flame);color:#fff;border:none;border-radius:10px;padding:12px 10px;font-family:"Manrope",sans-serif;font-weight:800;font-size:.95rem;cursor:pointer;text-decoration:none}
+.act-banner-dismiss{background:none;border:none;color:var(--muted);font-family:inherit;font-weight:700;font-size:.9rem;cursor:pointer;padding:10px}
+/* Counted out loud as well as shown - most of the people this is for do not
+   read the screen, so this is a visual echo of the spoken line, not the
+   main channel. Never a card: it is a passing confirmation, not an object. */
+.milestone{background:var(--leaf-soft);border-left:4px solid var(--leaf);border-radius:0 10px 10px 0;padding:12px 14px;margin-bottom:16px;font-weight:700;color:var(--leaf-deep);font-size:.98rem}
+.backup-status{font-size:.9rem;font-weight:700;color:var(--muted);margin-bottom:10px}
+.backup-status.ok{color:var(--leaf-deep)}
+.recover-link{display:block;width:100%;margin-top:10px;background:none;border:none;padding:8px 0 0;font-family:inherit;font-size:.88rem;font-weight:600;color:var(--muted);text-decoration:underline;text-underline-offset:2px;cursor:pointer;text-align:center}
+.recover-sheet{display:none}
+.recover-sheet.open{display:block;margin-top:14px}
+.recover-key{font-family:"Manrope",sans-serif;font-weight:800;font-size:1.1rem;color:var(--ink);background:var(--paper);border:1px solid var(--rule);border-radius:10px;padding:10px 12px;margin:8px 0 12px;word-break:break-word}
+.recover-step{margin:0 0 10px;font-size:.95rem}
 </style>
 </head>
 <body>
@@ -385,6 +405,39 @@ input[type="number"]{-moz-appearance:textfield}
       <button id="eodDismissBtn" type="button" class="eod-dismiss-btn">Not now</button>
     </div>
   </div>
+
+  <!-- Shown the moment a debt is written down, 4 Sep. The strongest thing in
+       the outside evidence: about 27% of Ghanaian informal firms sell on
+       credit, and the apps that actually kept this exact user elsewhere
+       (OkCredit and Khatabook in India, TallyKhata in Bangladesh) all grew on
+       turning the debt record into the act of chasing it, not on being a
+       better book. The reminder link already existed, buried in the Recent
+       list where it had to be scrolled back to and found. This puts it in
+       front of her while she is still standing in front of the customer. -->
+  <div id="debtReminder" class="act-banner" hidden>
+    <span id="debtReminderText"></span>
+    <div class="act-banner-actions">
+      <a id="debtReminderSend" class="act-banner-go" target="_blank" rel="noopener" href="#">Remind on WhatsApp</a>
+      <button id="debtReminderDismiss" type="button" class="act-banner-dismiss">Not now</button>
+    </div>
+  </div>
+
+  <!-- The other half of the five-entry ritual. Khatabook's published numbers:
+       20-25% of users still there at three months, and DOUBLE that for anyone
+       who logged five or more entries in their first month. A new shop that
+       opens this in the evening having recorded nothing is exactly where that
+       is won or lost. First week only, once a day at most, and it stops for
+       good once five entries exist - a shop already in the habit is never
+       nagged. Tapping it hands straight over to the microphone. -->
+  <div id="eveningNudge" class="act-banner" hidden>
+    <span>What did you sell today?</span>
+    <div class="act-banner-actions">
+      <button id="eveningNudgeBtn" type="button" class="act-banner-go">Say it now</button>
+      <button id="eveningNudgeDismiss" type="button" class="act-banner-dismiss">Not now</button>
+    </div>
+  </div>
+
+  <div id="milestone" class="milestone" hidden></div>
 
   <div class="today">
     <div class="today-top">
@@ -426,6 +479,15 @@ input[type="number"]{-moz-appearance:textfield}
          real value exists, exactly like "Recent" already only shows once
          there's something to show. -->
     <div id="tStockRow" class="today-row tappable" data-speak="Stock bought" style="display:none"><span>Stock bought</span><span id="tStock" data-clarity-mask="True">0 cedis</span></div>
+    <!-- Added 4 Sep. Mixing household and shop money is one of the most
+         consistently documented money problems for Ghanaian traders, and the
+         cash a trader takes out of the till for the house is neither a shop
+         cost nor a loss - it is her own money leaving. Kept out of Expenses
+         and out of Money left over for exactly the same reason stock is (a
+         good trading day must not be made to look bad by it), but taken off
+         Cash you have now, because that cash really is gone from the till.
+         Same hide-until-used rule as the two rows above. -->
+    <div id="tHomeRow" class="today-row tappable" data-speak="Money you took home" style="display:none"><span>Money I took home</span><span id="tHome" data-clarity-mask="True">0 cedis</span></div>
     <div id="tOwedRow" class="today-row tappable" data-speak="Customers owe you" style="display:none"><span>Customers owe me</span><span id="tOwedMe" data-clarity-mask="True">0 cedis</span></div>
     <div class="today-row balance tappable" data-speak="Money left over"><span>Money left over</span><span id="tBalance" class="balance-amt" data-clarity-mask="True">0 cedis</span></div>
     <!-- Real feedback, 1 Sep, from a genuinely valid accounting critique: "Money
@@ -562,8 +624,37 @@ input[type="number"]{-moz-appearance:textfield}
        by tapping it), with the "why" second, and says exactly where the
        copy ends up. -->
   <div class="safety-block">
+    <!-- Made visible 4 Sep. The single most repeated reason traders abandon
+         this category is losing their records: Kippa in Nigeria went dark in
+         January 2024 with two years of people's books inside it ("I have been
+         totally blind about my business since Kippa shut down"), and OZE's own
+         store reviews complain of records clearing on login. CountMy has
+         backed every entry up invisibly since 30 Aug - but a backup nobody can
+         see does nothing about the fear that stops people trusting an app at
+         all. Only ever says "backed up" when the server actually confirmed it. -->
+    <div id="backupStatus" class="backup-status">Not backed up yet</div>
     <button id="exportBtn" class="export-btn"><svg class="export-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 12v6a2 2 0 002 2h12a2 2 0 002-2v-6M16 6l-4-4-4 4M12 2v14" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg> Send my records to my own WhatsApp</button>
     <div class="export-note">Safe to tap &#x2014; sends your records to your own WhatsApp, nothing changes on your phone.</div>
+    <button id="recoverBtn" class="recover-link" type="button">Lost your phone? How to get your records back</button>
+  </div>
+
+  <!-- Recovery, made findable 4 Sep. Deliberately NOT a self-service restore
+       button: the shop name is the only key this app has (there is no signup,
+       which is the point), so a public "give me the records for this shop
+       name" endpoint would hand any trader's takings to anyone who guessed
+       their shop name. Until there is a real recovery code, the honest
+       version is to tell her plainly what her key is, tell her to write it
+       down, and give her a route to a human. -->
+  <div id="recoverSheet" class="sheet recover-sheet">
+    <h2>Getting your records back</h2>
+    <p class="recover-step">Your records are saved on this phone, and a safe copy is kept for you under your shop name.</p>
+    <p class="recover-step"><b>Your shop name is:</b></p>
+    <div id="recoverShopName" class="recover-key">not set yet</div>
+    <p class="recover-step">Write it down somewhere safe. It is how your copy is found again.</p>
+    <p class="recover-step"><b>1.</b> The safest thing today: tap <b>Send my records to my own WhatsApp</b> and send it to yourself. That copy is yours forever, even without this app.</p>
+    <p class="recover-step"><b>2.</b> If your phone is lost or broken, message us on WhatsApp with your shop name and we will send your records back to you.</p>
+    <a class="export-btn" style="text-decoration:none;margin-bottom:12px" target="_blank" rel="noopener" href="https://wa.me/233209090019?text=Hello%2C%20I%20lost%20my%20phone%20and%20I%20need%20my%20CountMy%20records%20back.%20My%20shop%20name%20is%3A%20">Message us to get my records</a>
+    <button id="recoverCloseBtn" class="btn btn-cancel" style="width:100%">Close</button>
   </div>
 
   <!-- Real advice, 28 Aug, from real testing (Bobby's mum, born 1964, and
@@ -625,7 +716,7 @@ input[type="number"]{-moz-appearance:textfield}
      string is what forces a fresh script fetch even before any service worker logic
      runs, independent of it. Found live 27 Aug: without this, an already-visited
      browser can keep running old code from plain HTTP cache regardless of SW strategy. -->
-<script src="app.js?v=53"></script>
+<script src="app.js?v=54"></script>
 
 <!-- Analytics for the Silent Alpha pilot only (27 Aug) - added to observe real
      merchant behavior (what they tap first, voice vs manual usage), NOT to
