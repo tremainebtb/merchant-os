@@ -777,17 +777,39 @@ function sanitizeImageEvents(rawEvents) {
 // Split out 30 Aug for the same reason as transcribeAudio above - lets
 // /transcribe-and-extract run this step immediately after transcription,
 // on the edge, without a round trip back to the client in between.
+// Does the sentence contain an amount at all? Used only to decide whether a
+// completely empty extraction is worth one more attempt - there is no point
+// retrying "hello" or a cough.
+function mentionsANumber(text) {
+  const t = String(text || '').toLowerCase();
+  if (/\d/.test(t)) return true;
+  return /\b(one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand)\b/.test(t);
+}
+
+async function runExtractionModel(text, env, temperature) {
+  return env.AI.run('@cf/meta/llama-3.2-3b-instruct', {
+    messages: [
+      { role: 'system', content: EXTRACT_SYSTEM_PROMPT },
+      { role: 'user', content: text }
+    ],
+    max_tokens: 700,
+    // Real bug, measured live 4 Sep: with no temperature set, the model
+    // samples at its default and the SAME sentence gives different answers on
+    // different runs - "I spent 35 cedis on transport" extracted correctly on
+    // one call and returned nothing at all on the next. For pulling three
+    // fixed fields out of one short sentence there is no upside to sampling;
+    // it is pure variance on top of an already-hard task. 0 makes the same
+    // words always produce the same entry, which is also what makes this
+    // testable at all.
+    temperature
+  });
+}
+
 async function extractFromText(text, env) {
   if (!text) return { events: [] };
   let result;
   try {
-    result = await env.AI.run('@cf/meta/llama-3.2-3b-instruct', {
-      messages: [
-        { role: 'system', content: EXTRACT_SYSTEM_PROMPT },
-        { role: 'user', content: text }
-      ],
-      max_tokens: 700
-    });
+    result = await runExtractionModel(text, env, 0);
   } catch (err) {
     return { events: [], error: 'extraction unavailable right now - try again, or fill in manually', detail: String(err).slice(0, 200) };
   }
@@ -813,7 +835,33 @@ async function extractFromText(text, env) {
   }
   if (!Array.isArray(events)) events = [];
 
-  return { events: sanitizeEvents(events, text) };
+  let clean = sanitizeEvents(events, text);
+  // Getting nothing back is the worst outcome there is: the owner spoke, the
+  // app heard her, and then silently offered her nothing. If she clearly said
+  // an amount and we still produced no entry, it is worth one more attempt -
+  // at a non-zero temperature, since repeating the deterministic call would
+  // return the identical empty answer. Only ever one retry, and only when a
+  // number was actually mentioned, so a cough never costs a second call.
+  if (clean.length === 0 && mentionsANumber(text)) {
+    try {
+      const retry = await runExtractionModel(text, env, 0.4);
+      const retryField = retry && retry.response;
+      let retryEvents = [];
+      if (Array.isArray(retryField)) {
+        retryEvents = retryField;
+      } else if (typeof retryField === 'string') {
+        try {
+          const m = retryField.match(/\[[\s\S]*\]/);
+          retryEvents = m ? JSON.parse(m[0]) : [];
+        } catch (e) { retryEvents = []; }
+      }
+      if (Array.isArray(retryEvents)) clean = sanitizeEvents(retryEvents, text);
+    } catch (e) {
+      // Keep the empty first answer; a failed retry must never fail the request.
+    }
+  }
+
+  return { events: clean };
 }
 
 // Thin wrapper kept for backward compatibility.
