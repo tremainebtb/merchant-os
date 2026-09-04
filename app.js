@@ -2062,3 +2062,18 @@ function bumpVisitCount() {
 })();
 
 // CANARY_TEST_12345
+
+// The four typed category buttons used to sit open on the home screen, five
+// competing ways to record one sale. Voice and the camera handle every type on
+// their own, so typing is the fallback for someone who would rather type - one
+// tap away, not a decision she has to make before she can start.
+var typeToggleBtn = document.getElementById('typeToggle');
+if (typeToggleBtn) {
+  typeToggleBtn.addEventListener('click', function () {
+    var box = document.getElementById('typeChoices');
+    if (!box) return;
+    var opening = box.hidden;
+    box.hidden = !opening;
+    typeToggleBtn.hidden = opening;
+  });
+}

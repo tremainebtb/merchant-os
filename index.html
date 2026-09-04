@@ -237,6 +237,8 @@ input[type="number"]{-moz-appearance:textfield}
 .confirm-line{background:var(--leaf-soft);color:var(--leaf-deep);border-radius:10px;padding:14px;font-size:1.05rem;margin-bottom:14px;font-weight:600;display:none}
 .confirm-line.show{display:block}
 .safety-block{background:var(--surface);border:1px solid var(--rule);border-radius:14px;padding:16px;margin-top:26px}
+.type-toggle{width:100%;background:none;border:none;padding:14px;font-family:"Manrope",sans-serif;font-size:1rem;font-weight:700;color:var(--muted);text-decoration:underline;cursor:pointer}
+.type-choices{display:flex;flex-direction:column;gap:10px}
 .export-btn{width:100%;background:var(--paper);border:1px solid var(--rule);border-radius:12px;padding:12px;font-size:.95rem;font-weight:700;color:var(--ink);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px}
 .export-icon{flex:none;width:20px;height:20px}
 .export-note{font-size:.89rem;font-weight:500;color:var(--muted);margin-top:8px;line-height:1.45}
@@ -402,7 +404,31 @@ input[type="number"]{-moz-appearance:textfield}
        of the "so much text" problem - said the same thing twice, in two
        different sizes. Down to one line: the name, self-explained in the
        same breath, nothing above it, nothing to read before it. -->
-  <h1 class="pitch">CountMy <span class="brand-sub">&#x2014; your free money notebook</span></h1>
+  <h1 class="pitch">CountMy</h1>
+  <button id="homeMicBtn" class="home-mic-btn" type="button" aria-label="Tap and speak what happened">
+    <svg viewBox="0 0 24 24" fill="none"><path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3Z" stroke="currentColor" stroke-width="2"/><path d="M19 11a7 7 0 0 1-14 0M12 18v3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+    <span class="home-mic-label">Tap and speak</span>
+    <!-- Live proof the phone is actually hearing you - bars move with your
+         voice in real time. No text to read: if you speak and nothing
+         moves, you instantly know something's wrong, instead of finding
+         out only after tapping stop and waiting for a result. -->
+    <div id="micLevelMeter" class="mic-level-meter" aria-hidden="true">
+      <span></span><span></span><span></span><span></span><span></span>
+    </div>
+  </button>
+  <!-- Real feedback, 28 Aug: "is twi available? or pidgin english?" - a real
+       user had no way to know without guessing and just trying. Say it
+       plainly, right where the decision to speak is made. -->
+  <div class="mic-lang-line">Speak English, Twi, or Pidgin</div>
+  <div id="homeMicStatus" class="home-mic-status" aria-live="polite"></div>
+  <div id="voiceReview" class="voice-review">
+    <div class="voice-review-head">
+      <span id="voiceReviewTitle">What I heard - check each one, then Save</span>
+      <button id="voiceReviewCloseBtn" class="admin-close">&#x2715;</button>
+    </div>
+    <div id="voiceReviewList"></div>
+  </div>
+
 
   <!-- Real ask, 1 Sep: get today's records to WhatsApp without her having to
        remember the Export button exists. True zero-tap/silent send isn't
@@ -535,35 +561,11 @@ input[type="number"]{-moz-appearance:textfield}
        hear exactly what will happen, then try the same thing themselves -
        show, not tell. Fades after the same first-few-visits window as
        everything else first-time-only on this page. -->
+
   <button id="demoBtn" class="demo-btn" type="button">
     <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/><path d="M10 8.5v7l6-3.5-6-3.5z" fill="currentColor"/></svg>
     See how it works
   </button>
-
-  <button id="homeMicBtn" class="home-mic-btn" type="button" aria-label="Tap and speak what happened">
-    <svg viewBox="0 0 24 24" fill="none"><path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3Z" stroke="currentColor" stroke-width="2"/><path d="M19 11a7 7 0 0 1-14 0M12 18v3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-    <span class="home-mic-label">Tap and speak</span>
-    <!-- Live proof the phone is actually hearing you - bars move with your
-         voice in real time. No text to read: if you speak and nothing
-         moves, you instantly know something's wrong, instead of finding
-         out only after tapping stop and waiting for a result. -->
-    <div id="micLevelMeter" class="mic-level-meter" aria-hidden="true">
-      <span></span><span></span><span></span><span></span><span></span>
-    </div>
-  </button>
-  <!-- Real feedback, 28 Aug: "is twi available? or pidgin english?" - a real
-       user had no way to know without guessing and just trying. Say it
-       plainly, right where the decision to speak is made. -->
-  <div class="mic-lang-line">Speak English, Twi, or Pidgin</div>
-  <div class="mic-trust-line">&#x1F512; Free. No signup. Backed up safely, so it's never lost.</div>
-  <div id="homeMicStatus" class="home-mic-status" aria-live="polite"></div>
-  <div id="voiceReview" class="voice-review">
-    <div class="voice-review-head">
-      <span id="voiceReviewTitle">What I heard - check each one, then Save</span>
-      <button id="voiceReviewCloseBtn" class="admin-close">&#x2715;</button>
-    </div>
-    <div id="voiceReviewList"></div>
-  </div>
 
   <div class="hist-label">Recent</div>
   <div id="history"><div class="empty">Nothing recorded yet. Add your first sale above.</div></div>
@@ -573,7 +575,6 @@ input[type="number"]{-moz-appearance:textfield}
        buttons are the fallback for someone who'd rather type, not the main
        decision on the screen. Moved below Recent so voice and the Today
        card are the only things competing for attention on first load. -->
-  <div class="or-row">or snap it or type it</div>
   <div class="actions">
     <!-- Photo entry, 2 Sep. Real, everyday habit this meets: most of the
          traders this is for already write the day's sales in an exercise
@@ -587,25 +588,28 @@ input[type="number"]{-moz-appearance:textfield}
          from it lands in the same check-then-Save cards as voice. -->
     <button id="snapBtn" type="button" class="act-btn act-snap">
       <svg class="act-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 8.5A1.5 1.5 0 015.5 7h2.2l1.1-2h6.4l1.1 2h2.2A1.5 1.5 0 0120 8.5V18a1.5 1.5 0 01-1.5 1.5h-13A1.5 1.5 0 014 18V8.5z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><circle cx="12" cy="13" r="3.2" stroke="currentColor" stroke-width="2"/></svg>
-      <span>Snap your book or receipt<small>Take a photo, it reads the amounts</small></span>
+      <span>Snap your book or receipt</span>
     </button>
     <input id="snapInput" type="file" accept="image/*" capture="environment" hidden>
+    <div id="typeChoices" class="type-choices" hidden>
     <button class="act-btn act-sale" data-type="sale">
       <svg class="act-icon" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/><path d="M12 7v10M9 9.5c0-1 1-1.8 3-1.8s3 .8 3 1.8-1 1.5-3 1.5-3 .5-3 1.5 1 1.8 3 1.8 3-.8 3-1.8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
-      <span>+ Sale<small>What you sold, how many, price</small></span>
+      <span>+ Sale</span>
     </button>
     <button class="act-btn act-expense" data-type="expense">
       <svg class="act-icon" viewBox="0 0 24 24" fill="none"><rect x="4" y="7" width="16" height="12" rx="2" stroke="currentColor" stroke-width="2"/><path d="M8 7V5.5A2.5 2.5 0 0110.5 3h3A2.5 2.5 0 0116 5.5V7M9 13h6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-      <span>+ Expense<small>What you spent</small></span>
+      <span>+ Expense</span>
     </button>
     <button class="act-btn act-owe-me" data-type="debt_in">
       <svg class="act-icon" viewBox="0 0 24 24" fill="none"><circle cx="9" cy="8" r="3" stroke="currentColor" stroke-width="2"/><path d="M3 20c0-3.3 2.7-5.5 6-5.5S15 16.7 15 20" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M18 8v6M15 11h6" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>
-      <span>Customer owes me<small>Track who owes me</small></span>
+      <span>Customer owes me</span>
     </button>
     <button class="act-btn act-owe-supplier" data-type="debt_out">
       <svg class="act-icon" viewBox="0 0 24 24" fill="none"><circle cx="9" cy="8" r="3" stroke="currentColor" stroke-width="2"/><path d="M3 20c0-3.3 2.7-5.5 6-5.5S15 16.7 15 20" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M15 11h6" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>
-      <span>I owe supplier<small>Track what I owe</small></span>
+      <span>I owe supplier</span>
     </button>
+    </div>
+    <button id="typeToggle" type="button" class="type-toggle">Type it instead</button>
   </div>
   <div id="snapStatus" class="home-mic-status snap-status" aria-live="polite"></div>
 
@@ -729,7 +733,7 @@ input[type="number"]{-moz-appearance:textfield}
      string is what forces a fresh script fetch even before any service worker logic
      runs, independent of it. Found live 27 Aug: without this, an already-visited
      browser can keep running old code from plain HTTP cache regardless of SW strategy. -->
-<script src="app.js?v=55"></script>
+<script src="app.js?v=56"></script>
 
 <!-- Analytics for the Silent Alpha pilot only (27 Aug) - added to observe real
      merchant behavior (what they tap first, voice vs manual usage), NOT to
