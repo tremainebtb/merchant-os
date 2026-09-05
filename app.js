@@ -678,9 +678,16 @@ function renderVoiceReview() {
   wrap.classList.add('open');
   const title = document.getElementById('voiceReviewTitle');
   if (title) {
-    title.textContent = pendingVoiceSource === 'photo'
-      ? 'From your photo - check each one, then Save'
-      : 'What I heard - check each one, then Save';
+    // Say what actually happened. Complete entries are already saved the
+    // moment they are heard (see autoSaveReadyEvents), so telling her to
+    // "check, then Save" described a step that no longer exists - flagged
+    // by the independent v60 review, 5 Sep.
+    const anySaved = pendingVoiceEvents.some(ev => ev._savedId);
+    const anyPending = pendingVoiceEvents.some(ev => !ev._savedId);
+    const from = pendingVoiceSource === 'photo' ? 'From your photo' : 'What I heard';
+    title.textContent = anySaved && !anyPending ? `${from} - saved. Tap Undo if any is wrong`
+      : anySaved ? `${from} - saved. Please check the ones marked`
+      : `${from} - please check, then tap Save`;
   }
   list.innerHTML = pendingVoiceEvents.map((ev, i) => {
     const nameLabel = ev.type === 'debt_in' ? 'Customer name' : ev.type === 'debt_out' ? 'Supplier name' : 'What';
@@ -1350,8 +1357,15 @@ async function render() {
   // book away, and confirms the fear that being in a system costs you. Her
   // records are hers, all of them, always. The paid tier is now optional
   // support for keeping CountMy free, not a wall in front of her history.
-  const visible = entries;
-  histEl.innerHTML = visible.slice(0, 30).map(e => {
+  // Independent v60 review (5 Sep) caught what I missed: the 30-row cap
+  // meant a debt at position 31 still counted in "Customers owe me" but had
+  // no visible way to mark it paid. Two rules now: every debt with money
+  // still outstanding is always on screen however old it is, and the rest
+  // shows the newest 30 with a plain button to show everything.
+  const isOpenDebt = e => FIELD_CONFIG[e.type].isDebt && (e.amount - (e.paid || 0)) > 0;
+  const visible = showAllHistory ? entries : entries.filter((e, i) => i < 30 || isOpenDebt(e));
+  const hiddenCount = entries.length - visible.length;
+  histEl.innerHTML = visible.map(e => {
     const cfg = FIELD_CONFIG[e.type];
     const sign = cfg.amountSign > 0 ? '+' : '\u2212';
     const cls = cfg.amountSign > 0 ? 'pos' : 'neg';
@@ -1390,14 +1404,16 @@ async function render() {
       <div class="desc" data-clarity-mask="True">${cfg.desc(e)}${settledTag}<small>${when}</small>${agingLine}${remind}${paymentRow}</div>
       <div class="amt ${cls}" data-clarity-mask="True">${sign}${fmt(displayAmount)}</div>
     </div>`;
-  }).join('');
+  }).join('') + (hiddenCount > 0 ? `<button type="button" class="show-all-btn" id="showAllBtn">Show all ${entries.length} records</button>` : '');
 }
 
 // Real gap, closed 28 Aug: recording a repayment against a debt was simply
 // impossible before this - "Customers owe me" only ever went up. Delegated
 // on #history once (not per-render, since innerHTML is fully replaced on
 // every render()) rather than rebinding listeners on every redraw.
+let showAllHistory = false;
 document.getElementById('history').addEventListener('click', async (e) => {
+  if (e.target.closest('#showAllBtn')) { showAllHistory = true; render(); return; }
   const fullBtn = e.target.closest('.debt-full-btn');
   const payBtn = e.target.closest('.debt-pay-btn');
   const toggleBtn = e.target.closest('.debt-partial-toggle');

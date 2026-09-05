@@ -247,6 +247,7 @@ input[type="number"]{-moz-appearance:textfield}
 .confirm-line{background:var(--leaf-soft);color:var(--leaf-deep);border-radius:10px;padding:14px;font-size:1.05rem;margin-bottom:14px;font-weight:600;display:none}
 .confirm-line.show{display:block}
 .safety-block{background:var(--surface);border:1px solid var(--rule);border-radius:14px;padding:16px;margin-top:26px}
+.show-all-btn{width:100%;margin-top:10px;background:none;border:1px solid var(--rule);border-radius:12px;padding:12px;font-family:"Manrope",sans-serif;font-size:.95rem;font-weight:700;color:var(--ink-soft);cursor:pointer}
 .type-toggle{width:100%;background:none;border:none;padding:14px;font-family:"Manrope",sans-serif;font-size:1rem;font-weight:700;color:var(--muted);text-decoration:underline;cursor:pointer}
 .type-choices{display:flex;flex-direction:column;gap:10px}
 .export-btn{width:100%;background:var(--paper);border:1px solid var(--rule);border-radius:12px;padding:12px;font-size:.95rem;font-weight:700;color:var(--ink);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px}
@@ -433,7 +434,7 @@ input[type="number"]{-moz-appearance:textfield}
   <div id="homeMicStatus" class="home-mic-status" aria-live="polite"></div>
   <div id="voiceReview" class="voice-review">
     <div class="voice-review-head">
-      <span id="voiceReviewTitle">What I heard - check each one, then Save</span>
+      <span id="voiceReviewTitle">What I heard</span>
       <button id="voiceReviewCloseBtn" class="admin-close">&#x2715;</button>
     </div>
     <div id="voiceReviewList"></div>
@@ -718,7 +719,7 @@ input[type="number"]{-moz-appearance:textfield}
          at all, and the fear made them quit rather than feel reassured.
          Said as a plain fact about what we ask for, with no threat words. -->
     <div class="plan-safety"><span>&#x1F512;</span> All we need is your shop name above &#x2014; nothing else, ever.</div>
-    <p class="plan-note">We turn on Paid the same day we see your payment. This is optional &#x2014; the free app keeps working either way.</p>
+    <p class="plan-note">Thank you. Nothing changes in the app whether you send it or not &#x2014; every part of CountMy stays free for you.</p>
     <button id="planCloseBtn" class="btn btn-cancel" style="width:100%">Close</button>
   </div>
 </div>
@@ -743,7 +744,7 @@ input[type="number"]{-moz-appearance:textfield}
      string is what forces a fresh script fetch even before any service worker logic
      runs, independent of it. Found live 27 Aug: without this, an already-visited
      browser can keep running old code from plain HTTP cache regardless of SW strategy. -->
-<script src="app.js?v=60"></script>
+<script src="app.js?v=61"></script>
 
 <!-- Analytics for the Silent Alpha pilot only (27 Aug) - added to observe real
      merchant behavior (what they tap first, voice vs manual usage), NOT to
