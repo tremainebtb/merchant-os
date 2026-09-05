@@ -661,7 +661,7 @@ async function autoSaveReadyEvents(events) {
     const id = crypto.randomUUID();
     const record = { id, type: entry.type, item: entry.item, note: entry.note, qty: entry.qty, price: entry.price, kind: entry.kind || '', paid: 0, amount: entry.amount, source: pendingVoiceSource, day: todayKey(ts), ts };
     await addEntry(record);
-    track('save_entry', { type: entry.type, source: pendingVoiceSource });
+    track('save_entry', { type: entry.type, input_method: pendingVoiceSource });
     ping('save');
     ev._savedId = id;
     saved.push(record);
@@ -747,7 +747,7 @@ function renderVoiceReview() {
     const id = crypto.randomUUID();
     const record = { id, type: entry.type, item: entry.item, note: entry.note, qty: entry.qty, price: entry.price, kind: entry.kind || '', paid: 0, amount: entry.amount, source: pendingVoiceSource, day: todayKey(ts), ts };
     await addEntry(record);
-    track('save_entry', { type: entry.type, source: pendingVoiceSource });
+    track('save_entry', { type: entry.type, input_method: pendingVoiceSource });
     ping('save');
     ev._savedId = id;
     renderVoiceReview();
@@ -1169,7 +1169,7 @@ async function saveEntry() {
       ts
     };
     await addEntry(record);
-    track('save_entry', { type: activeType, source: sheetVoiceFilled ? 'voice' : 'manual' });
+    track('save_entry', { type: activeType, input_method: sheetVoiceFilled ? 'voice' : 'manual' });
     ping('save');
     closeSheet();
     await render();
