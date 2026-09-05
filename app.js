@@ -1232,7 +1232,10 @@ async function saveEntry() {
       closeSheet();
       await render();
     } else {
-      throw err;
+      // Same guard as the two voice paths (5 Sep): a storage failure must
+      // say so in plain words, not vanish into an unhandled rejection.
+      track('save_error', { where: 'typed', reason: (err && err.name) || 'unknown' });
+      alert('Sorry, the phone could not save that. Please tap Save again.');
     }
   } finally {
     saving = false;
