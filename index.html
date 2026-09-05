@@ -398,10 +398,38 @@ input[type="number"]{-moz-appearance:textfield}
 .recover-sheet.open{display:block;margin-top:14px}
 .recover-key{font-family:"Manrope",sans-serif;font-weight:800;font-size:1.1rem;color:var(--ink);background:var(--paper);border:1px solid var(--rule);border-radius:10px;padding:10px 12px;margin:8px 0 12px;word-break:break-word}
 .recover-step{margin:0 0 10px;font-size:.95rem}
+
+/* ---- Integrated from an independent v63 review (5 Sep), every number
+   re-measured on the live site before landing here. Order matters: these
+   sit last so same-specificity rules above are overridden. ---- */
+/* Dark theme put white text on bright fills: measured 1.77:1 to 2.95:1,
+   below even the 3:1 large-text floor. Dark ink on those fills gives
+   5.8:1 to 9.7:1. Light theme keeps its current pairs; only the small
+   orange controls move to the deeper orange (4.0:1 -> 6.2:1). */
+:root{--filled-ink:#FFFFFF;--small-flame-bg:#A83F12}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--filled-ink:#221A12;--small-flame-bg:var(--flame)}}
+:root[data-theme="dark"]{--filled-ink:#221A12;--small-flame-bg:var(--flame)}
+.home-mic-btn,.act-sale,.act-expense,.act-owe-me,.btn-save,.voice-card-status.saved,.eod-send-btn,.act-banner-go,.hear-btn.speaking{color:var(--filled-ink)}
+.act-banner-go,.hear-btn.speaking{background:var(--small-flame-bg)}
+.home-mic-btn .mic-level-meter span{background:currentColor}
+/* Measured live: typed inputs and Save/Cancel/export rendered in Arial -
+   browsers give form controls their own font unless told otherwise. */
+.field input,.plan-pay-input,.debt-pay-input{font-family:inherit}
+.btn,.export-btn,.admin-close{font-family:"Manrope",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+/* Measured live at 375px: Hear 36px high, Support 30px. 44px is the
+   enhanced target, chosen on purpose for hands that have worked a market
+   stall for forty years, not the 24px minimum. Big primary controls are
+   already larger and untouched. */
+.hear-btn,.plan-link,.recover-link,.admin-close,.debt-pay-btn,.debt-full-btn,.debt-partial-toggle,.delete-entry-btn,.eod-send-btn,.eod-dismiss-btn,.act-banner-go,.act-banner-dismiss,.remind-btn{min-height:44px;min-width:44px}
+.admin-close{flex-shrink:0}
+.remind-btn{display:inline-flex;align-items:center;justify-content:center}
+/* My own bug from v56, measured live: the typed choices sat in one column
+   of the two-column actions grid, 167px of the 343px available. */
+.type-choices,.type-toggle{grid-column:1 / -1}
 </style>
 </head>
 <body>
-<div class="wrap">
+<main class="wrap">
   <!-- Real Clarity finding, 28 Aug: users tapped this repeatedly with zero
        response - it looked like a button (rounded, colored, sits at the top)
        but was a static div. A worried first-time user tapping something
@@ -722,7 +750,7 @@ input[type="number"]{-moz-appearance:textfield}
     <p class="plan-note">Thank you. Nothing changes in the app whether you send it or not &#x2014; every part of CountMy stays free for you.</p>
     <button id="planCloseBtn" class="btn btn-cancel" style="width:100%">Close</button>
   </div>
-</div>
+</main>
 
 <div class="footer-row">
   <!-- Real advice, 28 Aug: an independent review flagged "nothing more" as
@@ -744,7 +772,7 @@ input[type="number"]{-moz-appearance:textfield}
      string is what forces a fresh script fetch even before any service worker logic
      runs, independent of it. Found live 27 Aug: without this, an already-visited
      browser can keep running old code from plain HTTP cache regardless of SW strategy. -->
-<script src="app.js?v=63"></script>
+<script src="app.js?v=64"></script>
 
 <!-- Analytics for the Silent Alpha pilot only (27 Aug) - added to observe real
      merchant behavior (what they tap first, voice vs manual usage), NOT to

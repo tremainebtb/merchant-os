@@ -686,7 +686,20 @@ async function autoSaveReadyEvents(events) {
     const ts = Date.now();
     const id = crypto.randomUUID();
     const record = { id, type: entry.type, item: entry.item, note: entry.note, qty: entry.qty, price: entry.price, kind: entry.kind || '', paid: 0, amount: entry.amount, source: pendingVoiceSource, day: todayKey(ts), ts };
-    await addEntry(record);
+    // Independent v63 review (5 Sep): a rejected save used to throw straight
+    // out of this loop into the recording handler's catch, which reported it
+    // as a transcription failure - text only, no speech, no review, and any
+    // entries saved earlier in the same batch never shown. Each save now
+    // succeeds or fails on its own; a failed one keeps its Save button so
+    // a second tap retries only that entry.
+    try {
+      await addEntry(record);
+    } catch (err) {
+      ev._saveError = true;
+      track('save_error', { where: 'voice_auto', reason: (err && err.name) || 'unknown' });
+      continue;
+    }
+    ev._saveError = false;
     track('save_entry', { type: entry.type, input_method: pendingVoiceSource });
     ping('save');
     ev._savedId = id;
@@ -779,7 +792,13 @@ function renderVoiceReview() {
     const ts = Date.now();
     const id = crypto.randomUUID();
     const record = { id, type: entry.type, item: entry.item, note: entry.note, qty: entry.qty, price: entry.price, kind: entry.kind || '', paid: 0, amount: entry.amount, source: pendingVoiceSource, day: todayKey(ts), ts };
-    await addEntry(record);
+    try {
+      await addEntry(record);
+    } catch (err) {
+      track('save_error', { where: 'voice_manual', reason: (err && err.name) || 'unknown' });
+      alert('Sorry, the phone could not save that. Please tap Save again.');
+      return;
+    }
     track('save_entry', { type: entry.type, input_method: pendingVoiceSource });
     ping('save');
     ev._savedId = id;
