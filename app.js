@@ -634,7 +634,11 @@ function speakVoiceReview(events) {
   events.forEach(ev => {
     const entry = eventToEntry(ev);
     const missing = voiceMissing(ev);
-    if (ev._savedId || !missing) { lines.push(`Saved: ${entry.item}, ${fmt(entry.amount)}.`); return; }
+    // "Saved" is only ever spoken for an entry that really has a saved id.
+    // A complete entry with no id means the save itself failed - say so,
+    // never announce a save that did not happen.
+    if (ev._savedId) { lines.push(`Saved: ${entry.item}, ${fmt(entry.amount)}.`); return; }
+    if (!missing) { lines.push(`I heard ${entry.item}, ${fmt(entry.amount)}, but could not save it - please tap Save below.`); return; }
     if (missing === 'item') lines.push('I heard an amount but not what it was for - please type that in below.');
     else if (missing === 'qty') lines.push(`I heard ${entry.item} but not how many - please tap that in below.`);
     else lines.push(`I heard ${entry.item} but not the price - please tap it in below.`);
