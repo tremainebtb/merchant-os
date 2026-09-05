@@ -1566,7 +1566,15 @@ function showDebtReminder(entry) {
   link.href = 'https://wa.me/?text=' + encodeURIComponent(msg);
   link.textContent = `Remind ${name} on WhatsApp`;
   box.hidden = false;
-  speakShort(`${name} owes you ${fmt(owed)}. Do you want to remind ${name} now?`);
+  // Spoken read-back stays: for someone who cannot read the card, hearing
+  // the name and amount is the only check that the phone heard "Ama, 120"
+  // and not "am aos, 20" (both seen live, 4 Sep). It is also the existing
+  // market practice made digital - Kumasi research documents credit being
+  // stated aloud in front of a witness so both sides remember it. What is
+  // NOT spoken any more (5 Sep) is the question about reminding her: said
+  // aloud with the customer standing there, it announces that the trader is
+  // being prompted to chase her, and it verifies nothing. The button asks.
+  speakShort(`${name} owes you ${fmt(owed)}.`);
   clearTimeout(debtReminderTimer);
   // Never permanent - it is a prompt about one debt, not a part of the page.
   debtReminderTimer = setTimeout(() => { box.hidden = true; }, 25000);
