@@ -695,8 +695,8 @@ input[type="number"]{-moz-appearance:textfield}
        feel unconditionally free, with the option to see full history
        reachable, but not pushed. -->
   <div id="planSheet" class="sheet plan-sheet">
-    <h2>See all your old records</h2>
-    <p class="plan-copy">Free shows your last 7 days. Pay 99 cedis once a year to see everything, always &#x2014; less than 2 cedis a week.</p>
+    <h2>Support CountMy</h2>
+    <p class="plan-copy">CountMy is free, and all your records stay yours. If it helps your shop, 99 cedis once a year keeps it free for everyone. Nothing changes if you don't.</p>
     <div class="plan-pay-box">
       <div class="plan-pay-label">Step 1 &#x2014; Please type your shop name below</div>
       <input id="shopIdInput" class="plan-pay-input" type="text" autocomplete="off" placeholder="mama ama provisions" data-clarity-mask="True">
@@ -737,13 +737,13 @@ input[type="number"]{-moz-appearance:textfield}
 <!-- Moved out of the main screen (see note above the trust-block) - still
      fully reachable for the small number of people who want it, just no
      longer sitting where it reads as a contradiction to "always free." -->
-<button id="planPill" class="plan-link">See your full history (optional, 99 cedis/year)</button>
+<button id="planPill" class="plan-link">Support CountMy (optional, 99 cedis a year)</button>
 
 <!-- Bump ?v= on every deploy alongside the service-worker CACHE version &#x2014; this query
      string is what forces a fresh script fetch even before any service worker logic
      runs, independent of it. Found live 27 Aug: without this, an already-visited
      browser can keep running old code from plain HTTP cache regardless of SW strategy. -->
-<script src="app.js?v=58"></script>
+<script src="app.js?v=59"></script>
 
 <!-- Analytics for the Silent Alpha pilot only (27 Aug) - added to observe real
      merchant behavior (what they tap first, voice vs manual usage), NOT to

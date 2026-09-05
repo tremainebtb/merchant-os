@@ -1222,7 +1222,7 @@ function renderAdmin() {
   // how it's worded, for this exact audience. Demoted to a small, low-key
   // link instead of a full-width button pitching payment - still reachable,
   // no longer competing with the free promise for attention.
-  document.getElementById('planPill').textContent = paid ? 'Paid \u00b7 everything you have recorded' : 'See your full history (optional, 99 cedis/year)';
+  document.getElementById('planPill').textContent = paid ? 'Thank you for supporting CountMy' : 'Support CountMy (optional, 99 cedis a year)';
   const shopInput = document.getElementById('shopIdInput');
   if (shopInput && document.activeElement !== shopInput) shopInput.value = getShopId();
 }
@@ -1344,9 +1344,13 @@ async function render() {
     histEl.innerHTML = '<div class="empty">Nothing recorded yet. Add your first sale above.</div>';
     return;
   }
-  const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
-  const visible = isPaid() ? entries : entries.filter(e => e.ts >= cutoff);
-  const hiddenCount = entries.length - visible.length;
+  // The 7-day lockout is gone (5 Sep). Two independent evidence reviews and
+  // a 3,000-firm Accra survey point the same way: for this audience, watching
+  // her own records vanish after a week reads as the app taking her money
+  // book away, and confirms the fear that being in a system costs you. Her
+  // records are hers, all of them, always. The paid tier is now optional
+  // support for keeping CountMy free, not a wall in front of her history.
+  const visible = entries;
   histEl.innerHTML = visible.slice(0, 30).map(e => {
     const cfg = FIELD_CONFIG[e.type];
     const sign = cfg.amountSign > 0 ? '+' : '\u2212';
@@ -1386,7 +1390,7 @@ async function render() {
       <div class="desc" data-clarity-mask="True">${cfg.desc(e)}${settledTag}<small>${when}</small>${agingLine}${remind}${paymentRow}</div>
       <div class="amt ${cls}" data-clarity-mask="True">${sign}${fmt(displayAmount)}</div>
     </div>`;
-  }).join('') + (hiddenCount > 0 ? `<div class="empty">${hiddenCount} older entr${hiddenCount === 1 ? 'y' : 'ies'} \u2014 go Paid to see your full history</div>` : '');
+  }).join('');
 }
 
 // Real gap, closed 28 Aug: recording a repayment against a debt was simply
