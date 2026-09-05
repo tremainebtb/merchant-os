@@ -72,19 +72,23 @@ function todayKey(ts) {
 // forget, and it never blocks or fails the real local save if it's offline
 // or the request fails.
 function syncEntryToServer(entry, deleted) {
-  if (window.KYM_IS_OWNER_DEVICE) return;
-  if (!navigator.onLine) return;
-  const shop = getShopId() || getDeviceId();
-  fetch(`${API_BASE}/sync`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ shop, entry, deleted: !!deleted })
-  }).then(res => {
-    // Only on a real server confirmation - claiming "backed up" because a
-    // request was merely sent would be the same broken promise the apps
-    // that lost people's records made.
-    if (res && res.ok) { markBackedUp(); renderBackupStatus(); }
-  }).catch(() => {});
+  try {
+    if (window.KYM_IS_OWNER_DEVICE) return;
+    if (!navigator.onLine) return;
+    const shop = getShopId() || getDeviceId();
+    fetch(`${API_BASE}/sync`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ shop, entry, deleted: !!deleted })
+    }).then(res => {
+      // Only on a real server confirmation - claiming "backed up" because a
+      // request was merely sent would be the same broken promise the apps
+      // that lost people's records made.
+      if (res && res.ok) { markBackedUp(); renderBackupStatus(); }
+    }).catch(() => {});
+  } catch (err) {
+    // Local storage already committed. A backup setup failure must not hold it open.
+  }
 }
 
 // Real request, 30 Aug: "I need to see the ledger entries saved and I need
@@ -700,10 +704,10 @@ async function autoSaveReadyEvents(events) {
       continue;
     }
     ev._saveError = false;
-    track('save_entry', { type: entry.type, input_method: pendingVoiceSource });
-    ping('save');
     ev._savedId = id;
     saved.push(record);
+    track('save_entry', { type: entry.type, input_method: pendingVoiceSource });
+    ping('save');
   }
   // One prompt for the whole batch, never one per entry. A debt wins if the
   // batch contained one, since chasing the money beats counting entries.
@@ -787,24 +791,37 @@ function renderVoiceReview() {
   list.querySelectorAll('.voice-save').forEach(btn => btn.addEventListener('click', async (e) => {
     const idx = Number(e.target.dataset.idx);
     const ev = pendingVoiceEvents[idx];
+    if (!ev || ev._saving || ev._savedId) return;
     if (!voiceEventComplete(ev)) { alert('Fill in the missing number(s) first.'); return; }
-    const entry = eventToEntry(ev);
-    const ts = Date.now();
-    const id = crypto.randomUUID();
-    const record = { id, type: entry.type, item: entry.item, note: entry.note, qty: entry.qty, price: entry.price, kind: entry.kind || '', paid: 0, amount: entry.amount, source: pendingVoiceSource, day: todayKey(ts), ts };
+    ev._saving = true;
+    btn.disabled = true;
     try {
-      await addEntry(record);
-    } catch (err) {
-      track('save_error', { where: 'voice_manual', reason: (err && err.name) || 'unknown' });
-      alert('Sorry, the phone could not save that. Please tap Save again.');
-      return;
+      const entry = eventToEntry(ev);
+      const ts = Date.now();
+      const id = crypto.randomUUID();
+      const record = { id, type: entry.type, item: entry.item, note: entry.note, qty: entry.qty, price: entry.price, kind: entry.kind || '', paid: 0, amount: entry.amount, source: pendingVoiceSource, day: todayKey(ts), ts };
+      try {
+        await addEntry(record);
+      } catch (err) {
+        track('save_error', { where: 'voice_manual', reason: (err && err.name) || 'unknown' });
+        alert('Sorry, the phone could not save that. Please tap Save again.');
+        return;
+      }
+      ev._savedId = id;
+      try {
+        track('save_entry', { type: entry.type, input_method: pendingVoiceSource });
+        ping('save');
+        renderVoiceReview();
+        await render();
+        await afterEntrySaved(record);
+      } catch (err) {
+        track('refresh_error', { where: 'voice_manual', reason: (err && err.name) || 'unknown' });
+        alert('Saved. The screen could not update. Please refresh the page.');
+      }
+    } finally {
+      ev._saving = false;
+      btn.disabled = false;
     }
-    track('save_entry', { type: entry.type, input_method: pendingVoiceSource });
-    ping('save');
-    ev._savedId = id;
-    renderVoiceReview();
-    await render();
-    await afterEntrySaved(record);
   }));
 }
 
@@ -1036,7 +1053,11 @@ let sheetVoiceFilled = false;
 // watch usage patterns, not to duplicate the financial ledger inside Google's
 // servers. Safe no-op if GA4 was never configured (see index.html).
 function track(event, params) {
-  if (window.gtag) window.gtag('event', event, params || {});
+  try {
+    if (window.gtag) window.gtag('event', event, params || {});
+  } catch (err) {
+    // Analytics must never interrupt recording or saving a money entry.
+  }
 }
 
 // Real gap found 28 Aug: tracking only ever fired once someone typed a Shop
@@ -1059,14 +1080,18 @@ function getDeviceId() {
 }
 
 function ping(eventType) {
-  if (window.KYM_IS_OWNER_DEVICE) return; // see the ?owner=1 flag set in index.html
-  const shop = getShopId() || getDeviceId();
-  if (!navigator.onLine) return;
-  fetch(`${API_BASE}/ping`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ shop, event: eventType })
-  }).catch(() => {});
+  try {
+    if (window.KYM_IS_OWNER_DEVICE) return; // see the ?owner=1 flag set in index.html
+    const shop = getShopId() || getDeviceId();
+    if (!navigator.onLine) return;
+    fetch(`${API_BASE}/ping`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ shop, event: eventType })
+    }).catch(() => {});
+  } catch (err) {
+    // Usage reporting must never interrupt a locally committed save.
+  }
 }
 
 // Real gap, found 30 Aug from a live screenshot: a garbled voice entry sat
@@ -1180,62 +1205,65 @@ async function saveEntry() {
   saveBtn.disabled = true;
   saveBtn.textContent = 'Saving\u2026';
   try {
-    if (editingEntry) {
-      const patch = {
-        item: v.item,
-        note: v.note || '',
-        qty: v.qty || '',
-        price: v.price || '',
-        kind: v.kind || '',
-        method: v.method || '',
-        amount: amount
-      };
-      if (cfg.isDebt) patch.paid = Number(v.paid) || 0;
-      await updateEntry(editingEntry.id, patch);
-      track('edit_entry', { type: activeType });
-      closeSheet();
-      await render();
-      return;
+    let record = null;
+    let duplicate = false;
+    let edited = false;
+    try {
+      if (editingEntry) {
+        const patch = {
+          item: v.item,
+          note: v.note || '',
+          qty: v.qty || '',
+          price: v.price || '',
+          kind: v.kind || '',
+          method: v.method || '',
+          amount: amount
+        };
+        if (cfg.isDebt) patch.paid = Number(v.paid) || 0;
+        await updateEntry(editingEntry.id, patch);
+        edited = true;
+      } else {
+        const ts = Date.now();
+        const id = crypto.randomUUID();
+        record = {
+          id,
+          type: activeType,
+          item: v.item,
+          note: v.note || '',
+          qty: v.qty || '',
+          price: v.price || '',
+          kind: v.kind || '',
+          method: v.method || '',
+          paid: 0,
+          amount: amount,
+          source: sheetVoiceFilled ? 'voice' : 'manual',
+          day: todayKey(ts),
+          ts
+        };
+        await addEntry(record);
+      }
+    } catch (err) {
+      if (err && err.name === 'ConstraintError') {
+        duplicate = true;
+      } else {
+        track('save_error', { where: 'typed', reason: (err && err.name) || 'unknown' });
+        alert('Sorry, the phone could not save that. Please tap Save again.');
+        return;
+      }
     }
-    const ts = Date.now();
-    // Client-generated id, not IndexedDB autoIncrement \u2014 this is the idempotency key.
-    // Defense in depth beyond the button-disable above: if this same save ever got
-    // dispatched twice (a future sync retry, a bug), the store rejects the duplicate
-    // key instead of silently creating a second transaction. Kept simple deliberately \u2014
-    // no backend to reconcile against yet, so this only protects the local device today,
-    // but the id shape is what a future sync layer would need anyway.
-    const id = crypto.randomUUID();
-    const record = {
-      id,
-      type: activeType,
-      item: v.item,
-      note: v.note || '',
-      qty: v.qty || '',
-      price: v.price || '',
-      kind: v.kind || '',
-      method: v.method || '',
-      paid: 0,
-      amount: amount,
-      source: sheetVoiceFilled ? 'voice' : 'manual',
-      day: todayKey(ts),
-      ts
-    };
-    await addEntry(record);
-    track('save_entry', { type: activeType, input_method: sheetVoiceFilled ? 'voice' : 'manual' });
-    ping('save');
-    closeSheet();
-    await render();
-    await afterEntrySaved(record);
-  } catch (err) {
-    if (err && err.name === 'ConstraintError') {
-      // Same id already saved \u2014 treat as already-done, not a failure.
+    // Storage is complete. A failed refresh must not ask for another save.
+    try {
+      if (edited) track('edit_entry', { type: activeType });
+      else if (!duplicate) {
+        track('save_entry', { type: activeType, input_method: sheetVoiceFilled ? 'voice' : 'manual' });
+        ping('save');
+      }
       closeSheet();
       await render();
-    } else {
-      // Same guard as the two voice paths (5 Sep): a storage failure must
-      // say so in plain words, not vanish into an unhandled rejection.
-      track('save_error', { where: 'typed', reason: (err && err.name) || 'unknown' });
-      alert('Sorry, the phone could not save that. Please tap Save again.');
+      if (record && !duplicate) await afterEntrySaved(record);
+    } catch (err) {
+      track('refresh_error', { where: 'typed', reason: (err && err.name) || 'unknown' });
+      alert('Saved. The screen could not update. Please refresh the page.');
     }
   } finally {
     saving = false;
