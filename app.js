@@ -607,17 +607,39 @@ function fieldMarkup(value, idx, key, type, extraAttrs) {
 // so the safety net is still there, it's just after the fact instead of
 // before. Only a genuinely incomplete entry (heard an item, never caught
 // a number) still asks for a tap - because there is nothing yet TO save.
+// Independent v61 review (5 Sep) reproduced three cases where the phone
+// told her the wrong thing: "saved" when nothing was saved, and "not the
+// price" when what was actually missing was the quantity or the item. For
+// someone who cannot read the card, the spoken line IS the feedback, so it
+// has to name the real gap. One function decides what is missing; status
+// and speech both use it.
+function voiceMissing(ev) {
+  if (!ev.item || looksGarbled(ev.item)) return 'item';
+  if (!ev.price || Number(ev.price) <= 0) return 'price';
+  if (ev.type === 'sale' && (!ev.qty || Number(ev.qty) <= 0)) return 'qty';
+  return null;
+}
+function voiceOutcomeStatus(heard, events) {
+  const saved = events.filter(ev => ev._savedId).length;
+  const pending = events.length - saved;
+  const tail = saved && pending ? `saved ${saved}, please check the rest below.`
+    : saved ? 'saved, check it below.'
+    : 'not saved yet - please finish it below.';
+  return `Heard: \u201c${heard}\u201d \u2014 ${tail}`;
+}
+
 function speakVoiceReview(events) {
   if (!('speechSynthesis' in window)) return;
-  const saved = [], incomplete = [];
+  const lines = [];
   events.forEach(ev => {
     const entry = eventToEntry(ev);
-    if (!entry.item) return;
-    (voiceEventComplete(ev) && !looksGarbled(ev.item) ? saved : incomplete).push(entry);
+    const missing = voiceMissing(ev);
+    if (ev._savedId || !missing) { lines.push(`Saved: ${entry.item}, ${fmt(entry.amount)}.`); return; }
+    if (missing === 'item') lines.push('I heard an amount but not what it was for - please type that in below.');
+    else if (missing === 'qty') lines.push(`I heard ${entry.item} but not how many - please tap that in below.`);
+    else lines.push(`I heard ${entry.item} but not the price - please tap it in below.`);
   });
-  const lines = [];
-  saved.forEach(entry => lines.push(`Saved: ${entry.item}, ${fmt(entry.amount)}.`));
-  incomplete.forEach(entry => lines.push(`I heard ${entry.item} but not the price - tap it in below.`));
+  const saved = events.filter(ev => ev._savedId);
   if (!lines.length) return;
   const closer = saved.length
     ? 'If any of this is wrong, tap Undo under it.'
@@ -896,7 +918,7 @@ async function toggleMic(btn, statusId) {
           await autoSaveReadyEvents(pendingVoiceEvents);
           renderVoiceReview();
           closeSheet();
-          setMicStatus(`Heard: \u201c${heard}\u201d \u2014 saved, check it below.`, 'heard', statusId);
+          setMicStatus(voiceOutcomeStatus(heard, pendingVoiceEvents), 'heard', statusId);
           document.getElementById('voiceReview').scrollIntoView({ behavior: 'smooth', block: 'start' });
           speakVoiceReview(pendingVoiceEvents);
           await render();
@@ -914,7 +936,7 @@ async function toggleMic(btn, statusId) {
           await autoSaveReadyEvents(pendingVoiceEvents);
           renderVoiceReview();
           closeSheet();
-          setMicStatus(`Heard: \u201c${heard}\u201d \u2014 saved, check it below.`, 'heard', statusId);
+          setMicStatus(voiceOutcomeStatus(heard, pendingVoiceEvents), 'heard', statusId);
           document.getElementById('voiceReview').scrollIntoView({ behavior: 'smooth', block: 'start' });
           speakVoiceReview(pendingVoiceEvents);
           await render();
@@ -936,7 +958,7 @@ async function toggleMic(btn, statusId) {
             pendingVoiceEvents = [{ type: guessedType, item: parsed.item, price: parsed.price, qty: parsed.qty, note: '' }];
             await autoSaveReadyEvents(pendingVoiceEvents);
             renderVoiceReview();
-            setMicStatus(`Heard: \u201c${heard}\u201d \u2014 saved, check it below.`, 'heard', statusId);
+            setMicStatus(voiceOutcomeStatus(heard, pendingVoiceEvents), 'heard', statusId);
             document.getElementById('voiceReview').scrollIntoView({ behavior: 'smooth', block: 'start' });
             speakVoiceReview(pendingVoiceEvents);
             await render();
