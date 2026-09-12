@@ -1459,7 +1459,7 @@ async function render() {
     const agingLine = cfg.isDebt && !isSettled && daysOwed >= 1
       ? `<small class="debt-aging">Owed for ${daysOwed} day${daysOwed === 1 ? '' : 's'}</small>` : '';
     const remind = e.type === 'debt_in' && !isSettled
-      ? `<a class="remind-btn" target="_blank" rel="noopener" href="https://wa.me/?text=${encodeURIComponent(`Hello ${e.item}, your balance is ${fmt(remaining)}${e.note ? ' for ' + e.note : ''}. Please send by MoMo when you can. Thank you.`)}">Remind on WhatsApp</a>`
+      ? `<a class="remind-btn" target="_blank" rel="noopener" href="https://wa.me/?text=${encodeURIComponent(`Hello ${e.item}, your balance is ${fmt(remaining)}${e.note ? ' for ' + e.note : ''}. Please send by MoMo when you can. Thank you.${reminderHook()}`)}">Remind on WhatsApp</a>`
       : '';
     // "Small small" (bit by bit) is real, sourced, everyday Ghanaian
     // English used across all ages for gradual/partial payment - unlike
@@ -1596,6 +1596,15 @@ function speakToday() {
 // visit from a forwarded WhatsApp message and a visit from a Facebook post
 // were indistinguishable in GA4 - all 'direct' - so nothing about which
 // channel works could be learned. The tag names the door someone came in by.
+// The one acquisition channel any comparable app ever published a number for:
+// OkCredit found 3 in 10 people who received a payment reminder were shop
+// owners themselves, and got two organic sign-ups per paid one from that loop
+// alone (Lightspeed, 2019). Every reminder a trader sends to a customer now
+// carries the door in. Kept to one plain line under the real message.
+function reminderHook() {
+  return ' - Sent with CountMy, the free money notebook for shop owners: countmy.app/?utm_source=whatsapp&utm_medium=reminder&utm_campaign=debt';
+}
+
 function shareFooter(campaign) {
   return '\n\nI keep my shop money with CountMy. It is free: https://countmy.app/?utm_source=whatsapp&utm_medium=share&utm_campaign=' + campaign;
 }
@@ -1660,7 +1669,7 @@ function showDebtReminder(entry) {
   const name = entry.item || 'Your customer';
   document.getElementById('debtReminderText').textContent = `${name} owes you ${fmt(owed)}.`;
   const link = document.getElementById('debtReminderSend');
-  const msg = `Hello ${name}, your balance is ${fmt(owed)}${entry.note ? ' for ' + entry.note : ''}. Please send by MoMo when you can. Thank you.`;
+  const msg = `Hello ${name}, your balance is ${fmt(owed)}${entry.note ? ' for ' + entry.note : ''}. Please send by MoMo when you can. Thank you.${reminderHook()}`;
   link.href = 'https://wa.me/?text=' + encodeURIComponent(msg);
   link.textContent = `Remind ${name} on WhatsApp`;
   box.hidden = false;
