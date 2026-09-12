@@ -1592,7 +1592,13 @@ function speakToday() {
 // and Google's own Ghana speech app failed on awareness alone. So the export
 // carries one plain line back. Deliberately not a slogan and not a pitch -
 // what it is, that it costs nothing, and the address.
-const SHARE_FOOTER = '\n\nI keep my shop money with CountMy. It is free: https://countmy.app';
+// Every link that leaves the app carries a campaign tag (12 Sep). Until now a
+// visit from a forwarded WhatsApp message and a visit from a Facebook post
+// were indistinguishable in GA4 - all 'direct' - so nothing about which
+// channel works could be learned. The tag names the door someone came in by.
+function shareFooter(campaign) {
+  return '\n\nI keep my shop money with CountMy. It is free: https://countmy.app/?utm_source=whatsapp&utm_medium=share&utm_campaign=' + campaign;
+}
 
 // Backup state, shown to the user 4 Sep. The single most repeated reason
 // traders abandon this category is losing their records: Kippa died with two
@@ -1769,7 +1775,7 @@ async function exportBackup() {
     .filter(e => e.type === 'sale' && e.ts >= yearAgo)
     .reduce((s, e) => s + (Number(e.amount) || 0), 0);
   const yearLine = `Total sales in the last 12 months: ${fmt(yearSales)}\n`;
-  const text = `${shopName} records${truncNote}:\n\n${yearLine}\n${lines.join('\n')}${SHARE_FOOTER}`;
+  const text = `${shopName} records${truncNote}:\n\n${yearLine}\n${lines.join('\n')}${shareFooter('backup')}`;
   location.href = 'https://wa.me/?text=' + encodeURIComponent(text);
 }
 
@@ -1800,7 +1806,7 @@ function exportTodaySummary() {
       return `${typeLabel[e.type]}: ${cfg.desc(e)} - ${fmt(e.amount)}`;
     });
     const shopName = getShopId() || 'My shop';
-    const text = `${shopName} - today's summary:\n\n${lines.join('\n')}${SHARE_FOOTER}`;
+    const text = `${shopName} - today's summary:\n\n${lines.join('\n')}${shareFooter('eod')}`;
     location.href = 'https://wa.me/?text=' + encodeURIComponent(text);
   });
 }
