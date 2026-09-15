@@ -1964,6 +1964,103 @@ document.getElementById('deleteEntryBtn').addEventListener('click', async () => 
 });
 document.getElementById('hearBtn').addEventListener('click', speakToday);
 if (!('speechSynthesis' in window)) document.getElementById('hearBtn').style.display = 'none';
+// ---------------------------------------------------------------------------
+// Shop page (16 Sep). See the Worker's handleShopUpsert for why this exists.
+// Everything here is plain: a short form, one request, a share button that
+// opens WhatsApp with her page link and what she sells. The page's edit key
+// lives on this phone only.
+// ---------------------------------------------------------------------------
+const SHOP_LS = 'kym_shop_page';
+function shopPageState() { try { return JSON.parse(localStorage.getItem(SHOP_LS) || 'null'); } catch (e) { return null; } }
+function renderShopItemRows(items) {
+  const box = document.getElementById('shopItems');
+  const rows = (items && items.length ? items : [{ name: '', price: '' }]).slice(0, 5);
+  box.innerHTML = rows.map(it => `<div class="shop-item"><input type="text" maxlength="60" placeholder="Dress" value="${escapeAttr(it.name || '')}"><input type="number" inputmode="decimal" min="0" placeholder="Price" value="${it.price == null ? '' : escapeAttr(it.price)}"></div>`).join('');
+}
+function escapeAttr(v) { return String(v).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;'); }
+function readShopItems() {
+  return [...document.querySelectorAll('#shopItems .shop-item')].map(row => {
+    const [n, p] = row.querySelectorAll('input');
+    return { name: n.value.trim(), price: p.value === '' ? null : Number(p.value) };
+  }).filter(it => it.name);
+}
+function openShopSheet(prefill) {
+  const st = prefill || shopPageState() || {};
+  document.getElementById('shopName').value = st.name || getShopId() || '';
+  document.getElementById('shopCategory').value = st.category || 'other';
+  document.getElementById('shopArea').value = st.area || '';
+  document.getElementById('shopWhatsapp').value = st.whatsapp || '';
+  document.getElementById('shopHours').value = st.hours || '';
+  document.getElementById('shopIg').value = st.ig || '';
+  document.getElementById('shopTiktok').value = st.tiktok || '';
+  renderShopItemRows(st.items);
+  setMicStatus('', null, 'shopStatus');
+  const sheet = document.getElementById('shopSheet');
+  sheet.hidden = false; sheet.classList.add('open');
+  sheet.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  track('open_sheet', { type: 'shop_page' });
+}
+function closeShopSheet() { const sheet = document.getElementById('shopSheet'); sheet.classList.remove('open'); sheet.hidden = true; }
+function renderShopReady() {
+  const st = shopPageState();
+  const box = document.getElementById('shopReady');
+  const btn = document.getElementById('shopPageBtn');
+  if (!st || !st.url) { box.hidden = true; if (btn) btn.textContent = 'Get a free page for your shop'; return; }
+  if (btn) btn.textContent = 'My shop page';
+  document.getElementById('shopReadyText').textContent = `${st.name} has a page: ${st.url.replace('https://', '')}`;
+  const items = (st.items || []).map(i => i.name).filter(Boolean).slice(0, 4).join(', ');
+  const msg = `${st.name}${st.area ? ' - ' + st.area : ''}\n${items ? items + '\n' : ''}See what I sell and WhatsApp me here:\n${st.url}?utm_source=whatsapp&utm_medium=share&utm_campaign=shop_page`;
+  document.getElementById('shopShareBtn').href = 'https://wa.me/?text=' + encodeURIComponent(msg);
+  box.hidden = false;
+}
+document.getElementById('shopPageBtn').addEventListener('click', () => {
+  const st = shopPageState();
+  if (st && st.url) { renderShopReady(); document.getElementById('shopReady').scrollIntoView({ behavior: 'smooth', block: 'center' }); return; }
+  openShopSheet();
+});
+document.getElementById('shopEditBtn').addEventListener('click', () => openShopSheet());
+document.getElementById('shopShareBtn').addEventListener('click', () => track('share_business', { where: 'app' }));
+document.getElementById('shopCancelBtn').addEventListener('click', closeShopSheet);
+document.getElementById('shopAddItem').addEventListener('click', () => {
+  const rows = readShopItems();
+  if (rows.length >= 5) return;
+  rows.push({ name: '', price: '' });
+  renderShopItemRows(rows.concat(rows.length < 5 && !rows.some(r => !r.name) ? [] : []));
+});
+document.getElementById('shopSaveBtn').addEventListener('click', async () => {
+  const btn = document.getElementById('shopSaveBtn');
+  const st = shopPageState() || {};
+  const payload = {
+    slug: st.slug || '', editKey: st.editKey || '',
+    name: document.getElementById('shopName').value.trim(),
+    category: document.getElementById('shopCategory').value,
+    area: document.getElementById('shopArea').value.trim(),
+    whatsapp: document.getElementById('shopWhatsapp').value.trim(),
+    hours: document.getElementById('shopHours').value.trim(),
+    ig: document.getElementById('shopIg').value.trim(),
+    tiktok: document.getElementById('shopTiktok').value.trim(),
+    items: readShopItems(),
+    programme: localStorage.getItem('kym_programme') || ''
+  };
+  if (!payload.name) { setMicStatus('Please give your shop a name.', 'err', 'shopStatus'); return; }
+  if (!payload.whatsapp) { setMicStatus('Please enter your WhatsApp number.', 'err', 'shopStatus'); return; }
+  btn.disabled = true; btn.textContent = 'Making\u2026';
+  try {
+    const res = await fetch(`${API_BASE}/shop`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.slug) { setMicStatus(data.error || 'Could not make the page. Please try again.', 'err', 'shopStatus'); return; }
+    localStorage.setItem(SHOP_LS, JSON.stringify({ ...payload, slug: data.slug, editKey: data.editKey, url: data.url }));
+    track(st.slug ? 'business_updated' : 'business_created', { category: payload.category, items: payload.items.length });
+    closeShopSheet();
+    renderShopReady();
+    document.getElementById('shopReady').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    speakShort('Your shop page is ready. Tap Share my shop to send it on WhatsApp.');
+  } catch (e) {
+    setMicStatus('No connection. Please try again when you have signal.', 'err', 'shopStatus');
+  } finally { btn.disabled = false; btn.textContent = 'Make my page'; }
+});
+renderShopReady();
+
 document.getElementById('planPill').addEventListener('click', () => document.getElementById('planSheet').classList.add('open'));
 document.getElementById('planCloseBtn').addEventListener('click', () => document.getElementById('planSheet').classList.remove('open'));
 document.getElementById('exportBtn').addEventListener('click', exportBackup);

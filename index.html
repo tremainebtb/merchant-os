@@ -56,7 +56,7 @@
      app.js?v=. Lets anyone - a reviewer, a tester in Kumasi, a future session -
      answer "which CountMy am I looking at?" from view-source or the console,
      the same way the Worker answers with "wv". -->
-<meta name="countmy-version" content="v75">
+<meta name="countmy-version" content="v76">
 <!-- Real finding, 28 Aug: the bare "CountMy" title carried no keywords at all
      for what people actually search - a free sales/expense ledger for
      Ghanaian shop owners. The <title> tag is the single strongest on-page
@@ -294,6 +294,13 @@ input[type="number"]{-moz-appearance:textfield}
 .confirm-line.show{display:block}
 .safety-block{background:var(--surface);border:1px solid var(--rule);border-radius:14px;padding:16px;margin-top:26px}
 .show-all-btn{width:100%;margin-top:10px;background:none;border:1px solid var(--rule);border-radius:12px;padding:12px;font-family:"Manrope",sans-serif;font-size:.95rem;font-weight:700;color:var(--ink-soft);cursor:pointer}
+.shop-page-link{color:var(--leaf-deep)}
+.shop-sheet .shop-copy{color:var(--ink-soft);font-size:.95rem;margin:0 0 14px}
+.shop-sheet select{width:100%;padding:12px;border:1px solid var(--rule);border-radius:10px;font-size:1rem;background:var(--paper);color:var(--ink);font-family:inherit}
+.shop-items .shop-item{display:flex;gap:8px;margin-bottom:8px}
+.shop-items .shop-item input{padding:12px;border:1px solid var(--rule);border-radius:10px;font-size:1rem;background:var(--paper);color:var(--ink);font-family:inherit;min-width:0}
+.shop-items .shop-item input:first-child{flex:2}
+.shop-items .shop-item input:last-child{flex:1}
 .type-toggle{width:100%;background:none;border:none;padding:14px;font-family:"Manrope",sans-serif;font-size:1rem;font-weight:700;color:var(--muted);text-decoration:underline;cursor:pointer}
 .type-choices{display:flex;flex-direction:column;gap:10px}
 .export-btn{width:100%;background:var(--paper);border:1px solid var(--rule);border-radius:12px;padding:12px;font-size:.95rem;font-weight:700;color:var(--ink);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px}
@@ -697,6 +704,10 @@ input[type="number"]{-moz-appearance:textfield}
     </button>
     </div>
     <button id="typeToggle" type="button" class="type-toggle">Type it instead</button>
+    <!-- Shop page entry (16 Sep). Small on purpose: the first screen stays the
+         name, the question and the button. This is for the seller who wants
+         customers, and the button she taps changes once she has a page. -->
+    <button id="shopPageBtn" type="button" class="type-toggle shop-page-link">Get a free page for your shop</button>
   </div>
   <div id="snapStatus" class="home-mic-status snap-status" aria-live="polite"></div>
 
@@ -771,6 +782,35 @@ input[type="number"]{-moz-appearance:textfield}
        genuinely strong free tier - this app's free tier should look and
        feel unconditionally free, with the option to see full history
        reachable, but not pushed. -->
+  <div id="shopSheet" class="sheet shop-sheet" hidden>
+    <h2>Your shop page</h2>
+    <p class="shop-copy">Customers open it from WhatsApp, see what you sell, and message you. This page is public: your shop name and WhatsApp number will be shown.</p>
+    <div class="field"><label for="shopName">Shop name</label><input id="shopName" type="text" maxlength="60" autocomplete="organization" placeholder="Ama's Fashion"></div>
+    <div class="field"><label for="shopCategory">What you sell</label>
+      <select id="shopCategory">
+        <option value="fashion">Fashion and clothes</option><option value="beauty">Beauty and hair</option><option value="food">Food and drinks</option><option value="provisions">Provisions</option><option value="phones">Phones and electronics</option><option value="fabrics">Fabrics</option><option value="shoes">Shoes and bags</option><option value="drinks">Drinks</option><option value="hardware">Hardware</option><option value="services">Services</option><option value="other">Other</option>
+      </select></div>
+    <div class="field"><label for="shopArea">Where (town or market)</label><input id="shopArea" type="text" maxlength="60" placeholder="Kejetia, Kumasi"></div>
+    <div class="field"><label for="shopWhatsapp">Your WhatsApp number</label><input id="shopWhatsapp" type="tel" inputmode="tel" maxlength="20" placeholder="024 430 8111"></div>
+    <div class="field"><label for="shopHours">When you are open (optional)</label><input id="shopHours" type="text" maxlength="80" placeholder="Mon to Sat, 7am to 6pm"></div>
+    <div class="field"><label>What you sell and the price (up to 5)</label>
+      <div id="shopItems" class="shop-items"></div>
+      <button id="shopAddItem" type="button" class="type-toggle" style="padding:8px">+ Add another</button></div>
+    <div class="field"><label for="shopIg">Instagram (optional)</label><input id="shopIg" type="text" maxlength="40" placeholder="@amasfashion"></div>
+    <div class="field"><label for="shopTiktok">TikTok (optional)</label><input id="shopTiktok" type="text" maxlength="40" placeholder="@amasfashion"></div>
+    <div id="shopStatus" class="home-mic-status" aria-live="polite"></div>
+    <div class="sheet-btns">
+      <button class="btn btn-cancel" id="shopCancelBtn" type="button">Cancel</button>
+      <button class="btn btn-save" id="shopSaveBtn" type="button">Make my page</button>
+    </div>
+  </div>
+  <div id="shopReady" class="act-banner" hidden>
+    <span id="shopReadyText"></span>
+    <div class="act-banner-actions">
+      <a id="shopShareBtn" class="act-banner-go" target="_blank" rel="noopener" href="#">Share my shop</a>
+      <button id="shopEditBtn" type="button" class="act-banner-dismiss">Edit</button>
+    </div>
+  </div>
   <div id="planSheet" class="sheet plan-sheet">
     <h2>Support CountMy</h2>
     <p class="plan-copy">CountMy is free, and all your records stay yours. If it helps your shop, 99 cedis once a year keeps it free for everyone. Nothing changes if you don't.</p>
@@ -820,7 +860,7 @@ input[type="number"]{-moz-appearance:textfield}
      string is what forces a fresh script fetch even before any service worker logic
      runs, independent of it. Found live 27 Aug: without this, an already-visited
      browser can keep running old code from plain HTTP cache regardless of SW strategy. -->
-<script src="app.js?v=75"></script>
+<script src="app.js?v=76"></script>
 
 <!-- Analytics for the Silent Alpha pilot only (27 Aug) - added to observe real
      merchant behavior (what they tap first, voice vs manual usage), NOT to

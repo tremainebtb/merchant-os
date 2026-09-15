@@ -190,6 +190,166 @@ async function handlePing(request, env) {
   return cors(new Response(null, { status: 204 }));
 }
 
+// ---------------------------------------------------------------------------
+// Shop pages (16 Sep). The first thing in a month of work that gives a trader
+// a reason to SEND CountMy to other people: a public page for her shop with a
+// WhatsApp button, that she shares on her status and in her groups. Market
+// access is the need Ghanaian MSMEs themselves rank first (GEA BizBox), and
+// a shop link is something she wants to spread, unlike a ledger. Kill gate,
+// 30 days: under half of shops shared, or under a fifth get WhatsApp taps,
+// and this gets removed. Deliberately no photos, payments, reviews or search.
+// ---------------------------------------------------------------------------
+const SHOP_CATEGORIES = ['fashion', 'beauty', 'food', 'provisions', 'phones', 'fabrics', 'shoes', 'drinks', 'hardware', 'services', 'other'];
+
+function escapeHtml(v) {
+  return String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+function slugify(name) {
+  return String(name || '').toLowerCase().replace(/[\u0254]/g, 'o').replace(/[\u025b]/g, 'e').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'shop';
+}
+function cleanText(v, max) { return String(v == null ? '' : v).replace(/\s+/g, ' ').trim().slice(0, max); }
+function cleanPhone(v) {
+  // Ghana numbers only, stored as digits with country code: 0244308111 -> 233244308111.
+  let d = String(v || '').replace(/\D/g, '');
+  if (d.startsWith('00')) d = d.slice(2);
+  if (d.startsWith('0') && d.length === 10) d = '233' + d.slice(1);
+  if (d.startsWith('233') && d.length === 12) return d;
+  return '';
+}
+function cleanHandle(v) { return String(v || '').replace(/^@/, '').replace(/^https?:\/\/(www\.)?(instagram|tiktok)\.com\/@?/i, '').replace(/[^A-Za-z0-9._]/g, '').slice(0, 40); }
+function cleanItems(items) {
+  if (!Array.isArray(items)) return [];
+  return items.slice(0, 10).map(it => {
+    const name = cleanText(it && it.name, 60);
+    const price = Number(it && it.price);
+    return name ? { name, price: Number.isFinite(price) && price > 0 && price < 1e7 ? Math.round(price * 100) / 100 : null } : null;
+  }).filter(Boolean);
+}
+async function ensureShopsTable(env) {
+  await env.COUNTMY_DB.prepare('CREATE TABLE IF NOT EXISTS shops (slug TEXT PRIMARY KEY, edit_key TEXT NOT NULL, name TEXT NOT NULL, category TEXT, area TEXT, whatsapp TEXT, hours TEXT, ig TEXT, tiktok TEXT, items TEXT, programme TEXT, created_at INTEGER, updated_at INTEGER, views INTEGER DEFAULT 0)').run();
+}
+
+// POST /shop - create, or update when the caller holds the edit key.
+async function handleShopUpsert(request, env) {
+  if (!env.COUNTMY_DB) return cors(new Response(JSON.stringify({ error: 'not configured' }), { status: 503 }));
+  let body;
+  try { body = await request.json(); } catch (e) { return cors(new Response(JSON.stringify({ error: 'invalid request' }), { status: 400 })); }
+  const name = cleanText(body.name, 60);
+  const whatsapp = cleanPhone(body.whatsapp);
+  if (!name) return cors(new Response(JSON.stringify({ error: 'Please give your shop a name.' }), { status: 400 }));
+  if (!whatsapp) return cors(new Response(JSON.stringify({ error: 'Please enter a Ghana WhatsApp number, like 024 430 8111.' }), { status: 400 }));
+  const category = SHOP_CATEGORIES.includes(String(body.category)) ? String(body.category) : 'other';
+  const row = {
+    name, category, whatsapp,
+    area: cleanText(body.area, 60), hours: cleanText(body.hours, 80),
+    ig: cleanHandle(body.ig), tiktok: cleanHandle(body.tiktok),
+    items: JSON.stringify(cleanItems(body.items)),
+    programme: cleanText(body.programme, 32).toLowerCase().replace(/[^a-z0-9_-]/g, '')
+  };
+  await ensureShopsTable(env);
+  const now = Date.now();
+  const givenSlug = cleanText(body.slug, 40).toLowerCase();
+  const givenKey = cleanText(body.editKey, 64);
+  if (givenSlug && givenKey) {
+    const existing = await env.COUNTMY_DB.prepare('SELECT edit_key FROM shops WHERE slug = ?').bind(givenSlug).first();
+    if (!existing || existing.edit_key !== givenKey) return cors(new Response(JSON.stringify({ error: 'This page belongs to someone else.' }), { status: 403 }));
+    await env.COUNTMY_DB.prepare('UPDATE shops SET name=?, category=?, area=?, whatsapp=?, hours=?, ig=?, tiktok=?, items=?, updated_at=? WHERE slug=?')
+      .bind(row.name, row.category, row.area, row.whatsapp, row.hours, row.ig, row.tiktok, row.items, now, givenSlug).run();
+    return cors(new Response(JSON.stringify({ slug: givenSlug, editKey: givenKey, url: shopUrl(request, givenSlug) }), { headers: { 'Content-Type': 'application/json' } }));
+  }
+  let base = slugify(name), slug = base;
+  for (let i = 2; i < 50; i++) {
+    const taken = await env.COUNTMY_DB.prepare('SELECT 1 FROM shops WHERE slug = ?').bind(slug).first();
+    if (!taken) break;
+    slug = base + '-' + i;
+  }
+  const editKey = crypto.randomUUID().replace(/-/g, '');
+  await env.COUNTMY_DB.prepare('INSERT INTO shops (slug, edit_key, name, category, area, whatsapp, hours, ig, tiktok, items, programme, created_at, updated_at, views) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,0)')
+    .bind(slug, editKey, row.name, row.category, row.area, row.whatsapp, row.hours, row.ig, row.tiktok, row.items, row.programme, now, now).run();
+  return cors(new Response(JSON.stringify({ slug, editKey, url: shopUrl(request, slug) }), { headers: { 'Content-Type': 'application/json' } }));
+}
+
+// The public address. Prefers the short custom domain once it resolves;
+// falls back to whatever host answered.
+function shopUrl(request, slug) {
+  const host = new URL(request.url).host;
+  const short = env_short_host();
+  return 'https://' + (short || host) + '/b/' + slug;
+}
+function env_short_host() { return 'b.countmy.app'; }
+
+async function loadShop(env, slug) {
+  await ensureShopsTable(env);
+  const r = await env.COUNTMY_DB.prepare('SELECT slug, name, category, area, whatsapp, hours, ig, tiktok, items, views FROM shops WHERE slug = ?').bind(slug).first();
+  if (!r) return null;
+  let items = [];
+  try { items = JSON.parse(r.items || '[]'); } catch (e) { items = []; }
+  return { ...r, items };
+}
+
+// GET /shop/<slug> - JSON, used by the app to prefill the edit form.
+async function handleShopJson(env, slug) {
+  const shop = await loadShop(env, slug);
+  if (!shop) return cors(new Response(JSON.stringify({ error: 'not found' }), { status: 404 }));
+  return cors(new Response(JSON.stringify(shop), { headers: { 'Content-Type': 'application/json' } }));
+}
+
+function fmtCedis(n) { return n == null ? '' : 'GH\u20b5 ' + Number(n).toLocaleString('en-GH'); }
+
+// GET /b/<slug> - the page a customer opens from WhatsApp. Server-rendered
+// so the WhatsApp/Facebook preview shows HER shop, not a generic card. Text
+// first, no images in v1, one script (GA4) - loads on any phone on any data.
+async function handleShopPage(request, env, slug) {
+  const shop = await loadShop(env, slug);
+  if (!shop) return new Response('<!doctype html><meta charset="utf-8"><title>Not found</title><p style="font-family:sans-serif;padding:24px">This shop page does not exist.</p>', { status: 404, headers: { 'Content-Type': 'text/html; charset=utf-8' } });
+  try { await env.COUNTMY_DB.prepare('UPDATE shops SET views = views + 1 WHERE slug = ?').bind(slug).run(); } catch (e) { /* counting is best-effort */ }
+  const e = escapeHtml;
+  const catLabel = { fashion: 'Fashion', beauty: 'Beauty', food: 'Food', provisions: 'Provisions', phones: 'Phones', fabrics: 'Fabrics', shoes: 'Shoes', drinks: 'Drinks', hardware: 'Hardware', services: 'Services', other: 'Shop' }[shop.category] || 'Shop';
+  const line = [catLabel, shop.area].filter(Boolean).join(' \u00b7 ');
+  const wa = 'https://wa.me/' + shop.whatsapp + '?text=' + encodeURIComponent('Hello ' + shop.name + ', I saw your CountMy page. ');
+  const url = shopUrl(request, shop.slug);
+  const desc = (shop.items.length ? shop.items.slice(0, 4).map(i => i.name).join(', ') + '. ' : '') + 'WhatsApp ' + shop.name + (shop.area ? ' in ' + shop.area : '') + '.';
+  const itemsHtml = shop.items.length
+    ? '<ul class="items">' + shop.items.map(i => '<li><span>' + e(i.name) + '</span><b>' + e(fmtCedis(i.price)) + '</b></li>').join('') + '</ul>'
+    : '';
+  const social = [
+    shop.ig ? '<a class="soc" href="https://instagram.com/' + e(shop.ig) + '" target="_blank" rel="noopener" data-ev="social_open" data-net="instagram">Instagram</a>' : '',
+    shop.tiktok ? '<a class="soc" href="https://www.tiktok.com/@' + e(shop.tiktok) + '" target="_blank" rel="noopener" data-ev="social_open" data-net="tiktok">TikTok</a>' : ''
+  ].filter(Boolean).join('');
+  const html = [
+    '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">',
+    '<title>' + e(shop.name) + (shop.area ? ' - ' + e(shop.area) : '') + ' | CountMy</title>',
+    '<meta name="description" content="' + e(desc) + '">',
+    '<link rel="canonical" href="' + e(url) + '">',
+    '<meta property="og:type" content="profile"><meta property="og:title" content="' + e(shop.name) + '"><meta property="og:description" content="' + e(desc) + '"><meta property="og:url" content="' + e(url) + '"><meta property="og:image" content="https://countmy.app/og-image.png">',
+    '<meta name="twitter:card" content="summary">',
+    '<style>:root{--paper:#F8F3EC;--surface:#fff;--ink:#221A12;--soft:#5C5142;--muted:#6E6353;--rule:#E7DDCD;--flame:#D9541A;--leaf:#1B7A43;--leaf-deep:#125C32}',
+    '*{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font-family:-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;line-height:1.4}',
+    '.wrap{max-width:480px;margin:0 auto;padding:20px 16px 40px}h1{font-size:1.9rem;line-height:1.1;margin:8px 0 4px;font-weight:800}.line{color:var(--soft);font-size:1rem;margin:0 0 18px}',
+    '.wa{display:flex;align-items:center;justify-content:center;gap:10px;background:#25D366;color:#fff;text-decoration:none;font-weight:800;font-size:1.25rem;border-radius:16px;padding:20px 16px;box-shadow:0 4px 14px rgba(37,211,102,.35)}.wa svg{width:28px;height:28px;flex:none}',
+    '.items{list-style:none;padding:0;margin:22px 0 0;background:var(--surface);border:1px solid var(--rule);border-radius:16px}.items li{display:flex;justify-content:space-between;align-items:center;padding:14px 16px;border-bottom:1px solid var(--rule);font-size:1.05rem}.items li:last-child{border-bottom:none}.items b{color:var(--leaf-deep);font-variant-numeric:tabular-nums;white-space:nowrap;margin-left:12px}',
+    '.hours{margin:16px 0 0;color:var(--soft)}.socials{display:flex;gap:10px;margin-top:18px}.soc{flex:1;text-align:center;border:1px solid var(--rule);background:var(--surface);border-radius:12px;padding:12px;color:var(--ink);text-decoration:none;font-weight:700}',
+    '.share{display:block;margin-top:22px;text-align:center;border:1px solid var(--rule);border-radius:12px;padding:12px;color:var(--ink);text-decoration:none;font-weight:700;background:var(--surface)}',
+    '.foot{margin-top:28px;text-align:center;font-size:.85rem;color:var(--muted)}.foot a{color:var(--muted)}</style></head><body><div class="wrap">',
+    '<div class="line" style="margin:0;font-size:.85rem;letter-spacing:.06em;text-transform:uppercase">' + e(catLabel) + '</div>',
+    '<h1>' + e(shop.name) + '</h1>',
+    line ? '<p class="line">' + e(line) + '</p>' : '',
+    '<a class="wa" id="waBtn" href="' + e(wa) + '" data-ev="whatsapp_click"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M20.5 3.5A11.9 11.9 0 0 0 12 0C5.4 0 0 5.4 0 12c0 2.1.6 4.2 1.6 6L0 24l6.2-1.6A12 12 0 0 0 12 24c6.6 0 12-5.4 12-12 0-3.2-1.2-6.2-3.5-8.5zM12 22a10 10 0 0 1-5.1-1.4l-.4-.2-3.7 1 1-3.6-.2-.4A10 10 0 1 1 12 22zm5.5-7.4c-.3-.2-1.8-.9-2.1-1s-.5-.2-.7.2-.8 1-1 1.2-.4.2-.7.1a8.2 8.2 0 0 1-4-3.5c-.3-.5.3-.5.9-1.6.1-.2 0-.4 0-.5l-.9-2.3c-.3-.6-.5-.5-.7-.5h-.6a1.2 1.2 0 0 0-.9.4 3.6 3.6 0 0 0-1.1 2.7c0 1.6 1.2 3.1 1.3 3.3.2.2 2.3 3.5 5.6 4.9 2.1.9 2.9 1 3.9.8.6-.1 1.8-.7 2.1-1.5.3-.7.3-1.3.2-1.5l-.6-.3z"/></svg>WhatsApp ' + e(shop.name.split(' ')[0]) + '</a>',
+    itemsHtml,
+    shop.hours ? '<p class="hours">' + e(shop.hours) + '</p>' : '',
+    social ? '<div class="socials">' + social + '</div>' : '',
+    '<a class="share" id="shareBtn" href="https://wa.me/?text=' + encodeURIComponent(shop.name + ' - ' + (line || 'shop') + '\n' + url) + '" data-ev="share_business">Share this shop</a>',
+    '<p class="foot">Free shop page by <a href="https://countmy.app/?utm_source=shoppage&utm_medium=footer&utm_campaign=' + e(shop.slug) + '">CountMy</a> - the money notebook you talk to</p>',
+    '</div>',
+    '<script async src="https://www.googletagmanager.com/gtag/js?id=G-YJW9J53BL9"></script><script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag("js",new Date());gtag("config","G-YJW9J53BL9",{anonymize_ip:true});',
+    'gtag("event","business_view",{shop:"' + e(shop.slug) + '",category:"' + e(shop.category) + '"});',
+    'document.querySelectorAll("[data-ev]").forEach(function(a){a.addEventListener("click",function(){gtag("event",a.getAttribute("data-ev"),{shop:"' + e(shop.slug) + '",network:a.getAttribute("data-net")||""})})});',
+    'document.querySelectorAll(".items li").forEach(function(li,i){li.addEventListener("click",function(){gtag("event","product_view",{shop:"' + e(shop.slug) + '",index:i})})});</script>',
+    '</body></html>'
+  ].join('');
+  return new Response(html, { headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'public, max-age=60' } });
+}
+
 // The page an institution sees before it pays: adoption among the traders
 // that came through ITS programme, nothing about any individual. Same
 // ADMIN_KEY gate as every other /admin/* route.
@@ -639,7 +799,7 @@ async function handleTranscribe(request, env) {
 // 50 is a transcription/parsing error, not a fabrication) - evidence-checking
 // targets fabrication specifically, not every possible error; the review UI is
 // still what catches a wrong-but-grounded number.
-const WORKER_VERSION = 'w19';
+const WORKER_VERSION = 'w20';
 
 const EXTRACT_SYSTEM_PROMPT = `You read a rough, possibly messy speech-to-text transcript from a Ghanaian shop owner describing what happened in their shop today, in English, Twi or Pidgin (Twi numbers: baako 1, mmienu 2, mmiensa 3, enan 4, anum 5, du 10, aduonu 20, aduasa 30, aduonum 50, oha 100, apem 1000; "de me ka" = owes me; transcripts may contain mistranscribed words like "cds" for "cedis"). Extract every distinct business event as a JSON array. Each event is one of these types:
 - "sale": the owner sold something. Fields: type, item, qty, and EITHER price (per-unit price in cedis, only if a per-unit price was actually spoken) OR total (the total amount actually spoken, if only a total was said - e.g. "2 bags for 300" has qty 2 and total 300, NOT price 150 - never do the division yourself).
@@ -1307,7 +1467,7 @@ export default {
       // handler runs so a capped request never touches Workers AI or D1.
       const path = url.pathname;
       const isAiRoute = path === '/transcribe' || path === '/extract' || path === '/transcribe-and-extract' || path === '/extract-from-image';
-      const isWriteRoute = path === '/ping' || path === '/sync';
+      const isWriteRoute = path === '/ping' || path === '/sync' || path === '/shop';
       const isAdminRoute = path.startsWith('/admin/');
       const ip = clientIp(request);
       if (isAiRoute && request.method === 'POST') {
@@ -1328,6 +1488,9 @@ export default {
       if (path === '/extract-from-image' && request.method === 'POST') return withLimitHeader(await handleExtractFromImage(request, env));
       if (path === '/ping' && request.method === 'POST') return withLimitHeader(await handlePing(request, env));
       if (path === '/sync' && request.method === 'POST') return withLimitHeader(await handleSync(request, env));
+      if (path === '/shop' && request.method === 'POST') return withLimitHeader(await handleShopUpsert(request, env));
+      if (path.startsWith('/shop/') && request.method === 'GET') return withLimitHeader(await handleShopJson(env, path.slice(6).toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, 44)));
+      if (path.startsWith('/b/') && request.method === 'GET') return await handleShopPage(request, env, path.slice(3).toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, 44));
 
       let adminResp = null;
       if (path === '/admin/stats' && request.method === 'GET') adminResp = await handleAdminStats(request, env);
