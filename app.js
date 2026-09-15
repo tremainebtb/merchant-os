@@ -657,7 +657,7 @@ function speakVoiceReview(events) {
   // voice entry on this phone, then never again. Whether anyone then asks is
   // counted (ping 'ask'), so the hypothesis is measured, not assumed.
   try {
-    if (saved.length && !localStorage.getItem('kym_ask_nudged')) {
+    if (saved.length && nudgeCohort() === 1 && !localStorage.getItem('kym_ask_nudged')) {
       closer += ' You can also ask me: how much did I sell today? Or: who owes me?';
       localStorage.setItem('kym_ask_nudged', '1');
     }
@@ -1090,6 +1090,21 @@ function getDeviceId() {
   return id;
 }
 
+// Nudge cohort (16 Sep): half of devices hear "you can also ask me" after
+// their first save, half never do. Decided once from the device id, so the
+// dashboard can compare "asked a question" with and without the prompt -
+// response to instruction versus organic discovery.
+function nudgeCohort() {
+  try {
+    let c = localStorage.getItem('kym_nudge');
+    if (c !== '0' && c !== '1') {
+      const id = getDeviceId();
+      let h = 0; for (let k = 0; k < id.length; k++) h = (h * 31 + id.charCodeAt(k)) >>> 0;
+      c = String(h % 2); localStorage.setItem('kym_nudge', c);
+    }
+    return Number(c);
+  } catch (e) { return 1; }
+}
 function isTestDevice() { try { return localStorage.getItem('kym_test') === '1' ? 1 : 0; } catch (e) { return 0; } }
 function ping(eventType) {
   try {
@@ -1099,7 +1114,7 @@ function ping(eventType) {
     fetch(`${API_BASE}/ping`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ shop, event: eventType, programme: localStorage.getItem('kym_programme') || '', device: getDeviceId(), source: localStorage.getItem('kym_source') || '', test: isTestDevice() })
+      body: JSON.stringify({ shop, event: eventType, programme: localStorage.getItem('kym_programme') || '', device: getDeviceId(), source: localStorage.getItem('kym_source') || '', test: isTestDevice(), nudge: nudgeCohort() })
     }).catch(() => {});
   } catch (err) {
     // Usage reporting must never interrupt a locally committed save.

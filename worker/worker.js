@@ -155,6 +155,11 @@ async function ensureTestSchema(env) {
   for (const t of ['events', 'entries', 'devices', 'shops']) {
     try { await env.COUNTMY_DB.prepare('ALTER TABLE ' + t + ' ADD COLUMN is_test INTEGER DEFAULT 0').run(); } catch (e) { /* already there */ }
     if (t === 'devices') { try { await env.COUNTMY_DB.prepare('ALTER TABLE devices ADD COLUMN country TEXT').run(); } catch (e) { /* already there */ } }
+    if (t === 'devices') {
+      for (const col of ['nudge INTEGER', 'asked_ts INTEGER']) {
+        try { await env.COUNTMY_DB.prepare('ALTER TABLE devices ADD COLUMN ' + col).run(); } catch (e) { /* already there */ }
+      }
+    }
     await env.COUNTMY_DB.prepare('CREATE VIEW IF NOT EXISTS live_' + t + ' AS SELECT * FROM ' + t + ' WHERE COALESCE(is_test, 0) = 0').run();
   }
   testSchemaReady = true;
@@ -220,7 +225,11 @@ async function handlePing(request, env) {
       // Country from Cloudflare's edge (request.cf), never from the phone:
       // answers "is this traffic even Ghanaian?" without a session recorder.
       const country = String((request.cf && request.cf.country) || '').slice(0, 2).toUpperCase();
-      await env.COUNTMY_DB.prepare('INSERT OR IGNORE INTO devices (device_hash, source, first_ts, is_test, country) VALUES (?, ?, ?, ?, ?)').bind(dh, source, Date.now(), isTest, country).run();
+      const nudge = (body.nudge === 0 || body.nudge === '0') ? 0 : ((body.nudge === 1 || body.nudge === '1') ? 1 : null);
+      await env.COUNTMY_DB.prepare('INSERT OR IGNORE INTO devices (device_hash, source, first_ts, is_test, country, nudge) VALUES (?, ?, ?, ?, ?, ?)').bind(dh, source, Date.now(), isTest, country, nudge).run();
+      if (eventType === 'ask') {
+        await env.COUNTMY_DB.prepare('UPDATE devices SET asked_ts = ? WHERE device_hash = ? AND asked_ts IS NULL').bind(Date.now(), dh).run();
+      }
       if (isTest) {
         // A test device's whole history is test data, including rows written before it was flagged.
         await env.COUNTMY_DB.prepare('UPDATE devices SET is_test = 1 WHERE device_hash = ?').bind(dh).run();
@@ -691,6 +700,11 @@ async function handleAdminStats(request, env) {
   stmts.push(env.COUNTMY_DB.prepare('SELECT COUNT(*) as n, COALESCE(SUM(views), 0) as v FROM live_shops'));
   stmts.push(env.COUNTMY_DB.prepare('SELECT COUNT(*) as n FROM live_shops WHERE created_at >= ?').bind(now - 7 * DAY));
   await env.COUNTMY_DB.prepare('CREATE TABLE IF NOT EXISTS devices (device_hash TEXT PRIMARY KEY, source TEXT NOT NULL, first_ts INTEGER NOT NULL, saved_ts INTEGER)').run();
+  // Memory activation by cohort: of the devices that made a record, how many
+  // asked a question - with the spoken prompt (nudge 1) and without (0).
+  stmts.push(env.COUNTMY_DB.prepare(
+    'SELECT nudge, COUNT(*) as devices, SUM(CASE WHEN saved_ts IS NOT NULL THEN 1 ELSE 0 END) as activated, SUM(CASE WHEN saved_ts IS NOT NULL AND asked_ts IS NOT NULL THEN 1 ELSE 0 END) as asked, SUM(CASE WHEN country = ? THEN 1 ELSE 0 END) as gh FROM live_devices GROUP BY nudge'
+  ).bind('GH'));
   stmts.push(env.COUNTMY_DB.prepare(
     "SELECT source, COUNT(*) as n, SUM(CASE WHEN first_ts >= ? THEN 1 ELSE 0 END) as n7, SUM(CASE WHEN saved_ts IS NOT NULL THEN 1 ELSE 0 END) as activated, SUM(CASE WHEN country = 'GH' THEN 1 ELSE 0 END) as gh FROM live_devices GROUP BY source ORDER BY n DESC LIMIT 40"
   ).bind(now - 7 * DAY));
@@ -723,6 +737,7 @@ async function handleAdminStats(request, env) {
   out.loop.shopViews = shopsRow.v || 0;
   out.loop.shops7 = one().n || 0;
   out.test = ((results[results.length - 1].results || [])[0]) || { devices: 0, events: 0, entries: 0, shops: 0 };
+  out.cohorts = (results[i++].results || []).map(r => ({ nudge: r.nudge, devices: r.devices || 0, activated: r.activated || 0, asked: r.asked || 0, gh: r.gh || 0 }));
   out.sources = (results[i++].results || []).map(r => ({ source: r.source, devices: r.n || 0, week: r.n7 || 0, activated: r.activated || 0, gh: r.gh || 0 }));
 
   return cors(new Response(JSON.stringify(out), {
@@ -882,7 +897,7 @@ async function handleTranscribe(request, env) {
 // 50 is a transcription/parsing error, not a fabrication) - evidence-checking
 // targets fabrication specifically, not every possible error; the review UI is
 // still what catches a wrong-but-grounded number.
-const WORKER_VERSION = 'w27';
+const WORKER_VERSION = 'w28';
 
 const EXTRACT_SYSTEM_PROMPT = `You read a rough, possibly messy speech-to-text transcript from a Ghanaian shop owner describing what happened in their shop today, in English, Twi or Pidgin (Twi numbers: baako 1, mmienu 2, mmiensa 3, enan 4, anum 5, du 10, aduonu 20, aduasa 30, aduonum 50, oha 100, apem 1000; "de me ka" = owes me; transcripts may contain mistranscribed words like "cds" for "cedis"). Extract every distinct business event as a JSON array. Each event is one of these types:
 - "sale": the owner sold something. Fields: type, item, qty, and EITHER price (per-unit price in cedis, only if a per-unit price was actually spoken) OR total (the total amount actually spoken, if only a total was said - e.g. "2 bags for 300" has qty 2 and total 300, NOT price 150 - never do the division yourself).

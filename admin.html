@@ -139,6 +139,12 @@ footer p{margin:0 0 6px}
   </div>
 
   <div class="panel">
+    <h3>Memory activation</h3>
+    <p class="note">Of the devices that made a record, how many then asked CountMy a question. Half of devices hear "you can also ask me" once after their first save (prompted); half never do (organic). The organic number is the one that says whether people discover it themselves.</p>
+    <div class="tw"><table class="src-table"><thead><tr><th>Cohort</th><th>Devices</th><th>In Ghana</th><th>Made a record</th><th>Asked a question</th><th>Memory activation</th></tr></thead><tbody id="cohortBody"><tr><td colspan="6" class="empty-note">No data yet.</td></tr></tbody></table></div>
+  </div>
+
+  <div class="panel">
     <h3>Where people came from</h3>
     <p class="note" id="testNote"></p>
     <p class="note">One row per device, decided on its first visit: the link's utm_source (and campaign after the slash), a partner code, the site that sent them, or direct. "In Ghana" is the country Cloudflare saw the phone in. "Made a record" = that device has saved at least one entry.</p>
@@ -224,6 +230,11 @@ async function loadStats(key) {
 }
 
 function renderKpis() {
+  const coh = statsData.cohorts || [];
+  const cohName = n => n === 1 ? 'Prompted (heard "you can also ask me")' : n === 0 ? 'Organic (no prompt)' : 'Before cohorts existed';
+  document.getElementById('cohortBody').innerHTML = coh.length
+    ? coh.map(r => `<tr><td>${cohName(r.nudge)}</td><td>${fmtInt(r.devices)}</td><td>${fmtInt(r.gh)}</td><td>${fmtInt(r.activated)}</td><td>${fmtInt(r.asked)}</td><td>${r.activated ? Math.round(100 * r.asked / r.activated) + '%' : '-'}</td></tr>`).join('')
+    : '<tr><td colspan="6" class="empty-note">No data yet.</td></tr>';
   const srcRows = statsData.sources || [];
   const T = statsData.test || {};
   document.getElementById('testNote').textContent = 'Excluded from every number on this page (flagged with ?test=1): ' + fmtInt(T.devices) + ' test devices, ' + fmtInt(T.events) + ' events, ' + fmtInt(T.entries) + ' entries, ' + fmtInt(T.shops) + ' shop pages.';
