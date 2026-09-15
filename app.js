@@ -2217,6 +2217,8 @@ function bumpVisitCount() {
 
 (async function init() {
   db = await openDB();
+  window.KYM_VERSION = (document.querySelector('meta[name="countmy-version"]') || {}).content || 'unknown';
+  console.info('CountMy ' + window.KYM_VERSION);
   // Receiving side of the http -> https record bridge (see the head script
   // in index.html). Only ever accepts rows from our own http origin, only
   // when opened as ?bridge=1, and uses put so a row that already exists is
