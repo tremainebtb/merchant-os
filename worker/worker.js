@@ -578,7 +578,7 @@ async function handleTranscribe(request, env) {
 // 50 is a transcription/parsing error, not a fabrication) - evidence-checking
 // targets fabrication specifically, not every possible error; the review UI is
 // still what catches a wrong-but-grounded number.
-const WORKER_VERSION = 'w16';
+const WORKER_VERSION = 'w17';
 
 const EXTRACT_SYSTEM_PROMPT = `You read a rough, possibly messy speech-to-text transcript from a Ghanaian shop owner describing what happened in their shop today, in English, Twi or Pidgin (Twi numbers: baako 1, mmienu 2, mmiensa 3, enan 4, anum 5, du 10, aduonu 20, aduasa 30, aduonum 50, oha 100, apem 1000; "de me ka" = owes me; transcripts may contain mistranscribed words like "cds" for "cedis"). Extract every distinct business event as a JSON array. Each event is one of these types:
 - "sale": the owner sold something. Fields: type, item, qty, and EITHER price (per-unit price in cedis, only if a per-unit price was actually spoken) OR total (the total amount actually spoken, if only a total was said - e.g. "2 bags for 300" has qty 2 and total 300, NOT price 150 - never do the division yourself).
@@ -836,9 +836,54 @@ function buildCleanEvents(rawEvents, getField) {
     .filter(clean => clean.item || clean.customer || clean.supplier);
 }
 
+// Which way does a debt run? Decided from the words she said, never from the
+// model. Battery, 15 Sep: "I owe Kofi 50 cedis" came back as Kofi owing HER -
+// an inverted debt is the one error a trader cannot see and cannot forgive.
+// "I owe", "we owe", "I still owe" -> she owes them. "owes me", "owe me",
+// "de me ka", "dey owe me" -> they owe her. If the transcript says one and
+// the model said the other, the model is corrected. If it says neither, the
+// model's call stands.
+const OWED_BY_ME = /\b(i|we)\s+(still\s+|also\s+)?owe\b(?!\s+me\b)/;
+const OWED_TO_ME = /\b(owes?\s+me|de\s+me\s+ka|dey\s+owe\s+me|owing\s+me)\b/;
+function debtDirection(transcriptNorm) {
+  const byMe = OWED_BY_ME.test(transcriptNorm);
+  const toMe = OWED_TO_ME.test(transcriptNorm);
+  if (byMe && !toMe) return 'debt_out';
+  if (toMe && !byMe) return 'debt_in';
+  return null;
+}
+function fixDebtDirection(events, transcriptNorm) {
+  const dir = debtDirection(transcriptNorm);
+  if (!dir) return events;
+  return events.map(e => {
+    if (e.type === 'debt_in' && dir === 'debt_out') {
+      const { customer, ...rest } = e;
+      return { ...rest, type: 'debt_out', supplier: customer };
+    }
+    if (e.type === 'debt_out' && dir === 'debt_in') {
+      const { supplier, ...rest } = e;
+      return { ...rest, type: 'debt_in', customer: supplier };
+    }
+    return e;
+  });
+}
+
+// Last resort when the model returns nothing for the plainest possible debt
+// sentence ("I owe Mensah 400 cedis" came back empty, 15 Sep): a strict
+// pattern, digits only, name must be a single capitalised-or-plain word
+// right after "owe". Anything looser is left to the model.
+function debtFallback(transcript) {
+  const m = /\b(?:i|we)\s+(?:still\s+)?owe\s+([a-z]+)\s+(\d{1,7})\s*(?:cedis|cedi|ghs|cds)?\b/i.exec(transcript || '');
+  if (!m) return [];
+  const name = m[1];
+  if (/^(me|him|her|them|you|it|the|a|an|my|our)$/i.test(name)) return [];
+  return [{ type: 'debt_out', supplier: name, price: Number(m[2]) }];
+}
+
 function sanitizeEvents(rawEvents, transcript) {
   const transcriptNorm = normalizeForMatch(transcript || '');
-  return buildCleanEvents(rawEvents, (e, key) => fieldValue(e[key], transcriptNorm, key));
+  const clean = buildCleanEvents(rawEvents, (e, key) => fieldValue(e[key], transcriptNorm, key));
+  return fixDebtDirection(clean, transcriptNorm);
 }
 
 // Photo path, 2 Sep. Honest difference from the voice path above: there is
@@ -945,6 +990,7 @@ async function extractFromText(text, env) {
     }
   }
 
+  if (clean.length === 0) clean = debtFallback(text);
   return { events: clean };
 }
 
