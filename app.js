@@ -2019,7 +2019,7 @@ document.getElementById('shopPageBtn').addEventListener('click', () => {
   openShopSheet();
 });
 document.getElementById('shopEditBtn').addEventListener('click', () => openShopSheet());
-document.getElementById('shopShareBtn').addEventListener('click', () => track('share_business', { where: 'app' }));
+document.getElementById('shopShareBtn').addEventListener('click', () => { track('share_business', { where: 'app' }); ping('share_shop'); });
 document.getElementById('shopCancelBtn').addEventListener('click', closeShopSheet);
 document.getElementById('shopAddItem').addEventListener('click', () => {
   const rows = readShopItems();
@@ -2051,6 +2051,7 @@ document.getElementById('shopSaveBtn').addEventListener('click', async () => {
     if (!res.ok || !data.slug) { setMicStatus(data.error || 'Could not make the page. Please try again.', 'err', 'shopStatus'); return; }
     localStorage.setItem(SHOP_LS, JSON.stringify({ ...payload, slug: data.slug, editKey: data.editKey, url: data.url }));
     track(st.slug ? 'business_updated' : 'business_created', { category: payload.category, items: payload.items.length });
+    if (!st.slug) ping('shop_created');
     closeShopSheet();
     renderShopReady();
     document.getElementById('shopReady').scrollIntoView({ behavior: 'smooth', block: 'center' });

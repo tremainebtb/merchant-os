@@ -125,6 +125,18 @@ footer p{margin:0 0 6px}
   </div>
 
   <div class="panel">
+    <h3>Spread loop</h3>
+    <p class="note">The numbers the 90-day window (16 Sep to 15 Dec 2026) is judged on. Returning = a device seen on two or more different days.</p>
+    <div class="kpis">
+      <div class="kpi active"><div class="label">Came back (7 days)</div><div class="num" id="kRet7">-</div><div class="sub">devices seen on 2+ days, latest this week</div></div>
+      <div class="kpi active"><div class="label">Came back (30 days)</div><div class="num" id="kRet30">-</div><div class="sub">same, latest this month</div></div>
+      <div class="kpi signups"><div class="label">Shop pages</div><div class="num" id="kShops">-</div><div class="sub" id="kShopsSub"></div></div>
+      <div class="kpi entries"><div class="label">Shop pages shared</div><div class="num" id="kShared">-</div><div class="sub" id="kSharedSub"></div></div>
+      <div class="kpi entries"><div class="label">Shop page views</div><div class="num" id="kShopViews">-</div><div class="sub">customers opening a page</div></div>
+    </div>
+  </div>
+
+  <div class="panel">
     <h3>Businesses over time</h3>
     <p class="note">Daily counts, last 120 days. New = first-ever use that day. Active = used the app at all that day.</p>
     <div class="legend">
@@ -203,6 +215,14 @@ async function loadStats(key) {
 }
 
 function renderKpis() {
+  const L = statsData.loop || {};
+  document.getElementById('kRet7').textContent = fmtInt(L.returning7);
+  document.getElementById('kRet30').textContent = fmtInt(L.returning30);
+  document.getElementById('kShops').textContent = fmtInt(L.shops);
+  document.getElementById('kShopsSub').textContent = fmtInt(L.shops7) + ' made this week';
+  document.getElementById('kShared').textContent = fmtInt(L.sharedEver);
+  document.getElementById('kSharedSub').textContent = fmtInt(L.shared7) + ' shared this week';
+  document.getElementById('kShopViews').textContent = fmtInt(L.shopViews);
   const p = (statsData.periods && statsData.periods[currentPeriod]) || { signups: 0, active: 0, entries: 0, notSaved: 0 };
   document.getElementById('kSignups').textContent = fmtInt(p.signups);
   document.getElementById('kActive').textContent = fmtInt(p.active);

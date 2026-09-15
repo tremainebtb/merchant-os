@@ -625,9 +625,26 @@ async function handleAdminStats(request, env) {
     "SELECT CAST(ts / ? AS INTEGER) as bucket, COUNT(*) as n FROM events WHERE event_type = 'save' AND ts >= ? GROUP BY bucket"
   ).bind(DAY, dailySince));
 
+  // Spread loop (16 Sep): the five numbers the 90-day window is judged on.
+  // 'returning' = a device seen on two or more different days, latest of
+  // them inside the window - the only honest definition of "came back".
+  // Shares are the ping 'share_shop' (sent when Share my shop is tapped),
+  // shop views are the counter the public page increments.
+  stmts.push(env.COUNTMY_DB.prepare(
+    'SELECT COUNT(*) as n FROM (SELECT shop_hash, COUNT(DISTINCT CAST(ts / ? AS INTEGER)) as d, MAX(ts) as last_ts FROM events GROUP BY shop_hash) WHERE d >= 2 AND last_ts >= ?'
+  ).bind(DAY, now - 7 * DAY));
+  stmts.push(env.COUNTMY_DB.prepare(
+    'SELECT COUNT(*) as n FROM (SELECT shop_hash, COUNT(DISTINCT CAST(ts / ? AS INTEGER)) as d, MAX(ts) as last_ts FROM events GROUP BY shop_hash) WHERE d >= 2 AND last_ts >= ?'
+  ).bind(DAY, now - 30 * DAY));
+  stmts.push(env.COUNTMY_DB.prepare("SELECT COUNT(DISTINCT shop_hash) as n FROM events WHERE event_type = 'share_shop'"));
+  stmts.push(env.COUNTMY_DB.prepare("SELECT COUNT(DISTINCT shop_hash) as n FROM events WHERE event_type = 'share_shop' AND ts >= ?").bind(now - 7 * DAY));
+  await ensureShopsTable(env);
+  stmts.push(env.COUNTMY_DB.prepare('SELECT COUNT(*) as n, COALESCE(SUM(views), 0) as v FROM shops'));
+  stmts.push(env.COUNTMY_DB.prepare('SELECT COUNT(*) as n FROM shops WHERE created_at >= ?').bind(now - 7 * DAY));
+
   const results = await env.COUNTMY_DB.batch(stmts);
 
-  const out = { generatedAt: now, periods: {}, daily: { signups: {}, active: {}, entries: {} } };
+  const out = { generatedAt: now, periods: {}, daily: { signups: {}, active: {}, entries: {} }, loop: {} };
   let i = 0;
   for (const [name] of periods) {
     out.periods[name] = {
@@ -641,6 +658,15 @@ async function handleAdminStats(request, env) {
   for (const row of (results[i++].results || [])) out.daily.signups[bucketToDate(row.bucket)] = row.n;
   for (const row of (results[i++].results || [])) out.daily.active[bucketToDate(row.bucket)] = row.n;
   for (const row of (results[i++].results || [])) out.daily.entries[bucketToDate(row.bucket)] = row.n;
+  const one = () => ((results[i++].results || [])[0] || {});
+  out.loop.returning7 = one().n || 0;
+  out.loop.returning30 = one().n || 0;
+  out.loop.sharedEver = one().n || 0;
+  out.loop.shared7 = one().n || 0;
+  const shopsRow = one();
+  out.loop.shops = shopsRow.n || 0;
+  out.loop.shopViews = shopsRow.v || 0;
+  out.loop.shops7 = one().n || 0;
 
   return cors(new Response(JSON.stringify(out), {
     headers: { 'Content-Type': 'application/json' }
@@ -799,7 +825,7 @@ async function handleTranscribe(request, env) {
 // 50 is a transcription/parsing error, not a fabrication) - evidence-checking
 // targets fabrication specifically, not every possible error; the review UI is
 // still what catches a wrong-but-grounded number.
-const WORKER_VERSION = 'w20';
+const WORKER_VERSION = 'w21';
 
 const EXTRACT_SYSTEM_PROMPT = `You read a rough, possibly messy speech-to-text transcript from a Ghanaian shop owner describing what happened in their shop today, in English, Twi or Pidgin (Twi numbers: baako 1, mmienu 2, mmiensa 3, enan 4, anum 5, du 10, aduonu 20, aduasa 30, aduonum 50, oha 100, apem 1000; "de me ka" = owes me; transcripts may contain mistranscribed words like "cds" for "cedis"). Extract every distinct business event as a JSON array. Each event is one of these types:
 - "sale": the owner sold something. Fields: type, item, qty, and EITHER price (per-unit price in cedis, only if a per-unit price was actually spoken) OR total (the total amount actually spoken, if only a total was said - e.g. "2 bags for 300" has qty 2 and total 300, NOT price 150 - never do the division yourself).
