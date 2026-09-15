@@ -649,9 +649,19 @@ function speakVoiceReview(events) {
   });
   const saved = events.filter(ev => ev._savedId);
   if (!lines.length) return;
-  const closer = saved.length
+  let closer = saved.length
     ? 'If any of this is wrong, tap Undo under it.'
     : '';
+  // The "aha" hypothesis (16 Sep): the moment that matters is not recording,
+  // it is asking and being answered. Spoken once, after the very first saved
+  // voice entry on this phone, then never again. Whether anyone then asks is
+  // counted (ping 'ask'), so the hypothesis is measured, not assumed.
+  try {
+    if (saved.length && !localStorage.getItem('kym_ask_nudged')) {
+      closer += ' You can also ask me: how much did I sell today? Or: who owes me?';
+      localStorage.setItem('kym_ask_nudged', '1');
+    }
+  } catch (e) { /* optional */ }
   const utter = speakClearly(new SpeechSynthesisUtterance(`${lines.join(' ')} ${closer}`.trim()));
   utter.rate = 0.8;
   speechSynthesis.cancel();
@@ -1790,6 +1800,7 @@ async function answerQuestion(text) {
     return false;
   }
   track('voice_ask', { intent });
+  ping('ask');
   setMicStatus(answer, 'heard');
   speakShort(answer);
   return true;

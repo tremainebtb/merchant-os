@@ -134,6 +134,7 @@ footer p{margin:0 0 6px}
       <div class="kpi signups"><div class="label">Shop pages</div><div class="num" id="kShops">-</div><div class="sub" id="kShopsSub"></div></div>
       <div class="kpi entries"><div class="label">Shop pages shared</div><div class="num" id="kShared">-</div><div class="sub" id="kSharedSub"></div></div>
       <div class="kpi entries"><div class="label">Shop page views</div><div class="num" id="kShopViews">-</div><div class="sub">customers opening a page</div></div>
+      <div class="kpi active"><div class="label">Asked a question</div><div class="num" id="kAsked">-</div><div class="sub">devices that asked "who owes me?" etc. and got an answer</div></div>
     </div>
   </div>
 
@@ -237,6 +238,7 @@ function renderKpis() {
   document.getElementById('kShared').textContent = fmtInt(L.sharedEver);
   document.getElementById('kSharedSub').textContent = fmtInt(L.shared7) + ' shared this week';
   document.getElementById('kShopViews').textContent = fmtInt(L.shopViews);
+  document.getElementById('kAsked').textContent = fmtInt(L.asked);
   const p = (statsData.periods && statsData.periods[currentPeriod]) || { signups: 0, active: 0, entries: 0, notSaved: 0 };
   document.getElementById('kSignups').textContent = fmtInt(p.signups);
   document.getElementById('kActive').textContent = fmtInt(p.active);
