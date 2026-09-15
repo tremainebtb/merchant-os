@@ -3,6 +3,18 @@ name = "countmy-api"
 main = "worker/worker.js"
 compatibility_date = "2026-08-27"
 
+# The API's address stays on workers.dev. Wrangler DISABLES workers.dev by
+# default the moment any route/custom domain is configured - that took the
+# API down for twelve minutes on 15 Sep (Cloudflare error 1042). Explicit.
+workers_dev = true
+
+# Short public address for shop pages. countmy.app's DNS is on this Cloudflare
+# account (apex stays on GitHub Pages); a Workers custom domain creates the
+# b.countmy.app record itself on deploy.
+routes = [
+  { pattern = "b.countmy.app", custom_domain = true }
+]
+
 [ai]
 binding = "AI"
 
