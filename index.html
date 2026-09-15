@@ -56,7 +56,7 @@
      app.js?v=. Lets anyone - a reviewer, a tester in Kumasi, a future session -
      answer "which CountMy am I looking at?" from view-source or the console,
      the same way the Worker answers with "wv". -->
-<meta name="countmy-version" content="v76">
+<meta name="countmy-version" content="v77">
 <!-- Real finding, 28 Aug: the bare "CountMy" title carried no keywords at all
      for what people actually search - a free sales/expense ledger for
      Ghanaian shop owners. The <title> tag is the single strongest on-page
@@ -796,8 +796,10 @@ input[type="number"]{-moz-appearance:textfield}
     <div class="field"><label>What you sell and the price (up to 5)</label>
       <div id="shopItems" class="shop-items"></div>
       <button id="shopAddItem" type="button" class="type-toggle" style="padding:8px">+ Add another</button></div>
-    <div class="field"><label for="shopIg">Instagram (optional)</label><input id="shopIg" type="text" maxlength="40" placeholder="@amasfashion"></div>
-    <div class="field"><label for="shopTiktok">TikTok (optional)</label><input id="shopTiktok" type="text" maxlength="40" placeholder="@amasfashion"></div>
+    <!-- Instagram / TikTok fields kept in the DOM (app.js reads them) but hidden:
+         Bobby's call 16 Sep - the social layer waits until 1,000+ shops. -->
+    <div class="field" hidden><label for="shopIg">Instagram (optional)</label><input id="shopIg" type="text" maxlength="40" placeholder="@amasfashion"></div>
+    <div class="field" hidden><label for="shopTiktok">TikTok (optional)</label><input id="shopTiktok" type="text" maxlength="40" placeholder="@amasfashion"></div>
     <div id="shopStatus" class="home-mic-status" aria-live="polite"></div>
     <div class="sheet-btns">
       <button class="btn btn-cancel" id="shopCancelBtn" type="button">Cancel</button>
@@ -860,7 +862,7 @@ input[type="number"]{-moz-appearance:textfield}
      string is what forces a fresh script fetch even before any service worker logic
      runs, independent of it. Found live 27 Aug: without this, an already-visited
      browser can keep running old code from plain HTTP cache regardless of SW strategy. -->
-<script src="app.js?v=76"></script>
+<script src="app.js?v=77"></script>
 
 <!-- Analytics for the Silent Alpha pilot only (27 Aug) - added to observe real
      merchant behavior (what they tap first, voice vs manual usage), NOT to
