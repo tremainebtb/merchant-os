@@ -722,7 +722,8 @@ function valueGroundedInTranscript(value, transcriptNorm) {
 // mean. Live, 15 Sep: it pointed at "aduonum" (50) and wrote 1000, and the
 // evidence check alone let that through because the word really was said.
 function twiEvidenceValue(evidence) {
-  const toks = normalizeForMatch(evidence).split(' ').filter(Boolean);
+  const IGNORE = new Set(['cedis', 'cedi', 'ghs', 'cds', 'cd', 'ma', 'no', 'ye', 'yee', 'ne']);
+  const toks = normalizeForMatch(evidence).split(' ').filter(t => t && !IGNORE.has(t));
   if (!toks.length) return undefined;
   let sum = 0;
   for (const t of toks) {
