@@ -143,6 +143,23 @@ async function sha256Hex(str) {
   return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
+// Test flag (16 Sep). Every table that the dashboard counts carries is_test;
+// the dashboard reads the live_* views, which exclude flagged rows, and shows
+// the flagged count separately. Runs the ALTERs once per isolate; a column
+// that already exists throws and is ignored.
+let testSchemaReady = false;
+async function ensureTestSchema(env) {
+  if (testSchemaReady) return;
+  await env.COUNTMY_DB.prepare('CREATE TABLE IF NOT EXISTS devices (device_hash TEXT PRIMARY KEY, source TEXT NOT NULL, first_ts INTEGER NOT NULL, saved_ts INTEGER)').run();
+  await ensureShopsTable(env);
+  for (const t of ['events', 'entries', 'devices', 'shops']) {
+    try { await env.COUNTMY_DB.prepare('ALTER TABLE ' + t + ' ADD COLUMN is_test INTEGER DEFAULT 0').run(); } catch (e) { /* already there */ }
+    await env.COUNTMY_DB.prepare('CREATE VIEW IF NOT EXISTS live_' + t + ' AS SELECT * FROM ' + t + ' WHERE COALESCE(is_test, 0) = 0').run();
+  }
+  testSchemaReady = true;
+}
+function testFlag(body) { return body && (body.test === 1 || body.test === '1' || body.test === true) ? 1 : 0; }
+
 async function handlePing(request, env) {
   if (!env.COUNTMY_DB) return cors(new Response(JSON.stringify({ error: 'not configured' }), { status: 503 }));
   let body;
@@ -157,8 +174,10 @@ async function handlePing(request, env) {
     return cors(new Response(JSON.stringify({ error: 'invalid event' }), { status: 400 }));
   }
   const shopHash = (await sha256Hex(shop)).slice(0, 32);
-  await env.COUNTMY_DB.prepare('INSERT INTO events (shop_hash, event_type, ts) VALUES (?, ?, ?)')
-    .bind(shopHash, eventType, Date.now()).run();
+  await ensureTestSchema(env);
+  const isTest = testFlag(body);
+  await env.COUNTMY_DB.prepare('INSERT INTO events (shop_hash, event_type, ts, is_test) VALUES (?, ?, ?, ?)')
+    .bind(shopHash, eventType, Date.now(), isTest).run();
   // Programme attribution (15 Sep). The only revenue route with a Ghanaian
   // payer in evidence is an institution paying per trader (Oze's payers are
   // banks; MTN Adwumapa already bundles third-party tools). An institution
@@ -183,8 +202,8 @@ async function handlePing(request, env) {
       // Activity joins on the events table, which is keyed by shop hash, so the
       // device's activity is also stamped under the member hash when they differ.
       if (memberHash !== shopHash) {
-        await env.COUNTMY_DB.prepare('INSERT INTO events (shop_hash, event_type, ts) VALUES (?, ?, ?)')
-          .bind(memberHash, eventType, Date.now()).run();
+        await env.COUNTMY_DB.prepare('INSERT INTO events (shop_hash, event_type, ts, is_test) VALUES (?, ?, ?, ?)')
+          .bind(memberHash, eventType, Date.now(), isTest).run();
       }
     } catch (e) { /* attribution must never fail a ping */ }
   }
@@ -197,8 +216,13 @@ async function handlePing(request, env) {
     const source = String((body && body.source) || '').trim().toLowerCase().replace(/[^a-z0-9_.:\/-]/g, '').slice(0, 60);
     if (device && source) {
       const dh = (await sha256Hex(device)).slice(0, 32);
-      await env.COUNTMY_DB.prepare('CREATE TABLE IF NOT EXISTS devices (device_hash TEXT PRIMARY KEY, source TEXT NOT NULL, first_ts INTEGER NOT NULL, saved_ts INTEGER)').run();
-      await env.COUNTMY_DB.prepare('INSERT OR IGNORE INTO devices (device_hash, source, first_ts) VALUES (?, ?, ?)').bind(dh, source, Date.now()).run();
+      await env.COUNTMY_DB.prepare('INSERT OR IGNORE INTO devices (device_hash, source, first_ts, is_test) VALUES (?, ?, ?, ?)').bind(dh, source, Date.now(), isTest).run();
+      if (isTest) {
+        // A test device's whole history is test data, including rows written before it was flagged.
+        await env.COUNTMY_DB.prepare('UPDATE devices SET is_test = 1 WHERE device_hash = ?').bind(dh).run();
+        await env.COUNTMY_DB.prepare('UPDATE events SET is_test = 1 WHERE shop_hash IN (?, ?)').bind(dh, shopHash).run();
+        await env.COUNTMY_DB.prepare('UPDATE entries SET is_test = 1 WHERE shop_hash = ?').bind(shopHash).run();
+      }
       if (eventType === 'save') {
         await env.COUNTMY_DB.prepare('UPDATE devices SET saved_ts = ? WHERE device_hash = ? AND saved_ts IS NULL').bind(Date.now(), dh).run();
       }
@@ -281,8 +305,9 @@ async function handleShopUpsert(request, env) {
     slug = base + '-' + i;
   }
   const editKey = crypto.randomUUID().replace(/-/g, '');
-  await env.COUNTMY_DB.prepare('INSERT INTO shops (slug, edit_key, name, category, area, whatsapp, hours, ig, tiktok, items, programme, created_at, updated_at, views) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,0)')
-    .bind(slug, editKey, row.name, row.category, row.area, row.whatsapp, row.hours, row.ig, row.tiktok, row.items, row.programme, now, now).run();
+  await ensureTestSchema(env);
+  await env.COUNTMY_DB.prepare('INSERT INTO shops (slug, edit_key, name, category, area, whatsapp, hours, ig, tiktok, items, programme, created_at, updated_at, views, is_test) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,0,?)')
+    .bind(slug, editKey, row.name, row.category, row.area, row.whatsapp, row.hours, row.ig, row.tiktok, row.items, row.programme, now, now, testFlag(body)).run();
   return cors(new Response(JSON.stringify({ slug, editKey, url: shopUrl(request, slug) }), { headers: { 'Content-Type': 'application/json' } }));
 }
 
@@ -445,9 +470,10 @@ async function handleSync(request, env) {
   // separately in the admin dashboard so "how many people tried and gave up"
   // is a real, visible number instead of invisible churn.
   const status = entry.status === 'not_saved' ? 'not_saved' : 'saved';
+  await ensureTestSchema(env);
   await env.COUNTMY_DB.prepare(
-    `INSERT INTO entries (entry_id, shop_hash, status, type, item, note, qty, price, kind, method, paid, amount, source, day, ts, deleted, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `INSERT INTO entries (entry_id, shop_hash, status, type, item, note, qty, price, kind, method, paid, amount, source, day, ts, deleted, updated_at, is_test)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(entry_id) DO UPDATE SET
        shop_hash=excluded.shop_hash, status=excluded.status, type=excluded.type, item=excluded.item, note=excluded.note,
        qty=excluded.qty, price=excluded.price, kind=excluded.kind, method=excluded.method,
@@ -458,7 +484,7 @@ async function handleSync(request, env) {
     String(entry.type || '').slice(0, 40), String(entry.item || '').slice(0, 500), String(entry.note || '').slice(0, 500),
     String(entry.qty || ''), String(entry.price || ''), String(entry.kind || ''), String(entry.method || ''),
     Number(entry.paid || 0), Number(entry.amount || 0), String(entry.source || '').slice(0, 40),
-    String(entry.day || '').slice(0, 20), Number(entry.ts || now), deleted ? 1 : 0, now
+    String(entry.day || '').slice(0, 20), Number(entry.ts || now), deleted ? 1 : 0, now, testFlag(body)
   ).run();
   return cors(new Response(null, { status: 204 }));
 }
@@ -596,6 +622,7 @@ async function handleAdminStats(request, env) {
   if (!env.ADMIN_KEY || key !== env.ADMIN_KEY) {
     return cors(new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401 }));
   }
+  await ensureTestSchema(env);
   const DAY = 86400000;
   const now = Date.now();
   const periods = [
@@ -608,10 +635,10 @@ async function handleAdminStats(request, env) {
   const stmts = [];
   for (const [, since] of periods) {
     stmts.push(env.COUNTMY_DB.prepare(
-      'SELECT COUNT(*) as n FROM (SELECT shop_hash, MIN(ts) as first_ts FROM events GROUP BY shop_hash) WHERE first_ts >= ?'
+      'SELECT COUNT(*) as n FROM (SELECT shop_hash, MIN(ts) as first_ts FROM live_events GROUP BY shop_hash) WHERE first_ts >= ?'
     ).bind(since));
     stmts.push(env.COUNTMY_DB.prepare(
-      'SELECT COUNT(DISTINCT shop_hash) as n FROM events WHERE ts >= ?'
+      'SELECT COUNT(DISTINCT shop_hash) as n FROM live_events WHERE ts >= ?'
     ).bind(since));
     // Sourced from the entries table (real backed-up content), not the
     // anonymous events ping - this is the accurate count now that every
@@ -620,10 +647,10 @@ async function handleAdminStats(request, env) {
     // "how many people tried and gave up" number this dashboard never had
     // a way to show before.
     stmts.push(env.COUNTMY_DB.prepare(
-      "SELECT COUNT(*) as n FROM entries WHERE status = 'saved' AND ts >= ?"
+      "SELECT COUNT(*) as n FROM live_entries WHERE status = 'saved' AND ts >= ?"
     ).bind(since));
     stmts.push(env.COUNTMY_DB.prepare(
-      "SELECT COUNT(*) as n FROM entries WHERE status = 'not_saved' AND ts >= ?"
+      "SELECT COUNT(*) as n FROM live_entries WHERE status = 'not_saved' AND ts >= ?"
     ).bind(since));
   }
   // Daily trend series, last 120 days - enough for the day/week/month views;
@@ -633,13 +660,13 @@ async function handleAdminStats(request, env) {
   // trying to stretch 120 days of daily data across 365.
   const dailySince = now - 120 * DAY;
   stmts.push(env.COUNTMY_DB.prepare(
-    'SELECT CAST(first_ts / ? AS INTEGER) as bucket, COUNT(*) as n FROM (SELECT shop_hash, MIN(ts) as first_ts FROM events GROUP BY shop_hash) WHERE first_ts >= ? GROUP BY bucket'
+    'SELECT CAST(first_ts / ? AS INTEGER) as bucket, COUNT(*) as n FROM (SELECT shop_hash, MIN(ts) as first_ts FROM live_events GROUP BY shop_hash) WHERE first_ts >= ? GROUP BY bucket'
   ).bind(DAY, dailySince));
   stmts.push(env.COUNTMY_DB.prepare(
-    'SELECT CAST(ts / ? AS INTEGER) as bucket, COUNT(DISTINCT shop_hash) as n FROM events WHERE ts >= ? GROUP BY bucket'
+    'SELECT CAST(ts / ? AS INTEGER) as bucket, COUNT(DISTINCT shop_hash) as n FROM live_events WHERE ts >= ? GROUP BY bucket'
   ).bind(DAY, dailySince));
   stmts.push(env.COUNTMY_DB.prepare(
-    "SELECT CAST(ts / ? AS INTEGER) as bucket, COUNT(*) as n FROM events WHERE event_type = 'save' AND ts >= ? GROUP BY bucket"
+    "SELECT CAST(ts / ? AS INTEGER) as bucket, COUNT(*) as n FROM live_events WHERE event_type = 'save' AND ts >= ? GROUP BY bucket"
   ).bind(DAY, dailySince));
 
   // Spread loop (16 Sep): the five numbers the 90-day window is judged on.
@@ -648,21 +675,22 @@ async function handleAdminStats(request, env) {
   // Shares are the ping 'share_shop' (sent when Share my shop is tapped),
   // shop views are the counter the public page increments.
   stmts.push(env.COUNTMY_DB.prepare(
-    'SELECT COUNT(*) as n FROM (SELECT shop_hash, COUNT(DISTINCT CAST(ts / ? AS INTEGER)) as d, MAX(ts) as last_ts FROM events GROUP BY shop_hash) WHERE d >= 2 AND last_ts >= ?'
+    'SELECT COUNT(*) as n FROM (SELECT shop_hash, COUNT(DISTINCT CAST(ts / ? AS INTEGER)) as d, MAX(ts) as last_ts FROM live_events GROUP BY shop_hash) WHERE d >= 2 AND last_ts >= ?'
   ).bind(DAY, now - 7 * DAY));
   stmts.push(env.COUNTMY_DB.prepare(
-    'SELECT COUNT(*) as n FROM (SELECT shop_hash, COUNT(DISTINCT CAST(ts / ? AS INTEGER)) as d, MAX(ts) as last_ts FROM events GROUP BY shop_hash) WHERE d >= 2 AND last_ts >= ?'
+    'SELECT COUNT(*) as n FROM (SELECT shop_hash, COUNT(DISTINCT CAST(ts / ? AS INTEGER)) as d, MAX(ts) as last_ts FROM live_events GROUP BY shop_hash) WHERE d >= 2 AND last_ts >= ?'
   ).bind(DAY, now - 30 * DAY));
-  stmts.push(env.COUNTMY_DB.prepare("SELECT COUNT(DISTINCT shop_hash) as n FROM events WHERE event_type = 'share_shop'"));
-  stmts.push(env.COUNTMY_DB.prepare("SELECT COUNT(DISTINCT shop_hash) as n FROM events WHERE event_type = 'share_shop' AND ts >= ?").bind(now - 7 * DAY));
+  stmts.push(env.COUNTMY_DB.prepare("SELECT COUNT(DISTINCT shop_hash) as n FROM live_events WHERE event_type = 'share_shop'"));
+  stmts.push(env.COUNTMY_DB.prepare("SELECT COUNT(DISTINCT shop_hash) as n FROM live_events WHERE event_type = 'share_shop' AND ts >= ?").bind(now - 7 * DAY));
   await ensureShopsTable(env);
-  stmts.push(env.COUNTMY_DB.prepare('SELECT COUNT(*) as n, COALESCE(SUM(views), 0) as v FROM shops'));
-  stmts.push(env.COUNTMY_DB.prepare('SELECT COUNT(*) as n FROM shops WHERE created_at >= ?').bind(now - 7 * DAY));
+  stmts.push(env.COUNTMY_DB.prepare('SELECT COUNT(*) as n, COALESCE(SUM(views), 0) as v FROM live_shops'));
+  stmts.push(env.COUNTMY_DB.prepare('SELECT COUNT(*) as n FROM live_shops WHERE created_at >= ?').bind(now - 7 * DAY));
   await env.COUNTMY_DB.prepare('CREATE TABLE IF NOT EXISTS devices (device_hash TEXT PRIMARY KEY, source TEXT NOT NULL, first_ts INTEGER NOT NULL, saved_ts INTEGER)').run();
   stmts.push(env.COUNTMY_DB.prepare(
-    'SELECT source, COUNT(*) as n, SUM(CASE WHEN first_ts >= ? THEN 1 ELSE 0 END) as n7, SUM(CASE WHEN saved_ts IS NOT NULL THEN 1 ELSE 0 END) as activated FROM devices GROUP BY source ORDER BY n DESC LIMIT 40'
+    'SELECT source, COUNT(*) as n, SUM(CASE WHEN first_ts >= ? THEN 1 ELSE 0 END) as n7, SUM(CASE WHEN saved_ts IS NOT NULL THEN 1 ELSE 0 END) as activated FROM live_devices GROUP BY source ORDER BY n DESC LIMIT 40'
   ).bind(now - 7 * DAY));
 
+  stmts.push(env.COUNTMY_DB.prepare('SELECT (SELECT COUNT(*) FROM devices WHERE is_test = 1) as devices, (SELECT COUNT(*) FROM events WHERE is_test = 1) as events, (SELECT COUNT(*) FROM entries WHERE is_test = 1) as entries, (SELECT COUNT(*) FROM shops WHERE is_test = 1) as shops'));
   const results = await env.COUNTMY_DB.batch(stmts);
 
   const out = { generatedAt: now, periods: {}, daily: { signups: {}, active: {}, entries: {} }, loop: {} };
@@ -688,6 +716,7 @@ async function handleAdminStats(request, env) {
   out.loop.shops = shopsRow.n || 0;
   out.loop.shopViews = shopsRow.v || 0;
   out.loop.shops7 = one().n || 0;
+  out.test = ((results[results.length - 1].results || [])[0]) || { devices: 0, events: 0, entries: 0, shops: 0 };
   out.sources = (results[i++].results || []).map(r => ({ source: r.source, devices: r.n || 0, week: r.n7 || 0, activated: r.activated || 0 }));
 
   return cors(new Response(JSON.stringify(out), {
@@ -847,7 +876,7 @@ async function handleTranscribe(request, env) {
 // 50 is a transcription/parsing error, not a fabrication) - evidence-checking
 // targets fabrication specifically, not every possible error; the review UI is
 // still what catches a wrong-but-grounded number.
-const WORKER_VERSION = 'w24';
+const WORKER_VERSION = 'w25';
 
 const EXTRACT_SYSTEM_PROMPT = `You read a rough, possibly messy speech-to-text transcript from a Ghanaian shop owner describing what happened in their shop today, in English, Twi or Pidgin (Twi numbers: baako 1, mmienu 2, mmiensa 3, enan 4, anum 5, du 10, aduonu 20, aduasa 30, aduonum 50, oha 100, apem 1000; "de me ka" = owes me; transcripts may contain mistranscribed words like "cds" for "cedis"). Extract every distinct business event as a JSON array. Each event is one of these types:
 - "sale": the owner sold something. Fields: type, item, qty, and EITHER price (per-unit price in cedis, only if a per-unit price was actually spoken) OR total (the total amount actually spoken, if only a total was said - e.g. "2 bags for 300" has qty 2 and total 300, NOT price 150 - never do the division yourself).

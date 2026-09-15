@@ -79,7 +79,7 @@ function syncEntryToServer(entry, deleted) {
     fetch(`${API_BASE}/sync`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ shop, entry, deleted: !!deleted })
+      body: JSON.stringify({ shop, entry, deleted: !!deleted, test: isTestDevice() })
     }).then(res => {
       // Only on a real server confirmation - claiming "backed up" because a
       // request was merely sent would be the same broken promise the apps
@@ -1080,6 +1080,7 @@ function getDeviceId() {
   return id;
 }
 
+function isTestDevice() { try { return localStorage.getItem('kym_test') === '1' ? 1 : 0; } catch (e) { return 0; } }
 function ping(eventType) {
   try {
     if (window.KYM_IS_OWNER_DEVICE) return; // see the ?owner=1 flag set in index.html
@@ -1088,7 +1089,7 @@ function ping(eventType) {
     fetch(`${API_BASE}/ping`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ shop, event: eventType, programme: localStorage.getItem('kym_programme') || '', device: getDeviceId(), source: localStorage.getItem('kym_source') || '' })
+      body: JSON.stringify({ shop, event: eventType, programme: localStorage.getItem('kym_programme') || '', device: getDeviceId(), source: localStorage.getItem('kym_source') || '', test: isTestDevice() })
     }).catch(() => {});
   } catch (err) {
     // Usage reporting must never interrupt a locally committed save.
@@ -2039,7 +2040,7 @@ document.getElementById('shopSaveBtn').addEventListener('click', async () => {
   const btn = document.getElementById('shopSaveBtn');
   const st = shopPageState() || {};
   const payload = {
-    slug: st.slug || '', editKey: st.editKey || '',
+    slug: st.slug || '', editKey: st.editKey || '', test: isTestDevice(),
     name: document.getElementById('shopName').value.trim(),
     category: document.getElementById('shopCategory').value,
     area: document.getElementById('shopArea').value.trim(),
@@ -2338,6 +2339,10 @@ function bumpVisitCount() {
     const p = new URLSearchParams(location.search).get('p');
     if (p && !localStorage.getItem('kym_programme')) localStorage.setItem('kym_programme', p.toLowerCase().replace(/[^a-z0-9_-]/g, '').slice(0, 32));
   } catch (e) { /* storage blocked - attribution is optional */ }
+  // Test devices (16 Sep): open the app once with ?test=1 and every row this
+  // phone writes to the server is flagged is_test and kept out of the
+  // dashboard's production numbers, instead of being "subtracted" by memory.
+  try { if (new URLSearchParams(location.search).get('test') === '1') localStorage.setItem('kym_test', '1'); } catch (e) { /* optional */ }
   // Where did this phone come from? (16 Sep.) Decided once, on the very first
   // visit, from the link's utm_source, else a partner code, else the referrer
   // host, else "direct". Stored as source or source/campaign, never a URL.

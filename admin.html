@@ -139,6 +139,7 @@ footer p{margin:0 0 6px}
 
   <div class="panel">
     <h3>Where people came from</h3>
+    <p class="note" id="testNote"></p>
     <p class="note">One row per device, decided on its first visit: the link's utm_source (and campaign after the slash), a partner code, the site that sent them, or direct. "Made a record" = that device has saved at least one entry.</p>
     <div class="tw"><table class="src-table"><thead><tr><th>Source</th><th>Devices</th><th>This week</th><th>Made a record</th></tr></thead><tbody id="srcBody"><tr><td colspan="4" class="empty-note">No data yet.</td></tr></tbody></table></div>
   </div>
@@ -223,6 +224,8 @@ async function loadStats(key) {
 
 function renderKpis() {
   const srcRows = statsData.sources || [];
+  const T = statsData.test || {};
+  document.getElementById('testNote').textContent = 'Excluded from every number on this page (flagged with ?test=1): ' + fmtInt(T.devices) + ' test devices, ' + fmtInt(T.events) + ' events, ' + fmtInt(T.entries) + ' entries, ' + fmtInt(T.shops) + ' shop pages.';
   document.getElementById('srcBody').innerHTML = srcRows.length
     ? srcRows.map(r => `<tr><td>${String(r.source).replace(/</g, '&lt;')}</td><td>${fmtInt(r.devices)}</td><td>${fmtInt(r.week)}</td><td>${fmtInt(r.activated)}</td></tr>`).join('')
     : '<tr><td colspan="4" class="empty-note">No data yet.</td></tr>';
