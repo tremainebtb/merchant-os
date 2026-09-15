@@ -952,6 +952,7 @@ async function toggleMic(btn, statusId) {
           setMicStatus(msg, 'err', statusId);
           return;
         }
+        if (looksLikeQuestion(heard) && await answerQuestion(heard)) return;
         track('voice_extracted', { event_count: events.length });
         if (events.length >= 1) {
           pendingVoiceEvents = events;
@@ -1328,6 +1329,12 @@ async function render() {
   const todayEntries = entries.filter(e => e.day === today);
   renderAdmin();
   document.getElementById('todayGreeting').textContent = greeting();
+  // First screen for a first-timer is the name, the button and one line (15
+  // Sep). A card of zeros and an empty 'Recent' answered a question she had
+  // not asked yet; both appear the moment there is something to show.
+  document.querySelector('.today').hidden = entries.length === 0;
+  document.querySelector('.hist-label').hidden = entries.length === 0;
+  document.getElementById('history').hidden = entries.length === 0;
 
   // Real advice, 28 Aug, sought independently from two AI reviews after
   // real Clarity data showed 97% of visits are new and returning usage is
@@ -1715,6 +1722,64 @@ function showEntryMilestone(total) {
 
 // Short spoken confirmations reuse the same voice pick and slow rate as the
 // Today card, so the app never suddenly sounds like a different thing.
+// ASK (15 Sep). The one layer CountMy did not have: she can already tell it
+// what happened, now she can ask it what she knows. Answered aloud from the
+// phone's own records, no server, no reading. A question is only treated as
+// one when it carries no amount - "how much did I sell today" is a question,
+// "I sold rice for 30 cedis" is an entry - so an entry is never swallowed.
+function looksLikeQuestion(text) {
+  const t = text.toLowerCase();
+  if (/\d/.test(t) || /\bcedis?\b|\bghs\b|\bcds?\b/.test(t)) return false;
+  return /\b(who|how much|how many|what|did i|do i|have i|show me|tell me)\b/.test(t) && /\b(owe|owes|owing|sold|sell|sales|spend|spent|expenses?|make|made|profit|left|balance|cash|today|week|yesterday|debt|debts)\b/.test(t);
+}
+async function answerQuestion(text) {
+  const t = text.toLowerCase();
+  const entries = await getAllEntries();
+  const today = todayKey(Date.now());
+  const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+  const isDebt = e => FIELD_CONFIG[e.type] && FIELD_CONFIG[e.type].isDebt;
+  const open = e => Math.max(0, (Number(e.amount) || 0) - (Number(e.paid) || 0));
+  const sum = list => list.reduce((s, e) => s + (Number(e.amount) || 0), 0);
+  const inWeek = e => e.ts >= weekAgo;
+  const isToday = e => e.day === today;
+  let intent, answer;
+  if (/\b(who|what|how much|anyone|anybody)\b.*\b(owe|owes|owing)\b.*\b(me|us)\b|\bdebts?\b|\bwho owes\b/.test(t) && !/\bi owe\b/.test(t)) {
+    intent = 'who_owes_me';
+    const list = entries.filter(e => e.type === 'debt_in' && open(e) > 0);
+    answer = list.length
+      ? list.slice(0, 6).map(e => `${e.item} owes you ${fmt(open(e))}`).join('. ') + `. Total ${fmt(list.reduce((s, e) => s + open(e), 0))}.`
+      : 'Nobody owes you anything right now.';
+  } else if (/\b(what|who|how much)\b.*\b(do i|i)\s+owe\b/.test(t)) {
+    intent = 'what_i_owe';
+    const list = entries.filter(e => e.type === 'debt_out' && open(e) > 0);
+    answer = list.length
+      ? list.slice(0, 6).map(e => `You owe ${e.item} ${fmt(open(e))}`).join('. ') + `. Total ${fmt(list.reduce((s, e) => s + open(e), 0))}.`
+      : 'You do not owe anyone right now.';
+  } else if (/\b(spend|spent|expenses?)\b/.test(t)) {
+    const week = /\bweek\b/.test(t);
+    intent = week ? 'spent_week' : 'spent_today';
+    const list = entries.filter(e => e.type === 'expense' && (week ? inWeek(e) : isToday(e)));
+    answer = `You spent ${fmt(sum(list))} ${week ? 'this week' : 'today'}${list.length ? ', on ' + list.length + (list.length === 1 ? ' thing' : ' things') : ''}.`;
+  } else if (/\b(make|made|profit|left|balance)\b/.test(t)) {
+    intent = 'profit_today';
+    const s = sum(entries.filter(e => e.type === 'sale' && isToday(e)));
+    const x = sum(entries.filter(e => e.type === 'expense' && isToday(e) && e.kind !== 'stock' && e.kind !== 'home'));
+    answer = `Today you sold ${fmt(s)} and spent ${fmt(x)}. Money left over: ${fmt(s - x)}.`;
+  } else if (/\b(sold|sell|sales)\b/.test(t)) {
+    const week = /\bweek\b/.test(t);
+    intent = week ? 'sold_week' : 'sold_today';
+    const list = entries.filter(e => e.type === 'sale' && (week ? inWeek(e) : isToday(e)));
+    answer = `You sold ${fmt(sum(list))} ${week ? 'this week' : 'today'}${list.length ? ', ' + list.length + (list.length === 1 ? ' sale' : ' sales') : ''}.`;
+  } else {
+    return false;
+  }
+  track('voice_ask', { intent });
+  setMicStatus(answer, 'heard');
+  speakShort(answer);
+  return true;
+}
+
+
 function speakShort(text) {
   if (!('speechSynthesis' in window)) return;
   try {
