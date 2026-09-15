@@ -56,7 +56,7 @@
      app.js?v=. Lets anyone - a reviewer, a tester in Kumasi, a future session -
      answer "which CountMy am I looking at?" from view-source or the console,
      the same way the Worker answers with "wv". -->
-<meta name="countmy-version" content="v74">
+<meta name="countmy-version" content="v75">
 <!-- Real finding, 28 Aug: the bare "CountMy" title carried no keywords at all
      for what people actually search - a free sales/expense ledger for
      Ghanaian shop owners. The <title> tag is the single strongest on-page
@@ -492,9 +492,9 @@ input[type="number"]{-moz-appearance:textfield}
        same breath, nothing above it, nothing to read before it. -->
   <h1 class="pitch">CountMy</h1>
   <div class="ask-line">What happened in your shop today?</div>
-  <button id="homeMicBtn" class="home-mic-btn" type="button" aria-label="Tap and speak what happened">
+  <button id="homeMicBtn" class="home-mic-btn" type="button" aria-label="Tell CountMy what happened">
     <svg viewBox="0 0 24 24" fill="none"><path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3Z" stroke="currentColor" stroke-width="2"/><path d="M19 11a7 7 0 0 1-14 0M12 18v3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-    <span class="home-mic-label">Tap and speak</span>
+    <span class="home-mic-label">Tell CountMy</span>
     <!-- Live proof the phone is actually hearing you - bars move with your
          voice in real time. No text to read: if you speak and nothing
          moves, you instantly know something's wrong, instead of finding
@@ -820,7 +820,7 @@ input[type="number"]{-moz-appearance:textfield}
      string is what forces a fresh script fetch even before any service worker logic
      runs, independent of it. Found live 27 Aug: without this, an already-visited
      browser can keep running old code from plain HTTP cache regardless of SW strategy. -->
-<script src="app.js?v=74"></script>
+<script src="app.js?v=75"></script>
 
 <!-- Analytics for the Silent Alpha pilot only (27 Aug) - added to observe real
      merchant behavior (what they tap first, voice vs manual usage), NOT to

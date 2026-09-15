@@ -1332,9 +1332,16 @@ async function render() {
   // First screen for a first-timer is the name, the button and one line (15
   // Sep). A card of zeros and an empty 'Recent' answered a question she had
   // not asked yet; both appear the moment there is something to show.
-  document.querySelector('.today').hidden = entries.length === 0;
-  document.querySelector('.hist-label').hidden = entries.length === 0;
-  document.getElementById('history').hidden = entries.length === 0;
+  const firstUse = entries.length === 0;
+  document.querySelector('.today').hidden = firstUse;
+  document.querySelector('.hist-label').hidden = firstUse;
+  document.getElementById('history').hidden = firstUse;
+  // Same rule, two more places (15 Sep): the camera is a second way to do
+  // the thing she has not yet done once, and "backed up / lost your phone"
+  // is about records that do not exist yet. Nine lines on first use became
+  // five: the name, the question, the button, one line of how, one of type.
+  document.getElementById('snapBtn').hidden = firstUse;
+  document.querySelector('.safety-block').hidden = firstUse;
 
   // Real advice, 28 Aug, sought independently from two AI reviews after
   // real Clarity data showed 97% of visits are new and returning usage is
