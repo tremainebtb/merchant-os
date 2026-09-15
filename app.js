@@ -1088,7 +1088,7 @@ function ping(eventType) {
     fetch(`${API_BASE}/ping`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ shop, event: eventType })
+      body: JSON.stringify({ shop, event: eventType, programme: localStorage.getItem('kym_programme') || '' })
     }).catch(() => {});
   } catch (err) {
     // Usage reporting must never interrupt a locally committed save.
@@ -2218,6 +2218,13 @@ function bumpVisitCount() {
 (async function init() {
   db = await openDB();
   window.KYM_VERSION = (document.querySelector('meta[name="countmy-version"]') || {}).content || 'unknown';
+  // Programme code from the link she arrived on (a partner's card or QR carries
+  // ?p=<code>). Stored once, first code wins, sent with every ping so the
+  // partner can be shown adoption among its own traders. Never a name.
+  try {
+    const p = new URLSearchParams(location.search).get('p');
+    if (p && !localStorage.getItem('kym_programme')) localStorage.setItem('kym_programme', p.toLowerCase().replace(/[^a-z0-9_-]/g, '').slice(0, 32));
+  } catch (e) { /* storage blocked - attribution is optional */ }
   console.info('CountMy ' + window.KYM_VERSION);
   // Receiving side of the http -> https record bridge (see the head script
   // in index.html). Only ever accepts rows from our own http origin, only

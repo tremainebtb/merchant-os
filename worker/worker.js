@@ -158,7 +158,55 @@ async function handlePing(request, env) {
   const shopHash = (await sha256Hex(shop)).slice(0, 32);
   await env.COUNTMY_DB.prepare('INSERT INTO events (shop_hash, event_type, ts) VALUES (?, ?, ?)')
     .bind(shopHash, eventType, Date.now()).run();
+  // Programme attribution (15 Sep). The only revenue route with a Ghanaian
+  // payer in evidence is an institution paying per trader (Oze's payers are
+  // banks; MTN Adwumapa already bundles third-party tools). An institution
+  // signs on proof of adoption among ITS traders, which needs one thing this
+  // pipeline never had: which programme a trader came through. A short code
+  // on the link (?p=adwumapa, printed on that programme's cards) is stored on
+  // the phone and sent here; membership is recorded once, first code wins,
+  // still keyed only by the one-way shop hash - no name, no number.
+  const programme = String((body && body.programme) || '').trim().toLowerCase().replace(/[^a-z0-9_-]/g, '').slice(0, 32);
+  if (programme) {
+    try {
+      await env.COUNTMY_DB.prepare('CREATE TABLE IF NOT EXISTS programme_members (shop_hash TEXT PRIMARY KEY, programme TEXT NOT NULL, first_ts INTEGER NOT NULL)').run();
+      await env.COUNTMY_DB.prepare('INSERT OR IGNORE INTO programme_members (shop_hash, programme, first_ts) VALUES (?, ?, ?)')
+        .bind(shopHash, programme, Date.now()).run();
+    } catch (e) { /* attribution must never fail a ping */ }
+  }
   return cors(new Response(null, { status: 204 }));
+}
+
+// The page an institution sees before it pays: adoption among the traders
+// that came through ITS programme, nothing about any individual. Same
+// ADMIN_KEY gate as every other /admin/* route.
+async function handleProgrammeReport(request, env) {
+  const url = new URL(request.url);
+  const key = url.searchParams.get('key') || '';
+  if (!env.ADMIN_KEY || key !== env.ADMIN_KEY) {
+    return cors(new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401 }));
+  }
+  if (!env.COUNTMY_DB) return cors(new Response(JSON.stringify({ error: 'not configured' }), { status: 503 }));
+  const programme = String(url.searchParams.get('p') || '').trim().toLowerCase().replace(/[^a-z0-9_-]/g, '').slice(0, 32);
+  const now = Date.now();
+  const d7 = now - 7 * 86400000, d30 = now - 30 * 86400000;
+  try {
+    await env.COUNTMY_DB.prepare('CREATE TABLE IF NOT EXISTS programme_members (shop_hash TEXT PRIMARY KEY, programme TEXT NOT NULL, first_ts INTEGER NOT NULL)').run();
+    const where = programme ? 'WHERE m.programme = ?' : '';
+    const bindP = programme ? [programme] : [];
+    const q = `SELECT m.programme AS programme,
+        COUNT(*) AS enrolled,
+        SUM(CASE WHEN m.first_ts >= ? THEN 1 ELSE 0 END) AS enrolled_30d,
+        SUM(CASE WHEN EXISTS (SELECT 1 FROM events e WHERE e.shop_hash = m.shop_hash AND e.ts >= ?) THEN 1 ELSE 0 END) AS active_7d,
+        SUM(CASE WHEN EXISTS (SELECT 1 FROM events e WHERE e.shop_hash = m.shop_hash AND e.ts >= ?) THEN 1 ELSE 0 END) AS active_30d,
+        SUM(CASE WHEN EXISTS (SELECT 1 FROM events e WHERE e.shop_hash = m.shop_hash AND e.event_type = 'save') THEN 1 ELSE 0 END) AS ever_saved,
+        (SELECT COUNT(*) FROM events e WHERE e.event_type = 'save' AND e.shop_hash IN (SELECT shop_hash FROM programme_members x WHERE x.programme = m.programme)) AS saves_total
+      FROM programme_members m ${where} GROUP BY m.programme ORDER BY enrolled DESC`;
+    const rows = (await env.COUNTMY_DB.prepare(q).bind(d30, d7, d30, ...bindP).all()).results || [];
+    return cors(new Response(JSON.stringify({ generatedAt: now, programmes: rows }), { headers: { 'Content-Type': 'application/json' } }));
+  } catch (e) {
+    return cors(new Response(JSON.stringify({ error: 'report failed', detail: String(e).slice(0, 200) }), { status: 500 }));
+  }
 }
 
 // Automatic entry backup, added 30 Aug: Bobby's explicit call - "it shouldn't
@@ -578,7 +626,7 @@ async function handleTranscribe(request, env) {
 // 50 is a transcription/parsing error, not a fabrication) - evidence-checking
 // targets fabrication specifically, not every possible error; the review UI is
 // still what catches a wrong-but-grounded number.
-const WORKER_VERSION = 'w17';
+const WORKER_VERSION = 'w18';
 
 const EXTRACT_SYSTEM_PROMPT = `You read a rough, possibly messy speech-to-text transcript from a Ghanaian shop owner describing what happened in their shop today, in English, Twi or Pidgin (Twi numbers: baako 1, mmienu 2, mmiensa 3, enan 4, anum 5, du 10, aduonu 20, aduasa 30, aduonum 50, oha 100, apem 1000; "de me ka" = owes me; transcripts may contain mistranscribed words like "cds" for "cedis"). Extract every distinct business event as a JSON array. Each event is one of these types:
 - "sale": the owner sold something. Fields: type, item, qty, and EITHER price (per-unit price in cedis, only if a per-unit price was actually spoken) OR total (the total amount actually spoken, if only a total was said - e.g. "2 bags for 300" has qty 2 and total 300, NOT price 150 - never do the division yourself).
@@ -1273,6 +1321,7 @@ export default {
       else if (path === '/admin/shop' && request.method === 'GET') adminResp = await handleShopActivity(request, env);
       else if (path === '/admin/entries' && request.method === 'GET') adminResp = await handleAdminEntries(request, env);
       else if (path === '/admin/entries/recent' && request.method === 'GET') adminResp = await handleAdminRecentEntries(request, env);
+      else if (path === '/admin/programme' && request.method === 'GET') adminResp = await handleProgrammeReport(request, env);
       if (adminResp) {
         if (adminResp.status === 401) await bumpAdminFail(env, ip);
         return adminResp;
