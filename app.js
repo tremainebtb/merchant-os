@@ -1342,6 +1342,14 @@ async function render() {
   // five: the name, the question, the button, one line of how, one of type.
   document.getElementById('snapBtn').hidden = firstUse;
   document.querySelector('.safety-block').hidden = firstUse;
+  // 16 Sep: two more things she has not earned yet. The shop page is for
+  // someone who already keeps records here, and the optional-support line
+  // was the only mention of money on a first screen that says "free".
+  // The button also breathes gently until the first entry - one moving
+  // thing on the screen, so the eye lands on the only thing to do.
+  document.getElementById('shopPageBtn').hidden = firstUse;
+  document.getElementById('planPill').hidden = firstUse;
+  document.getElementById('homeMicBtn').classList.toggle('first-use', firstUse);
 
   // Real advice, 28 Aug, sought independently from two AI reviews after
   // real Clarity data showed 97% of visits are new and returning usage is
