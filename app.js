@@ -884,7 +884,7 @@ function stopMicLevelMeter() {
 
 async function toggleMic(btn, statusId) {
   if (!micSupported()) {
-    setMicStatus('Voice isn\u2019t available on this phone/browser \u2014 please type instead.', 'err', statusId);
+    setMicStatus(window.isSecureContext === false ? 'Please open https://countmy.app for voice to work.' : 'Voice isn\u2019t available on this phone/browser \u2014 please type instead.', 'err', statusId);
     return;
   }
   if (mediaRecorder && mediaRecorder.state === 'recording') {
@@ -2152,6 +2152,24 @@ function bumpVisitCount() {
 
 (async function init() {
   db = await openDB();
+  // Receiving side of the http -> https record bridge (see the head script
+  // in index.html). Only ever accepts rows from our own http origin, only
+  // when opened as ?bridge=1, and uses put so a row that already exists is
+  // overwritten rather than duplicated.
+  if (new URLSearchParams(location.search).get('bridge') === '1' && window.parent !== window) {
+    window.addEventListener('message', function (e) {
+      if (e.origin !== 'http://' + location.host) return;
+      if (!e.data || e.data.type !== 'kym-bridge' || !Array.isArray(e.data.rows)) return;
+      try {
+        const tx = db.transaction(STORE, 'readwrite');
+        const st = tx.objectStore(STORE);
+        e.data.rows.forEach(r => { if (r && r.id) st.put(r); });
+        tx.oncomplete = () => { track('bridge_import', { rows: e.data.rows.length }); e.source.postMessage('kym-bridge-done', e.origin); };
+        tx.onerror = () => e.source.postMessage('kym-bridge-done', e.origin);
+      } catch (err) { e.source.postMessage('kym-bridge-done', e.origin); }
+    });
+    return;
+  }
   updateOfflineBadge();
   await render();
   // Real feedback, 1 Sep ("there's too much going on... if you're a trader

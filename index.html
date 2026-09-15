@@ -2,6 +2,46 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<!-- Found 15 Sep in the Clarity recordings: http://countmy.app/ was served in
+     full, no redirect, in 21 sessions. On a plain-http origin the browser
+     exposes no microphone at all, the service worker cannot register, and
+     storage is a separate bucket from https - so a trader on Samsung
+     Internet tapped "Tap and speak" ten times in one session and got the
+     false message "Voice isn't available on this phone". This runs before
+     anything else: send her to https, and carry any records she saved on
+     the http origin across first so they do not vanish. -->
+<script>
+(function () {
+  if (location.protocol !== 'http:' || location.hostname === 'localhost') return;
+  var secure = 'https://' + location.host;
+  var target = secure + location.pathname + location.search + location.hash;
+  var done = false;
+  function go() { if (!done) { done = true; location.replace(target); } }
+  setTimeout(go, 5000);
+  try {
+    var req = indexedDB.open('merchantos');
+    req.onerror = go;
+    req.onsuccess = function () {
+      var d = req.result;
+      if (!d.objectStoreNames.contains('entries')) { d.close(); return go(); }
+      var q = d.transaction('entries').objectStore('entries').getAll();
+      q.onerror = go;
+      q.onsuccess = function () {
+        var rows = q.result || [];
+        if (!rows.length) return go();
+        window.addEventListener('message', function (e) {
+          if (e.origin === secure && e.data === 'kym-bridge-done') go();
+        });
+        var f = document.createElement('iframe');
+        f.style.display = 'none';
+        f.src = secure + '/?bridge=1';
+        f.onload = function () { f.contentWindow.postMessage({ type: 'kym-bridge', rows: rows }, secure); };
+        document.documentElement.appendChild(f);
+      };
+    };
+  } catch (e) { go(); }
+})();
+</script>
 <!-- maximum-scale=1 removed 4 Sep after an external audit flagged it. It
      blocks pinch-zoom entirely, which is a real accessibility failure for
      the exact people this app is built for: users in their 60s and 70s,
@@ -772,7 +812,7 @@ input[type="number"]{-moz-appearance:textfield}
      string is what forces a fresh script fetch even before any service worker logic
      runs, independent of it. Found live 27 Aug: without this, an already-visited
      browser can keep running old code from plain HTTP cache regardless of SW strategy. -->
-<script src="app.js?v=68"></script>
+<script src="app.js?v=69"></script>
 
 <!-- Analytics for the Silent Alpha pilot only (27 Aug) - added to observe real
      merchant behavior (what they tap first, voice vs manual usage), NOT to
