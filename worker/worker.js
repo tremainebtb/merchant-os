@@ -578,6 +578,8 @@ async function handleTranscribe(request, env) {
 // 50 is a transcription/parsing error, not a fabrication) - evidence-checking
 // targets fabrication specifically, not every possible error; the review UI is
 // still what catches a wrong-but-grounded number.
+const WORKER_VERSION = 'w15';
+
 const EXTRACT_SYSTEM_PROMPT = `You read a rough, possibly messy speech-to-text transcript from a Ghanaian shop owner describing what happened in their shop today, in English, Twi or Pidgin (Twi numbers: baako 1, mmienu 2, mmiensa 3, enan 4, anum 5, du 10, aduonu 20, aduasa 30, aduonum 50, oha 100, apem 1000; "de me ka" = owes me; transcripts may contain mistranscribed words like "cds" for "cedis"). Extract every distinct business event as a JSON array. Each event is one of these types:
 - "sale": the owner sold something. Fields: type, item, qty, and EITHER price (per-unit price in cedis, only if a per-unit price was actually spoken) OR total (the total amount actually spoken, if only a total was said - e.g. "2 bags for 300" has qty 2 and total 300, NOT price 150 - never do the division yourself).
 - "expense": the owner spent money on something. Fields: type, item, price (total amount in cedis).
@@ -733,15 +735,34 @@ function twiEvidenceValue(evidence) {
   return sum;
 }
 
-function fieldValue(raw, transcriptNorm) {
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return undefined;
-  if (evidenceVerified(raw.evidence, transcriptNorm)) {
-    if (typeof raw.value === 'number') {
-      const twi = twiEvidenceValue(raw.evidence);
-      if (twi !== undefined) return twi;
-    }
-    return raw.value;
+// Twi amounts in the transcript, as the sums of each run of number words,
+// largest first. "cedis aduasa" -> [30]; "ntoma anum, cedis oha" -> [100, 5].
+function twiRunSums(transcriptNorm) {
+  const sums = [];
+  let run = 0, inRun = false;
+  for (const tok of transcriptNorm.split(' ')) {
+    const own = Object.prototype.hasOwnProperty.call(TWI_NUMBERS, tok);
+    if (own) { run += TWI_NUMBERS[tok]; inRun = true; continue; }
+    if (inRun) { sums.push(run); run = 0; inRun = false; }
   }
+  if (inRun) sums.push(run);
+  return sums.sort((a, b) => b - a);
+}
+
+function fieldValue(raw, transcriptNorm, fieldName) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return undefined;
+  if (typeof raw.value === 'number') {
+    const twi = twiEvidenceValue(raw.evidence);
+    if (twi !== undefined) return twi;
+    if (valueGroundedInTranscript(raw.value, transcriptNorm)) return raw.value;
+    // The model's number matches nothing that was said. If Twi number words
+    // were said, the amount is the largest Twi run and a quantity the
+    // smallest - deterministic, and right for "ntoma anum, cedis oha".
+    const sums = twiRunSums(transcriptNorm);
+    if (sums.length) return fieldName === 'qty' ? sums[sums.length - 1] : sums[0];
+    return evidenceVerified(raw.evidence, transcriptNorm) ? raw.value : undefined;
+  }
+  if (evidenceVerified(raw.evidence, transcriptNorm)) return raw.value;
   if (valueGroundedInTranscript(raw.value, transcriptNorm)) return raw.value;
   return undefined;
 }
@@ -815,7 +836,7 @@ function buildCleanEvents(rawEvents, getField) {
 
 function sanitizeEvents(rawEvents, transcript) {
   const transcriptNorm = normalizeForMatch(transcript || '');
-  return buildCleanEvents(rawEvents, (e, key) => fieldValue(e[key], transcriptNorm));
+  return buildCleanEvents(rawEvents, (e, key) => fieldValue(e[key], transcriptNorm, key));
 }
 
 // Photo path, 2 Sep. Honest difference from the voice path above: there is
@@ -940,7 +961,7 @@ async function handleExtract(request, env) {
   if (result.error) {
     return cors(new Response(JSON.stringify({ error: result.error, detail: result.detail }), { status: 502 }));
   }
-  return cors(new Response(JSON.stringify({ events: result.events }), {
+  return cors(new Response(JSON.stringify({ events: result.events, wv: WORKER_VERSION }), {
     headers: { 'Content-Type': 'application/json' }
   }));
 }
