@@ -152,7 +152,8 @@ async function handlePing(request, env) {
   const shop = String((body && body.shop) || '').trim().toLowerCase().slice(0, 200);
   const eventType = String((body && body.event) || '');
   if (!shop) return cors(new Response(JSON.stringify({ error: 'missing shop id' }), { status: 400 }));
-  if (eventType !== 'open' && eventType !== 'save') {
+  // share_shop / shop_created added 16 Sep for the spread-loop numbers.
+  if (!['open', 'save', 'share_shop', 'shop_created'].includes(eventType)) {
     return cors(new Response(JSON.stringify({ error: 'invalid event' }), { status: 400 }));
   }
   const shopHash = (await sha256Hex(shop)).slice(0, 32);
@@ -187,6 +188,22 @@ async function handlePing(request, env) {
       }
     } catch (e) { /* attribution must never fail a ping */ }
   }
+  // Source attribution (16 Sep): one row per device, first source wins,
+  // saved_ts stamped on the first save so "came from X and actually
+  // recorded something" is answerable per channel. Traffic with no
+  // attribution is a vanity number.
+  try {
+    const device = String((body && body.device) || '').trim().slice(0, 100);
+    const source = String((body && body.source) || '').trim().toLowerCase().replace(/[^a-z0-9_.:\/-]/g, '').slice(0, 60);
+    if (device && source) {
+      const dh = (await sha256Hex(device)).slice(0, 32);
+      await env.COUNTMY_DB.prepare('CREATE TABLE IF NOT EXISTS devices (device_hash TEXT PRIMARY KEY, source TEXT NOT NULL, first_ts INTEGER NOT NULL, saved_ts INTEGER)').run();
+      await env.COUNTMY_DB.prepare('INSERT OR IGNORE INTO devices (device_hash, source, first_ts) VALUES (?, ?, ?)').bind(dh, source, Date.now()).run();
+      if (eventType === 'save') {
+        await env.COUNTMY_DB.prepare('UPDATE devices SET saved_ts = ? WHERE device_hash = ? AND saved_ts IS NULL').bind(Date.now(), dh).run();
+      }
+    }
+  } catch (e) { /* attribution must never fail a ping */ }
   return cors(new Response(null, { status: 204 }));
 }
 
@@ -641,6 +658,10 @@ async function handleAdminStats(request, env) {
   await ensureShopsTable(env);
   stmts.push(env.COUNTMY_DB.prepare('SELECT COUNT(*) as n, COALESCE(SUM(views), 0) as v FROM shops'));
   stmts.push(env.COUNTMY_DB.prepare('SELECT COUNT(*) as n FROM shops WHERE created_at >= ?').bind(now - 7 * DAY));
+  await env.COUNTMY_DB.prepare('CREATE TABLE IF NOT EXISTS devices (device_hash TEXT PRIMARY KEY, source TEXT NOT NULL, first_ts INTEGER NOT NULL, saved_ts INTEGER)').run();
+  stmts.push(env.COUNTMY_DB.prepare(
+    'SELECT source, COUNT(*) as n, SUM(CASE WHEN first_ts >= ? THEN 1 ELSE 0 END) as n7, SUM(CASE WHEN saved_ts IS NOT NULL THEN 1 ELSE 0 END) as activated FROM devices GROUP BY source ORDER BY n DESC LIMIT 40'
+  ).bind(now - 7 * DAY));
 
   const results = await env.COUNTMY_DB.batch(stmts);
 
@@ -667,6 +688,7 @@ async function handleAdminStats(request, env) {
   out.loop.shops = shopsRow.n || 0;
   out.loop.shopViews = shopsRow.v || 0;
   out.loop.shops7 = one().n || 0;
+  out.sources = (results[i++].results || []).map(r => ({ source: r.source, devices: r.n || 0, week: r.n7 || 0, activated: r.activated || 0 }));
 
   return cors(new Response(JSON.stringify(out), {
     headers: { 'Content-Type': 'application/json' }
@@ -825,7 +847,7 @@ async function handleTranscribe(request, env) {
 // 50 is a transcription/parsing error, not a fabrication) - evidence-checking
 // targets fabrication specifically, not every possible error; the review UI is
 // still what catches a wrong-but-grounded number.
-const WORKER_VERSION = 'w23';
+const WORKER_VERSION = 'w24';
 
 const EXTRACT_SYSTEM_PROMPT = `You read a rough, possibly messy speech-to-text transcript from a Ghanaian shop owner describing what happened in their shop today, in English, Twi or Pidgin (Twi numbers: baako 1, mmienu 2, mmiensa 3, enan 4, anum 5, du 10, aduonu 20, aduasa 30, aduonum 50, oha 100, apem 1000; "de me ka" = owes me; transcripts may contain mistranscribed words like "cds" for "cedis"). Extract every distinct business event as a JSON array. Each event is one of these types:
 - "sale": the owner sold something. Fields: type, item, qty, and EITHER price (per-unit price in cedis, only if a per-unit price was actually spoken) OR total (the total amount actually spoken, if only a total was said - e.g. "2 bags for 300" has qty 2 and total 300, NOT price 150 - never do the division yourself).

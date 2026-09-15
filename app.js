@@ -1088,7 +1088,7 @@ function ping(eventType) {
     fetch(`${API_BASE}/ping`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ shop, event: eventType, programme: localStorage.getItem('kym_programme') || '', device: getDeviceId() })
+      body: JSON.stringify({ shop, event: eventType, programme: localStorage.getItem('kym_programme') || '', device: getDeviceId(), source: localStorage.getItem('kym_source') || '' })
     }).catch(() => {});
   } catch (err) {
     // Usage reporting must never interrupt a locally committed save.
@@ -2338,6 +2338,31 @@ function bumpVisitCount() {
     const p = new URLSearchParams(location.search).get('p');
     if (p && !localStorage.getItem('kym_programme')) localStorage.setItem('kym_programme', p.toLowerCase().replace(/[^a-z0-9_-]/g, '').slice(0, 32));
   } catch (e) { /* storage blocked - attribution is optional */ }
+  // Where did this phone come from? (16 Sep.) Decided once, on the very first
+  // visit, from the link's utm_source, else a partner code, else the referrer
+  // host, else "direct". Stored as source or source/campaign, never a URL.
+  try {
+    if (!localStorage.getItem('kym_source')) {
+      const u = new URLSearchParams(location.search);
+      const clean = s => String(s || '').toLowerCase().replace(/[^a-z0-9_.:-]/g, '').slice(0, 40);
+      let src = clean(u.get('utm_source'));
+      const camp = clean(u.get('utm_campaign'));
+      if (!src && u.get('p')) src = 'partner';
+      if (!src && document.referrer) {
+        const h = new URL(document.referrer).hostname.replace(/^www\./, '');
+        if (h && h !== location.hostname) {
+          src = /facebook|fb\.com|fb\.me|messenger/.test(h) ? 'facebook'
+            : /instagram/.test(h) ? 'instagram'
+            : /whatsapp/.test(h) ? 'whatsapp'
+            : /tiktok/.test(h) ? 'tiktok'
+            : /google|bing|duckduckgo|yahoo/.test(h) ? 'search'
+            : /b\.countmy\.app|workers\.dev/.test(h) ? 'shoppage'
+            : 'other:' + clean(h).slice(0, 24);
+        }
+      }
+      localStorage.setItem('kym_source', (src || 'direct') + (camp ? '/' + camp : ''));
+    }
+  } catch (e) { /* optional */ }
   console.info('CountMy ' + window.KYM_VERSION);
   // Receiving side of the http -> https record bridge (see the head script
   // in index.html). Only ever accepts rows from our own http origin, only

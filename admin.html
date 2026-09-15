@@ -63,6 +63,7 @@ h1 .tagline{font-family:"Work Sans",sans-serif;font-size:.78rem;font-weight:500;
 .panel{background:var(--surface);border:1px solid var(--rule);border-radius:14px;padding:16px 18px 10px;margin-bottom:18px}
 .panel h3{font-family:"Manrope",sans-serif;font-size:.92rem;margin:0 0 2px}
 .panel .note{font-size:.76rem;color:var(--muted);margin:0 0 12px}
+.tw{overflow-x:auto}.src-table{border-collapse:collapse;width:100%;font-size:.9rem;margin-bottom:8px}.src-table th,.src-table td{text-align:left;padding:7px 8px;border-bottom:1px solid var(--rule)}.src-table th{font-size:.74rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}.src-table td:nth-child(n+2){font-variant-numeric:tabular-nums}
 .legend{display:flex;gap:16px;font-size:.78rem;color:var(--ink-soft);margin-bottom:8px}
 .legend span{display:inline-flex;align-items:center;gap:6px}
 .legend i{width:10px;height:10px;border-radius:3px;display:inline-block}
@@ -134,6 +135,12 @@ footer p{margin:0 0 6px}
       <div class="kpi entries"><div class="label">Shop pages shared</div><div class="num" id="kShared">-</div><div class="sub" id="kSharedSub"></div></div>
       <div class="kpi entries"><div class="label">Shop page views</div><div class="num" id="kShopViews">-</div><div class="sub">customers opening a page</div></div>
     </div>
+  </div>
+
+  <div class="panel">
+    <h3>Where people came from</h3>
+    <p class="note">One row per device, decided on its first visit: the link's utm_source (and campaign after the slash), a partner code, the site that sent them, or direct. "Made a record" = that device has saved at least one entry.</p>
+    <div class="tw"><table class="src-table"><thead><tr><th>Source</th><th>Devices</th><th>This week</th><th>Made a record</th></tr></thead><tbody id="srcBody"><tr><td colspan="4" class="empty-note">No data yet.</td></tr></tbody></table></div>
   </div>
 
   <div class="panel">
@@ -215,6 +222,10 @@ async function loadStats(key) {
 }
 
 function renderKpis() {
+  const srcRows = statsData.sources || [];
+  document.getElementById('srcBody').innerHTML = srcRows.length
+    ? srcRows.map(r => `<tr><td>${String(r.source).replace(/</g, '&lt;')}</td><td>${fmtInt(r.devices)}</td><td>${fmtInt(r.week)}</td><td>${fmtInt(r.activated)}</td></tr>`).join('')
+    : '<tr><td colspan="4" class="empty-note">No data yet.</td></tr>';
   const L = statsData.loop || {};
   document.getElementById('kRet7').textContent = fmtInt(L.returning7);
   document.getElementById('kRet30').textContent = fmtInt(L.returning30);
