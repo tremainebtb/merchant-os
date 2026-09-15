@@ -3,14 +3,6 @@ name = "countmy-api"
 main = "worker/worker.js"
 compatibility_date = "2026-08-27"
 
-# Short public address for shop pages (16 Sep). countmy.app's DNS is on this
-# Cloudflare account (apex stays pointed at GitHub Pages); a Workers custom
-# domain creates the b.countmy.app record itself on deploy. Only /b/<slug>
-# is meant to be used on this host; the API keeps answering on workers.dev.
-routes = [
-  { pattern = "b.countmy.app", custom_domain = true }
-]
-
 [ai]
 binding = "AI"
 
