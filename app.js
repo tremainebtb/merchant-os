@@ -2168,6 +2168,7 @@ function bumpVisitCount() {
         tx.onerror = () => e.source.postMessage('kym-bridge-done', e.origin);
       } catch (err) { e.source.postMessage('kym-bridge-done', e.origin); }
     });
+    window.parent.postMessage('kym-bridge-ready', 'http://' + location.host);
     return;
   }
   updateOfflineBadge();
