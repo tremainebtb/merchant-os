@@ -586,6 +586,7 @@ const EXTRACT_SYSTEM_PROMPT = `You read a rough, possibly messy speech-to-text t
 CRITICAL RULE: every field except "type" must be an object of the form {"value": ..., "evidence": "..."}, where "evidence" is the EXACT short substring copied word-for-word from the transcript that this value is based on (e.g. evidence "three" for qty 3, evidence "300" for total 300, evidence "Kwame" for customer). NEVER invent evidence text for a number you calculated yourself (like a divided-out per-unit price) - only use evidence for words that were ACTUALLY spoken. If you cannot point to actual words in the transcript supporting a field, DO NOT include that field at all - do not guess, do not use general knowledge about typical prices. qty, price, and total "value" must be plain numbers. Ignore transcription noise words that don't fit any product (like a stray "cds" or "think" with no context) - do not turn noise into a fabricated item.
 Respond with ONLY a raw JSON array, no prose, no markdown fences, no extra fields beyond what's listed above. If nothing extractable, respond with [].
 If someone owes the owner money and no personal name was said (e.g. "a customer owes me 80 cedis"), still return debt_in and use the exact word that was spoken for the person, such as "customer".
+The owner may speak Twi or Ghanaian Pidgin. Twi number words: baako=1, mmienu=2, mmiensa=3, enan=4, anum=5, nsia=6, nson=7, nwotwe=8, nkron=9, du=10, dunum=15, aduonu=20, aduasa=30, aduanan=40, aduonum=50, aduosia=60, aduoson=70, aduowotwe=80, aduokron=90, oha=100, ahanu=200, ahasa=300, apem=1000; compounds add up (oha aduonu = 120, aduonu anum = 25). Twi verbs: meton/met\u0254n = I sold, metoo/met\u0254\u0254 = I bought, "X de me ka" = X owes me. Pidgin: "I sell" = I sold, "I buy" = I bought, "X dey owe me" / "X still owe me" = X owes me. One sentence can carry two events, e.g. "Ama buy two dresses, she still owe me 50" is a sale AND a debt_in.
 Examples, one per type - every type below is equally likely, do NOT assume an utterance is a sale:
 [{"type":"sale","item":{"value":"rice","evidence":"rice"},"qty":{"value":5,"evidence":"five"},"price":{"value":10,"evidence":"ten cedis"}}]
 [{"type":"sale","item":{"value":"bags","evidence":"bags"},"qty":{"value":2,"evidence":"two"},"total":{"value":300,"evidence":"300"}}]
@@ -593,7 +594,10 @@ Examples, one per type - every type below is equally likely, do NOT assume an ut
 [{"type":"expense","item":{"value":"stock","evidence":"stock"},"price":{"value":200,"evidence":"200 cedis"}}]
 [{"type":"debt_in","customer":{"value":"Ama","evidence":"Ama"},"price":{"value":120,"evidence":"120 cedis"}}]
 [{"type":"debt_in","customer":{"value":"Kofi","evidence":"Kofi"},"price":{"value":50,"evidence":"fifty cedis"},"note":{"value":"soap","evidence":"soap"}}]
-[{"type":"debt_out","supplier":{"value":"Mensah","evidence":"Mensah"},"price":{"value":400,"evidence":"400 cedis"}}]`;
+[{"type":"debt_out","supplier":{"value":"Mensah","evidence":"Mensah"},"price":{"value":400,"evidence":"400 cedis"}}]
+Twi: "Met\u0254n ntoma anum, cedis \u0254ha" -> [{"type":"sale","item":{"value":"ntoma","evidence":"ntoma"},"qty":{"value":5,"evidence":"anum"},"total":{"value":100,"evidence":"\u0254ha"}}]
+Twi: "Ama de me ka cedis aduasa" -> [{"type":"debt_in","customer":{"value":"Ama","evidence":"Ama"},"price":{"value":30,"evidence":"aduasa"}}]
+Pidgin, two events: "Ama buy two dresses, she still owe me 50" -> [{"type":"sale","item":{"value":"dresses","evidence":"dresses"},"qty":{"value":2,"evidence":"two"}},{"type":"debt_in","customer":{"value":"Ama","evidence":"Ama"},"price":{"value":50,"evidence":"50"}}]`;
 
 // Deterministic, model-independent safety layer - takes whatever the LLM
 // returned (which may be malformed, missing fields, contain the literal string
@@ -606,7 +610,9 @@ Examples, one per type - every type below is equally likely, do NOT assume an ut
 // confidence here is a fact about the value's own type AND whether its claimed
 // evidence is real, nothing the model merely asserts about itself.
 function normalizeForMatch(s) {
-  return String(s).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  // Akan open vowels folded to ASCII first (15 Sep), otherwise the plain
+  // a-z strip splits a Twi number word like "aduoson" (70) in two.
+  return String(s).toLowerCase().replace(/\u0254/g, 'o').replace(/\u025b/g, 'e').replace(/[^a-z0-9]+/g, ' ').trim();
 }
 
 // A field's evidence must be a real, boundedly-short substring of the actual
@@ -668,6 +674,34 @@ function numberWordForms(n) {
 // hole this layer exists to close - an invented item ("pencils") is still not
 // in the transcript, an invented amount is still not in the transcript, and
 // an event with no verified identity is still dropped entirely below.
+// Akan (Twi) number words, ASCII-folded (15 Sep). Live test the same day:
+// "meton rice bags mmienu, cedis aduasa" came back as qty 20 / price 180,
+// "anum" (5) became 1, "baako" (1) vanished - the model half-knows these and
+// the grounding check below, which only knew English number words, rejected
+// or mangled the rest. Akan compounds are additive ("oha aduonu" = 100+20), so
+// every run of consecutive number words yields its running sums as candidates.
+const TWI_NUMBERS = {
+  baako: 1, koro: 1, mmienu: 2, mienu: 2, abien: 2, mmiensa: 3, miensa: 3, abiesa: 3, enan: 4, anan: 4, nan: 4,
+  anum: 5, enum: 5, num: 5, nsia: 6, asia: 6, nson: 7, ason: 7, nwotwe: 8, awotwe: 8, nkron: 9, akron: 9,
+  du: 10, edu: 10, dubaako: 11, dummienu: 12, dumienu: 12, dumiensa: 13, dunan: 14, dunum: 15, dunsia: 16,
+  dunson: 17, dunwotwe: 18, dunkron: 19,
+  aduonu: 20, aduasa: 30, aduanan: 40, aduonum: 50, aduosia: 60, aduoson: 70, aduowotwe: 80, aduokron: 90,
+  oha: 100, ha: 100, ahanu: 200, ahaanu: 200, ahasa: 300, ahanan: 400, ahanum: 500, ahasia: 600, ahason: 700,
+  ahawotwe: 800, ahakron: 900, apem: 1000
+};
+function twiNumberCandidates(transcriptNorm) {
+  const out = new Set();
+  let run = 0;
+  for (const tok of transcriptNorm.split(' ')) {
+    const v = Object.prototype.hasOwnProperty.call(TWI_NUMBERS, tok) ? TWI_NUMBERS[tok] : undefined;
+    if (v === undefined) { run = 0; continue; }
+    out.add(v);
+    run += v;
+    out.add(run);
+  }
+  return out;
+}
+
 function valueGroundedInTranscript(value, transcriptNorm) {
   if (value === null || value === undefined) return false;
   if (typeof value === 'number') {
@@ -675,7 +709,8 @@ function valueGroundedInTranscript(value, transcriptNorm) {
     const asDigits = String(value);
     if (transcriptNorm.includes(asDigits)) return true;
     // 30.5 is never spoken as words; only whole numbers get the word check.
-    return numberWordForms(value).some(w => transcriptNorm.includes(w));
+    if (numberWordForms(value).some(w => transcriptNorm.includes(w))) return true;
+    return twiNumberCandidates(transcriptNorm).has(value);
   }
   if (typeof value === 'string') {
     const norm = normalizeForMatch(value);
