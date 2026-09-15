@@ -169,9 +169,22 @@ async function handlePing(request, env) {
   const programme = String((body && body.programme) || '').trim().toLowerCase().replace(/[^a-z0-9_-]/g, '').slice(0, 32);
   if (programme) {
     try {
+      // Keyed by the DEVICE id, not the shop id (integrity test, 15 Sep): the
+      // shop id falls back to the device id until she types a shop name, and
+      // the moment she does, the same phone would have enrolled twice. So
+      // "enrolled" means unique devices - stated plainly to any partner. A
+      // wiped browser is a new device; a shared phone is one device.
+      const device = String((body && body.device) || '').trim().slice(0, 100);
+      const memberHash = device ? (await sha256Hex(device)).slice(0, 32) : shopHash;
       await env.COUNTMY_DB.prepare('CREATE TABLE IF NOT EXISTS programme_members (shop_hash TEXT PRIMARY KEY, programme TEXT NOT NULL, first_ts INTEGER NOT NULL)').run();
       await env.COUNTMY_DB.prepare('INSERT OR IGNORE INTO programme_members (shop_hash, programme, first_ts) VALUES (?, ?, ?)')
-        .bind(shopHash, programme, Date.now()).run();
+        .bind(memberHash, programme, Date.now()).run();
+      // Activity joins on the events table, which is keyed by shop hash, so the
+      // device's activity is also stamped under the member hash when they differ.
+      if (memberHash !== shopHash) {
+        await env.COUNTMY_DB.prepare('INSERT INTO events (shop_hash, event_type, ts) VALUES (?, ?, ?)')
+          .bind(memberHash, eventType, Date.now()).run();
+      }
     } catch (e) { /* attribution must never fail a ping */ }
   }
   return cors(new Response(null, { status: 204 }));
@@ -626,7 +639,7 @@ async function handleTranscribe(request, env) {
 // 50 is a transcription/parsing error, not a fabrication) - evidence-checking
 // targets fabrication specifically, not every possible error; the review UI is
 // still what catches a wrong-but-grounded number.
-const WORKER_VERSION = 'w18';
+const WORKER_VERSION = 'w19';
 
 const EXTRACT_SYSTEM_PROMPT = `You read a rough, possibly messy speech-to-text transcript from a Ghanaian shop owner describing what happened in their shop today, in English, Twi or Pidgin (Twi numbers: baako 1, mmienu 2, mmiensa 3, enan 4, anum 5, du 10, aduonu 20, aduasa 30, aduonum 50, oha 100, apem 1000; "de me ka" = owes me; transcripts may contain mistranscribed words like "cds" for "cedis"). Extract every distinct business event as a JSON array. Each event is one of these types:
 - "sale": the owner sold something. Fields: type, item, qty, and EITHER price (per-unit price in cedis, only if a per-unit price was actually spoken) OR total (the total amount actually spoken, if only a total was said - e.g. "2 bags for 300" has qty 2 and total 300, NOT price 150 - never do the division yourself).

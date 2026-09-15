@@ -1088,7 +1088,7 @@ function ping(eventType) {
     fetch(`${API_BASE}/ping`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ shop, event: eventType, programme: localStorage.getItem('kym_programme') || '' })
+      body: JSON.stringify({ shop, event: eventType, programme: localStorage.getItem('kym_programme') || '', device: getDeviceId() })
     }).catch(() => {});
   } catch (err) {
     // Usage reporting must never interrupt a locally committed save.
