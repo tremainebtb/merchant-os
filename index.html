@@ -56,7 +56,7 @@
      app.js?v=. Lets anyone - a reviewer, a tester in Kumasi, a future session -
      answer "which CountMy am I looking at?" from view-source or the console,
      the same way the Worker answers with "wv". -->
-<meta name="countmy-version" content="v79">
+<meta name="countmy-version" content="v80">
 <!-- Real finding, 28 Aug: the bare "CountMy" title carried no keywords at all
      for what people actually search - a free sales/expense ledger for
      Ghanaian shop owners. The <title> tag is the single strongest on-page
@@ -167,6 +167,9 @@
   --rule:#E7DDCD; --flame:#D9541A; --flame-deep:#A83F12; --flame-soft:#FBE3D2;
   --leaf:#1B7A43; --leaf-deep:#125C32; --leaf-soft:#E1F2E7;
   --brick:#A83F2E; --brick-soft:#F6E1DC; --amber:#8C5F0F; --amber-soft:#FBEFD9;
+  /* Brand warmth pass, 16 Sep: navy is the trust colour for headings and the
+     wordmark; flame stays the one action colour. */
+  --navy:#1E2F55;
 }
 /* Real issue, 1 Sep ("dark and doesn't look top elite/western SaaS"): the
    old dark palette was a muddy brown-black (#161009 - literally black mixed
@@ -181,6 +184,7 @@
     --rule:#2E323A; --flame:#F0713A; --flame-deep:#F79764; --flame-soft:#2E2119;
     --leaf:#4CC585; --leaf-deep:#6FD79E; --leaf-soft:#152420;
     --brick:#E08670; --brick-soft:#2E1E1A; --amber:#E0B25C; --amber-soft:#2A2216;
+    --navy:#D6DEF2;
   }
 }
 :root[data-theme="dark"]{
@@ -188,6 +192,7 @@
   --rule:#2E323A; --flame:#F0713A; --flame-deep:#F79764; --flame-soft:#2E2119;
   --leaf:#4CC585; --leaf-deep:#6FD79E; --leaf-soft:#152420;
   --brick:#E08670; --brick-soft:#2E1E1A; --amber:#E0B25C; --amber-soft:#2A2216;
+  --navy:#D6DEF2;
 }
 *{box-sizing:border-box}
 /* Real bug, found 2 Sep from a real phone screenshot: the end-of-day
@@ -216,7 +221,10 @@ body{margin:0;background:var(--paper);color:var(--ink);font-family:"Work Sans",-
    Bobby was actually saying out loud to explain it, now living on the page
    itself instead of depending on him being there to say it. */
 .brand-sub{font-weight:500;font-size:.68em;color:var(--muted)}
-.pitch{font-family:"Manrope",sans-serif;font-size:1.5rem;font-weight:800;line-height:1.3;margin:10px 0 16px;color:var(--ink)}
+.pitch{font-family:"Manrope",sans-serif;font-size:1.6rem;font-weight:800;line-height:1.3;margin:8px 0 14px;color:var(--navy);letter-spacing:-.01em;display:flex;align-items:center;gap:10px}
+.pitch .mark{width:34px;height:34px;flex:none}
+.pitch .mark .navy{fill:var(--navy)}
+.pitch .my{color:var(--flame)}
 .today{background:var(--surface);border:1px solid var(--rule);border-radius:16px;padding:18px;margin-bottom:16px;box-shadow:0 2px 10px rgba(34,26,18,.06)}
 .today-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
 .today-label{font-family:"Manrope",sans-serif;font-size:.98rem;color:var(--ink);font-weight:700}
@@ -424,7 +432,7 @@ input[type="number"]{-moz-appearance:textfield}
 .mic-level-meter{display:none;align-items:flex-end;justify-content:center;gap:5px;height:22px;margin-top:2px}
 .home-mic-btn.recording .mic-level-meter{display:flex}
 .mic-level-meter span{width:6px;height:6px;min-height:6px;border-radius:3px;background:#fff;opacity:.9;transition:height .08s linear}
-.ask-line{font-family:"Manrope",sans-serif;font-weight:800;font-size:1.35rem;line-height:1.2;margin:0 0 12px}
+.ask-line{font-family:"Manrope",sans-serif;font-weight:800;font-size:1.45rem;line-height:1.2;margin:0 0 14px;color:var(--navy);letter-spacing:-.01em}
 .home-mic-label{font-family:"Manrope",sans-serif;font-weight:800;font-size:1.15rem}
 .mic-lang-line{text-align:center;font-size:.89rem;font-weight:500;color:var(--muted);margin:2px 0 6px}
 .mic-trust-line{text-align:center;font-size:.94rem;font-weight:700;color:var(--leaf-deep);margin-bottom:14px}
@@ -503,7 +511,7 @@ input[type="number"]{-moz-appearance:textfield}
        of the "so much text" problem - said the same thing twice, in two
        different sizes. Down to one line: the name, self-explained in the
        same breath, nothing above it, nothing to read before it. -->
-  <h1 class="pitch">CountMy</h1>
+  <h1 class="pitch"><svg class="mark" viewBox="0 0 64 64" aria-hidden="true"><rect x="15" y="9" width="30" height="12" rx="6" fill="#E8641F" transform="rotate(-7 30 15)"/><rect x="10" y="26" width="38" height="12" rx="6" fill="#F2B233"/><rect class="navy" x="17" y="43" width="32" height="12" rx="6" transform="rotate(4 33 49)"/></svg><span>Count<span class="my">My</span></span></h1>
   <div class="ask-line">What happened in your shop today?</div>
   <button id="homeMicBtn" class="home-mic-btn" type="button" aria-label="Tell CountMy what happened">
     <svg viewBox="0 0 24 24" fill="none"><path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3Z" stroke="currentColor" stroke-width="2"/><path d="M19 11a7 7 0 0 1-14 0M12 18v3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
@@ -868,7 +876,7 @@ input[type="number"]{-moz-appearance:textfield}
      string is what forces a fresh script fetch even before any service worker logic
      runs, independent of it. Found live 27 Aug: without this, an already-visited
      browser can keep running old code from plain HTTP cache regardless of SW strategy. -->
-<script src="app.js?v=79"></script>
+<script src="app.js?v=80"></script>
 
 <!-- Analytics for the Silent Alpha pilot only (27 Aug) - added to observe real
      merchant behavior (what they tap first, voice vs manual usage), NOT to

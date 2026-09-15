@@ -1,4 +1,1 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192">
-<rect width="192" height="192" rx="36" fill="#0F6A3D"/>
-<text x="96" y="122" font-family="-apple-system,Segoe UI,sans-serif" font-size="96" font-weight="800" fill="#F7F4EE" text-anchor="middle">₵</text>
-</svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#F8F3EC"/><rect x="15" y="9" width="30" height="12" rx="6" fill="#E8641F" transform="rotate(-7 30 15)"/><rect x="10" y="26" width="38" height="12" rx="6" fill="#F2B233"/><rect x="17" y="43" width="32" height="12" rx="6" fill="#1E2F55" transform="rotate(4 33 49)"/></svg>
