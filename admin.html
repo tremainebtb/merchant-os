@@ -140,8 +140,8 @@ footer p{margin:0 0 6px}
   <div class="panel">
     <h3>Where people came from</h3>
     <p class="note" id="testNote"></p>
-    <p class="note">One row per device, decided on its first visit: the link's utm_source (and campaign after the slash), a partner code, the site that sent them, or direct. "Made a record" = that device has saved at least one entry.</p>
-    <div class="tw"><table class="src-table"><thead><tr><th>Source</th><th>Devices</th><th>This week</th><th>Made a record</th></tr></thead><tbody id="srcBody"><tr><td colspan="4" class="empty-note">No data yet.</td></tr></tbody></table></div>
+    <p class="note">One row per device, decided on its first visit: the link's utm_source (and campaign after the slash), a partner code, the site that sent them, or direct. "In Ghana" is the country Cloudflare saw the phone in. "Made a record" = that device has saved at least one entry.</p>
+    <div class="tw"><table class="src-table"><thead><tr><th>Source</th><th>Devices</th><th>In Ghana</th><th>This week</th><th>Made a record</th></tr></thead><tbody id="srcBody"><tr><td colspan="5" class="empty-note">No data yet.</td></tr></tbody></table></div>
   </div>
 
   <div class="panel">
@@ -227,8 +227,8 @@ function renderKpis() {
   const T = statsData.test || {};
   document.getElementById('testNote').textContent = 'Excluded from every number on this page (flagged with ?test=1): ' + fmtInt(T.devices) + ' test devices, ' + fmtInt(T.events) + ' events, ' + fmtInt(T.entries) + ' entries, ' + fmtInt(T.shops) + ' shop pages.';
   document.getElementById('srcBody').innerHTML = srcRows.length
-    ? srcRows.map(r => `<tr><td>${String(r.source).replace(/</g, '&lt;')}</td><td>${fmtInt(r.devices)}</td><td>${fmtInt(r.week)}</td><td>${fmtInt(r.activated)}</td></tr>`).join('')
-    : '<tr><td colspan="4" class="empty-note">No data yet.</td></tr>';
+    ? srcRows.map(r => `<tr><td>${String(r.source).replace(/</g, '&lt;')}</td><td>${fmtInt(r.devices)}</td><td>${fmtInt(r.gh)}</td><td>${fmtInt(r.week)}</td><td>${fmtInt(r.activated)}</td></tr>`).join('')
+    : '<tr><td colspan="5" class="empty-note">No data yet.</td></tr>';
   const L = statsData.loop || {};
   document.getElementById('kRet7').textContent = fmtInt(L.returning7);
   document.getElementById('kRet30').textContent = fmtInt(L.returning30);
