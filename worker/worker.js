@@ -691,7 +691,7 @@ async function handleAdminStats(request, env) {
   stmts.push(env.COUNTMY_DB.prepare('SELECT COUNT(*) as n FROM live_shops WHERE created_at >= ?').bind(now - 7 * DAY));
   await env.COUNTMY_DB.prepare('CREATE TABLE IF NOT EXISTS devices (device_hash TEXT PRIMARY KEY, source TEXT NOT NULL, first_ts INTEGER NOT NULL, saved_ts INTEGER)').run();
   stmts.push(env.COUNTMY_DB.prepare(
-    'SELECT source, COUNT(*) as n, SUM(CASE WHEN first_ts >= ? THEN 1 ELSE 0 END) as n7, SUM(CASE WHEN saved_ts IS NOT NULL THEN 1 ELSE 0 END) as activated, SUM(CASE WHEN country = 'GH' THEN 1 ELSE 0 END) as gh FROM live_devices GROUP BY source ORDER BY n DESC LIMIT 40'
+    "SELECT source, COUNT(*) as n, SUM(CASE WHEN first_ts >= ? THEN 1 ELSE 0 END) as n7, SUM(CASE WHEN saved_ts IS NOT NULL THEN 1 ELSE 0 END) as activated, SUM(CASE WHEN country = 'GH' THEN 1 ELSE 0 END) as gh FROM live_devices GROUP BY source ORDER BY n DESC LIMIT 40"
   ).bind(now - 7 * DAY));
 
   stmts.push(env.COUNTMY_DB.prepare('SELECT (SELECT COUNT(*) FROM devices WHERE is_test = 1) as devices, (SELECT COUNT(*) FROM events WHERE is_test = 1) as events, (SELECT COUNT(*) FROM entries WHERE is_test = 1) as entries, (SELECT COUNT(*) FROM shops WHERE is_test = 1) as shops'));
