@@ -717,9 +717,30 @@ function valueGroundedInTranscript(value, transcriptNorm) {
   return false;
 }
 
+// If the evidence the model points at is made only of Twi number words, the
+// value is whatever those words add up to - not what the model thinks they
+// mean. Live, 15 Sep: it pointed at "aduonum" (50) and wrote 1000, and the
+// evidence check alone let that through because the word really was said.
+function twiEvidenceValue(evidence) {
+  const toks = normalizeForMatch(evidence).split(' ').filter(Boolean);
+  if (!toks.length) return undefined;
+  let sum = 0;
+  for (const t of toks) {
+    if (!Object.prototype.hasOwnProperty.call(TWI_NUMBERS, t)) return undefined;
+    sum += TWI_NUMBERS[t];
+  }
+  return sum;
+}
+
 function fieldValue(raw, transcriptNorm) {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return undefined;
-  if (evidenceVerified(raw.evidence, transcriptNorm)) return raw.value;
+  if (evidenceVerified(raw.evidence, transcriptNorm)) {
+    if (typeof raw.value === 'number') {
+      const twi = twiEvidenceValue(raw.evidence);
+      if (twi !== undefined) return twi;
+    }
+    return raw.value;
+  }
   if (valueGroundedInTranscript(raw.value, transcriptNorm)) return raw.value;
   return undefined;
 }
