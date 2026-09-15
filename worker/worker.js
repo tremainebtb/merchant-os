@@ -572,26 +572,6 @@ async function handleShopActivity(request, env) {
 // are computed with real COUNT(DISTINCT ...)/MIN(ts) queries, not summed
 // from the daily series below (summing daily distinct counts would
 // double-count a shop that returns on multiple days within the window).
-// TEMPORARY - one-shot server wipe, 16 Sep 2026, at Bobby's confirmed request
-// ("delete everything from the server so we can start fresh from today").
-// Removed in the very next commit; never leave a wipe route behind an admin key.
-async function handleWipeOnce(request, env) {
-  const url = new URL(request.url);
-  const key = url.searchParams.get('key') || '';
-  if (!env.ADMIN_KEY || key !== env.ADMIN_KEY || url.searchParams.get('confirm') !== 'WIPE-16-SEP') {
-    return cors(new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401 }));
-  }
-  const out = {};
-  for (const t of ['events', 'entries', 'programme_members', 'shops']) {
-    try {
-      const before = ((await env.COUNTMY_DB.prepare('SELECT COUNT(*) as n FROM ' + t).first()) || {}).n || 0;
-      await env.COUNTMY_DB.prepare('DELETE FROM ' + t).run();
-      out[t] = { deleted: before };
-    } catch (e) { out[t] = { error: String(e).slice(0, 120) }; }
-  }
-  return cors(new Response(JSON.stringify(out), { headers: { 'Content-Type': 'application/json' } }));
-}
-
 async function handleAdminStats(request, env) {
   if (!env.COUNTMY_DB) return cors(new Response(JSON.stringify({ error: 'not configured' }), { status: 503 }));
   const url = new URL(request.url);
@@ -845,7 +825,7 @@ async function handleTranscribe(request, env) {
 // 50 is a transcription/parsing error, not a fabrication) - evidence-checking
 // targets fabrication specifically, not every possible error; the review UI is
 // still what catches a wrong-but-grounded number.
-const WORKER_VERSION = 'w22';
+const WORKER_VERSION = 'w23';
 
 const EXTRACT_SYSTEM_PROMPT = `You read a rough, possibly messy speech-to-text transcript from a Ghanaian shop owner describing what happened in their shop today, in English, Twi or Pidgin (Twi numbers: baako 1, mmienu 2, mmiensa 3, enan 4, anum 5, du 10, aduonu 20, aduasa 30, aduonum 50, oha 100, apem 1000; "de me ka" = owes me; transcripts may contain mistranscribed words like "cds" for "cedis"). Extract every distinct business event as a JSON array. Each event is one of these types:
 - "sale": the owner sold something. Fields: type, item, qty, and EITHER price (per-unit price in cedis, only if a per-unit price was actually spoken) OR total (the total amount actually spoken, if only a total was said - e.g. "2 bags for 300" has qty 2 and total 300, NOT price 150 - never do the division yourself).
@@ -1544,7 +1524,6 @@ export default {
       else if (path === '/admin/entries' && request.method === 'GET') adminResp = await handleAdminEntries(request, env);
       else if (path === '/admin/entries/recent' && request.method === 'GET') adminResp = await handleAdminRecentEntries(request, env);
       else if (path === '/admin/programme' && request.method === 'GET') adminResp = await handleProgrammeReport(request, env);
-      else if (path === '/admin/wipe-once' && request.method === 'POST') adminResp = await handleWipeOnce(request, env);
       if (adminResp) {
         if (adminResp.status === 401) await bumpAdminFail(env, ip);
         return adminResp;
