@@ -578,7 +578,7 @@ async function handleTranscribe(request, env) {
 // 50 is a transcription/parsing error, not a fabrication) - evidence-checking
 // targets fabrication specifically, not every possible error; the review UI is
 // still what catches a wrong-but-grounded number.
-const WORKER_VERSION = 'w15';
+const WORKER_VERSION = 'w16';
 
 const EXTRACT_SYSTEM_PROMPT = `You read a rough, possibly messy speech-to-text transcript from a Ghanaian shop owner describing what happened in their shop today, in English, Twi or Pidgin (Twi numbers: baako 1, mmienu 2, mmiensa 3, enan 4, anum 5, du 10, aduonu 20, aduasa 30, aduonum 50, oha 100, apem 1000; "de me ka" = owes me; transcripts may contain mistranscribed words like "cds" for "cedis"). Extract every distinct business event as a JSON array. Each event is one of these types:
 - "sale": the owner sold something. Fields: type, item, qty, and EITHER price (per-unit price in cedis, only if a per-unit price was actually spoken) OR total (the total amount actually spoken, if only a total was said - e.g. "2 bags for 300" has qty 2 and total 300, NOT price 150 - never do the division yourself).
@@ -762,8 +762,10 @@ function fieldValue(raw, transcriptNorm, fieldName) {
     if (sums.length) return fieldName === 'qty' ? sums[sums.length - 1] : sums[0];
     return evidenceVerified(raw.evidence, transcriptNorm) ? raw.value : undefined;
   }
-  if (evidenceVerified(raw.evidence, transcriptNorm)) return raw.value;
   if (valueGroundedInTranscript(raw.value, transcriptNorm)) return raw.value;
+  // A string the model made up but pinned to real spoken words - typically a
+  // translation ("ntoma" -> "money"). The word she said is the record.
+  if (evidenceVerified(raw.evidence, transcriptNorm)) return String(raw.evidence).trim();
   return undefined;
 }
 
