@@ -56,7 +56,7 @@
      app.js?v=. Lets anyone - a reviewer, a tester in Kumasi, a future session -
      answer "which CountMy am I looking at?" from view-source or the console,
      the same way the Worker answers with "wv". -->
-<meta name="countmy-version" content="v90">
+<meta name="countmy-version" content="v91">
 <!-- Real finding, 28 Aug: the bare "CountMy" title carried no keywords at all
      for what people actually search - a free sales/expense ledger for
      Ghanaian shop owners. The <title> tag is the single strongest on-page
@@ -92,7 +92,7 @@
   });
 })();
 </script>
-<meta name="description" content="Your business remembers. A free money notebook for anyone in business in Ghana - traders, farmers, artisans, drivers. You talk, it keeps the record. Works offline, no signup, your records stay on your phone.">
+<meta name="description" content="Your business remembers. A free money notebook for anyone in business in Ghana - traders, farmers, artisans, drivers. You talk, it keeps the record. Little data, no signup, your records stay on your phone.">
 <meta name="theme-color" content="#D9541A">
 <link rel="canonical" href="https://countmy.app/">
 <meta name="google-site-verification" content="6w5arKM8VWqCfC1lWHKA7k_7m0KZL756_LMHC239ws0">
@@ -113,13 +113,13 @@
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://countmy.app">
 <meta property="og:title" content="CountMy - Your business remembers">
-<meta property="og:description" content="Just tell CountMy what happened. It remembers for you. Free, works offline, no signup - for traders, farmers and every small business in Ghana.">
+<meta property="og:description" content="Just tell CountMy what happened. It remembers for you. Free, little data, no signup - for traders, farmers and every small business in Ghana.">
 <meta property="og:image" content="https://countmy.app/og-image.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="CountMy - Know your money">
-<meta name="twitter:description" content="Just tell CountMy what happened. It remembers for you. Free, works offline, no signup - for traders, farmers and every small business in Ghana.">
+<meta name="twitter:title" content="CountMy - Your business remembers">
+<meta name="twitter:description" content="Just tell CountMy what happened. It remembers for you. Free, little data, no signup - for traders, farmers and every small business in Ghana.">
 <meta name="twitter:image" content="https://countmy.app/og-image.png">
 <!-- Structured data, added 28 Aug - real gap found via a live SEO check: zero
      JSON-LD on the page before this, so Google had nothing to build a rich
@@ -131,7 +131,7 @@
   "@type": "SoftwareApplication",
   "name": "CountMy",
   "url": "https://countmy.app",
-  "description": "A free voice money notebook for Ghanaian traders, farmers and small businesses. Works offline, no signup required, records stay on your phone.",
+  "description": "A free voice money notebook for Ghanaian traders, farmers and small businesses. Little data, no signup required, records stay on your phone.",
   "applicationCategory": "FinanceApplication",
   "operatingSystem": "Any (works in any mobile web browser)",
   "offers": {
@@ -594,7 +594,7 @@ input[type="number"]{-moz-appearance:textfield}
        a catch?"). Ghanaian online-trust research puts trust above ease of use;
        GSMA lists confidence/safety as a top barrier. Three facts, one link,
        first use only. -->
-  <p id="trustLine" class="trust-line" hidden>Free. No signup. Your records stay on this phone. <a href="safety.html">Is it safe?</a></p>
+  <p id="trustLine" class="trust-line" hidden>Free. No signup. It never touches your money. <a href="safety.html">Is it safe?</a></p>
   <!-- Show, don't explain: the same exchange as the share card. First use only. -->
   <div id="exampleChat" class="example-chat" aria-label="Example" hidden>
     <div class="ex-you">&ldquo;Ama owes me 120.&rdquo;</div>
@@ -725,7 +725,7 @@ input[type="number"]{-moz-appearance:textfield}
          actually bought today, same as the Stock row above - the two numbers
          are identical otherwise, so showing both when there's nothing to
          reconcile would just be confusing duplication. -->
-    <div id="tCashRow" class="today-row tappable" data-speak="Cash you have now" style="display:none"><span>Cash you have now</span><span id="tCashInHand" data-clarity-mask="True">0 cedis</span></div>
+    <div id="tCashRow" class="today-row tappable" data-speak="Cash you have now" style="display:none"><span>Cash I have now</span><span id="tCashInHand" data-clarity-mask="True">0 cedis</span></div>
   </div>
 
   <!-- Real finding, 1 Sep: multiple real people, across separate real
@@ -750,7 +750,7 @@ input[type="number"]{-moz-appearance:textfield}
   </button>
 
   <div class="hist-label">Recent</div>
-  <div id="history"><div class="empty">Nothing recorded yet. Add your first sale above.</div></div>
+  <div id="history"><div class="empty">Nothing recorded yet. Tap the orange button to add your first sale.</div></div>
 
   <!-- Real feedback, 29 Aug: "the 4 categories perhaps should show much
        later" - with voice handling every entry type on its own, the typed
@@ -851,7 +851,7 @@ input[type="number"]{-moz-appearance:textfield}
   <div id="recoverSheet" class="sheet recover-sheet">
     <h2>Getting your records back</h2>
     <p class="recover-step">Your records are saved on this phone, and a safe copy is kept for you under your business name.</p>
-    <p class="recover-step"><b>Your shop name is:</b></p>
+    <p class="recover-step"><b>Your business name is:</b></p>
     <div id="recoverShopName" class="recover-key">not set yet</div>
     <p class="recover-step">Write it down somewhere safe. It is how your copy is found again.</p>
     <p class="recover-step"><b>1.</b> The safest thing today: tap <b>Send my records to my own WhatsApp</b> and send it to yourself. That copy is yours forever, even without this app.</p>
@@ -871,7 +871,7 @@ input[type="number"]{-moz-appearance:textfield}
        feel unconditionally free, with the option to see full history
        reachable, but not pushed. -->
   <div id="shopSheet" class="sheet shop-sheet" hidden>
-    <h2>Your shop page</h2>
+    <h2>Your business page</h2>
     <p class="shop-copy">Customers open it from WhatsApp, see what you sell, and message you. This page is public: your business name and WhatsApp number will be shown.</p>
     <div class="field"><label for="shopName">Business name</label><input id="shopName" type="text" maxlength="60" autocomplete="organization" placeholder="Ama's Fashion"></div>
     <div class="field"><label for="shopCategory">What you sell</label>
@@ -897,7 +897,7 @@ input[type="number"]{-moz-appearance:textfield}
   <div id="shopReady" class="act-banner" hidden>
     <span id="shopReadyText"></span>
     <div class="act-banner-actions">
-      <a id="shopShareBtn" class="act-banner-go" target="_blank" rel="noopener" href="#">Share my shop</a>
+      <a id="shopShareBtn" class="act-banner-go" target="_blank" rel="noopener" href="#">Share my page</a>
       <button id="shopEditBtn" type="button" class="act-banner-dismiss">Edit</button>
     </div>
   </div>
@@ -905,7 +905,7 @@ input[type="number"]{-moz-appearance:textfield}
        tab has no way back but memory. An icon on the phone is the way back.
        Shown after the first entry, only where the browser offers install. -->
   <div id="installBanner" class="act-banner" hidden>
-    <span>Put CountMy on your phone, so it is one tap away tomorrow.</span>
+    <span>Put CountMy on your phone, so you can find it tomorrow.</span>
     <div class="act-banner-actions">
       <button id="installBtn" type="button" class="act-banner-go">Put it on my phone</button>
       <button id="installLater" type="button" class="act-banner-dismiss">Not now</button>
@@ -960,7 +960,7 @@ input[type="number"]{-moz-appearance:textfield}
      string is what forces a fresh script fetch even before any service worker logic
      runs, independent of it. Found live 27 Aug: without this, an already-visited
      browser can keep running old code from plain HTTP cache regardless of SW strategy. -->
-<script src="app.js?v=90"></script>
+<script src="app.js?v=91"></script>
 
 </body>
 </html>

@@ -227,7 +227,7 @@ const FIELD_CONFIG = {
       {
         key: 'kind', label: 'What kind of spend?', type: 'choice', default: 'running',
         options: [
-          { value: 'running', label: 'Shop cost' },
+          { value: 'running', label: 'Business cost' },
           { value: 'stock', label: 'Stock to sell' },
           { value: 'home', label: 'Took home' }
         ]
@@ -584,7 +584,7 @@ function fieldMarkup(value, idx, key, type, extraAttrs) {
   const has = value !== undefined && value !== '' && value !== null;
   const cls = has ? 'ai-detected' : 'needs-input';
   const caption = has
-    ? (pendingVoiceSource === 'photo' ? 'Read from your photo - check it' : 'AI heard this - check it')
+    ? (pendingVoiceSource === 'photo' ? 'Read from your photo - check it' : 'I heard this - check it')
     : "Didn't catch this - tap to enter";
   return `<div class="field ${cls}">
       <input type="${type}" ${extraAttrs || ''} data-idx="${idx}" data-key="${key}" value="${has ? String(value).replace(/"/g, '&quot;') : ''}" placeholder="${has ? '' : 'tap to enter'}" data-clarity-mask="True">
@@ -644,7 +644,7 @@ function speakVoiceReview(events) {
     if (ev._savedId) { lines.push(`Saved: ${entry.item}, ${fmt(entry.amount)}.`); return; }
     if (!missing) { lines.push(`I heard ${entry.item}, ${fmt(entry.amount)}, but could not save it - please tap Save below.`); return; }
     if (missing === 'item') lines.push('I heard an amount but not what it was for - please type that in below.');
-    else if (missing === 'qty') lines.push(`I heard ${entry.item} but not how many - please tap that in below.`);
+    else if (missing === 'qty') lines.push(`I heard ${entry.item} but not how many - please type it in below.`);
     else lines.push(`I heard ${entry.item} but not the price - please tap it in below.`);
   });
   const saved = events.filter(ev => ev._savedId);
@@ -738,7 +738,7 @@ function renderVoiceReview() {
     const anySaved = pendingVoiceEvents.some(ev => ev._savedId);
     const anyPending = pendingVoiceEvents.some(ev => !ev._savedId);
     const from = pendingVoiceSource === 'photo' ? 'From your photo' : 'What I heard';
-    title.textContent = anySaved && !anyPending ? `${from} - saved. Tap Undo if any is wrong`
+    title.textContent = anySaved && !anyPending ? `${from} - saved. Tap Undo if one is wrong`
       : anySaved ? `${from} - saved. Please check the ones marked`
       : `${from} - please check, then tap Save`;
   }
@@ -802,7 +802,7 @@ function renderVoiceReview() {
     const idx = Number(e.target.dataset.idx);
     const ev = pendingVoiceEvents[idx];
     if (!ev || ev._saving || ev._savedId) return;
-    if (!voiceEventComplete(ev)) { alert('Fill in the missing number(s) first.'); return; }
+    if (!voiceEventComplete(ev)) { alert('Please fill in the missing number first.'); return; }
     ev._saving = true;
     btn.disabled = true;
     try {
@@ -1479,7 +1479,7 @@ async function render() {
 
   const histEl = document.getElementById('history');
   if (!entries.length) {
-    histEl.innerHTML = '<div class="empty">Nothing recorded yet. Add your first sale above.</div>';
+    histEl.innerHTML = '<div class="empty">Nothing recorded yet. Tap the orange button to add your first sale.</div>';
     return;
   }
   // The 7-day lockout is gone (5 Sep). Two independent evidence reviews and
@@ -1756,9 +1756,9 @@ function showEntryMilestone(total) {
   if (total >= FIRST_ENTRIES_TARGET) {
     msg = `That is ${total}. CountMy knows your business now - come back tomorrow and it will tell you if you did better.`;
   } else if (left === 1) {
-    msg = `That is ${total}. One more and CountMy can tell you if today beat yesterday.`;
+    msg = `That is ${total}. One more and CountMy can tell you if today was better than yesterday.`;
   } else {
-    msg = `That is ${total}. ${left} more and CountMy can tell you if today beat yesterday.`;
+    msg = `That is ${total}. ${left} more and CountMy can tell you if today was better than yesterday.`;
   }
   clearOtherPrompts('milestone');
   box.textContent = msg;
@@ -1882,7 +1882,7 @@ async function exportBackup() {
     const when = new Date(e.ts).toLocaleDateString('en-GH', { day: 'numeric', month: 'short' });
     return `${when} - ${typeLabel[e.type]}: ${cfg.desc(e)} - ${fmt(e.amount)}`;
   });
-  const shopName = getShopId() || 'My shop';
+  const shopName = getShopId() || 'My business';
   const truncNote = shown.length < ordered.length ? ` (most recent ${MAX_LINES})` : '';
   // Real, dated reason this one line exists: since 1 July 2025 the GRA's
   // Modified Taxation Scheme asks an informal trader for a yearly sales
@@ -1928,7 +1928,7 @@ function exportTodaySummary() {
       const cfg = FIELD_CONFIG[e.type];
       return `${typeLabel[e.type]}: ${cfg.desc(e)} - ${fmt(e.amount)}`;
     });
-    const shopName = getShopId() || 'My shop';
+    const shopName = getShopId() || 'My business';
     const text = `${shopName} - today's summary:\n\n${lines.join('\n')}${shareFooter('eod')}`;
     location.href = 'https://wa.me/?text=' + encodeURIComponent(text);
   });
@@ -2052,7 +2052,7 @@ function renderShopReady() {
   const box = document.getElementById('shopReady');
   const btn = document.getElementById('shopPageBtn');
   if (!st || !st.url) { box.hidden = true; if (btn) btn.textContent = 'Get a free page for your business'; return; }
-  if (btn) btn.textContent = 'My shop page';
+  if (btn) btn.textContent = 'My business page';
   document.getElementById('shopReadyText').textContent = `${st.name} has a page: ${st.url.replace('https://', '')}`;
   const items = (st.items || []).map(i => i.name).filter(Boolean).slice(0, 4).join(', ');
   const msg = `${st.name}${st.area ? ' - ' + st.area : ''}\n${items ? items + '\n' : ''}See what I sell and WhatsApp me here:\n${st.url}?utm_source=whatsapp&utm_medium=share&utm_campaign=shop_page`;
@@ -2096,12 +2096,13 @@ document.getElementById('shopSaveBtn').addEventListener('click', async () => {
     const data = await res.json().catch(() => ({}));
     if (!res.ok || !data.slug) { setMicStatus(data.error || 'Could not make the page. Please try again.', 'err', 'shopStatus'); return; }
     localStorage.setItem(SHOP_LS, JSON.stringify({ ...payload, slug: data.slug, editKey: data.editKey, url: data.url }));
+    if (!getShopId()) setShopId(payload.name); // her backup is filed under this name from now on
     track(st.slug ? 'business_updated' : 'business_created', { category: payload.category, items: payload.items.length });
     if (!st.slug) ping('shop_created');
     closeShopSheet();
     renderShopReady();
     document.getElementById('shopReady').scrollIntoView({ behavior: 'smooth', block: 'center' });
-    speakShort('Your shop page is ready. Tap Share my shop to send it on WhatsApp.');
+    speakShort('Your page is ready. Tap Share my page to send it on WhatsApp.');
   } catch (e) {
     setMicStatus('No connection. Please try again when you have signal.', 'err', 'shopStatus');
   } finally { btn.disabled = false; btn.textContent = 'Make my page'; }
@@ -2201,8 +2202,16 @@ document.getElementById('homeMicBtn').addEventListener('click', () => {
   toggleMic(document.getElementById('homeMicBtn'), 'homeMicStatus');
 });
 if (!micSupported()) {
+  // No microphone API in this browser (older iOS, some in-app browsers).
+  // Say so plainly and open the typed choices, so the page is still usable.
   document.getElementById('homeMicBtn').style.display = 'none';
-  document.querySelector('.or-row').style.display = 'none';
+  const orRow = document.querySelector('.or-row'); if (orRow) orRow.style.display = 'none';
+  try {
+    setMicStatus('This browser cannot use the microphone. You can type it instead, just below.', 'err', 'homeMicStatus');
+    const box = document.getElementById('typeChoices'); const tt = document.getElementById('typeToggle');
+    if (box) box.hidden = false; if (tt) tt.hidden = true;
+    track('mic_unsupported');
+  } catch (e) { /* never block the rest of the script */ }
 }
 
 // Photo entry, 2 Sep. One tap opens the camera; the chosen photo is shrunk
@@ -2263,7 +2272,7 @@ async function handleSnap(file) {
       speakPhotoReview(events);
     } else {
       const seen = text.trim() ? `I saw: \u201c${text.trim()}\u201d \u2014 but ` : '';
-      say(`${seen}couldn\u2019t find any amounts in that photo. Please take it again in good light, close up, or type it with the buttons above.`, 'err');
+      say(`${seen}couldn\u2019t find any amounts in that photo. Please take it again in good light, close up, or tap Type it instead.`, 'err');
     }
   } catch (err) {
     track('photo_error', { reason: 'extract_failed' });
@@ -2315,7 +2324,7 @@ if (demoBtn) {
       const micBtn = document.getElementById('homeMicBtn');
       micBtn.classList.add('demo-pulse');
       const utter = new SpeechSynthesisUtterance(
-        'Watch this button. Tap it, then say what happened. Like this. I sold two shirts for ten cedis. Now you try.'
+        'Watch this button. Tap it, then say what happened. Like this. I sold two shirts, ten cedis each. Now you try.'
       );
       speakClearly(utter);
       const stop = () => { micBtn.classList.remove('demo-pulse'); demoBtn.disabled = false; };
