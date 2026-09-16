@@ -1072,7 +1072,14 @@ let sheetVoiceFilled = false;
 // about the business can leak by accident. Owner devices have no fbq.
 const PIXEL_EVENTS = { tap: 'MicTap', save: 'RecordSaved', ask: 'Ask', shop_created: 'ShopCreated', install: 'Installed' };
 function pixel(kind) {
-  try { if (window.fbq && PIXEL_EVENTS[kind]) window.fbq('trackCustom', PIXEL_EVENTS[kind]); } catch (e) { /* never interrupt */ }
+  try {
+    if (!window.fbq || !PIXEL_EVENTS[kind]) return;
+    window.fbq('trackCustom', PIXEL_EVENTS[kind]);
+    // A saved record is the conversion Meta optimises ads for. The standard
+    // 'Lead' event is selectable in Ads Manager immediately, the custom one
+    // only after Meta has indexed it - so both fire, still with no parameters.
+    if (kind === 'save') window.fbq('track', 'Lead');
+  } catch (e) { /* never interrupt */ }
 }
 function track(event, params) {
   try {
