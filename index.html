@@ -56,7 +56,7 @@
      app.js?v=. Lets anyone - a reviewer, a tester in Kumasi, a future session -
      answer "which CountMy am I looking at?" from view-source or the console,
      the same way the Worker answers with "wv". -->
-<meta name="countmy-version" content="v92">
+<meta name="countmy-version" content="v93">
 <!-- Real finding, 28 Aug: the bare "CountMy" title carried no keywords at all
      for what people actually search - a free sales/expense ledger for
      Ghanaian shop owners. The <title> tag is the single strongest on-page
@@ -545,6 +545,21 @@ input[type="number"]{-moz-appearance:textfield}
     window.gtag('js', new Date());
     window.gtag('config', window.GA4_ID, { anonymize_ip: true });
   }
+  // Meta Pixel (17 Sep), dataset "CountMy Website" on the Glamchic business.
+  // Same gate as GA4/Clarity (owner devices never load it). It only ever
+  // receives PageView and the four structural events fired from app.js
+  // (MicTap, RecordSaved, Ask, ShopCreated) - never an item, a price, a
+  // name or a number. Its job is to let Meta optimise ads for people who
+  // RECORD, not people who click.
+  window.META_PIXEL_ID = '28280657338294624';
+  if (!window.KYM_IS_OWNER_DEVICE && window.META_PIXEL_ID) {
+    !function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+    if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;
+    s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');
+    fbq('set', 'autoConfig', false, window.META_PIXEL_ID); // no automatic button/form text collection
+    fbq('init', window.META_PIXEL_ID);
+    fbq('track', 'PageView');
+  }
   (function(c,l,a,r,i,t,y){
     if (window.KYM_IS_OWNER_DEVICE || !i || i.indexOf('XXXXXXXXXX') !== -1) return;
     c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
@@ -960,7 +975,7 @@ input[type="number"]{-moz-appearance:textfield}
      string is what forces a fresh script fetch even before any service worker logic
      runs, independent of it. Found live 27 Aug: without this, an already-visited
      browser can keep running old code from plain HTTP cache regardless of SW strategy. -->
-<script src="app.js?v=92"></script>
+<script src="app.js?v=93"></script>
 
 </body>
 </html>

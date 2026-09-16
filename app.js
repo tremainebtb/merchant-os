@@ -1068,6 +1068,12 @@ let sheetVoiceFilled = false;
 // customer name, or amount - the whole point of the pilot's own analytics is to
 // watch usage patterns, not to duplicate the financial ledger inside Google's
 // servers. Safe no-op if GA4 was never configured (see index.html).
+// Meta Pixel custom events: a fixed whitelist, no parameters, so nothing
+// about the business can leak by accident. Owner devices have no fbq.
+const PIXEL_EVENTS = { tap: 'MicTap', save: 'RecordSaved', ask: 'Ask', shop_created: 'ShopCreated', install: 'Installed' };
+function pixel(kind) {
+  try { if (window.fbq && PIXEL_EVENTS[kind]) window.fbq('trackCustom', PIXEL_EVENTS[kind]); } catch (e) { /* never interrupt */ }
+}
 function track(event, params) {
   try {
     if (window.gtag) window.gtag('event', event, params || {});
@@ -1115,6 +1121,7 @@ function isStandalone() {
 }
 function isTestDevice() { try { return localStorage.getItem('kym_test') === '1' ? 1 : 0; } catch (e) { return 0; } }
 function ping(eventType) {
+  pixel(eventType);
   try {
     if (window.KYM_IS_OWNER_DEVICE) return; // see the ?owner=1 flag set in index.html
     const shop = getShopId() || getDeviceId();
