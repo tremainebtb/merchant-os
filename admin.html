@@ -141,6 +141,7 @@ footer p{margin:0 0 6px}
   <div class="panel">
     <h3>First-screen funnel, by build</h3>
     <p class="note" id="dcNote"></p>
+    <p class="note" id="timingNote"></p>
     <p class="note">Each device is counted under the build it first opened. Opened -> tapped the orange button -> made a record -> asked a question. Compare rows to judge a first-screen change; "tapped" starts at v85.</p>
     <div class="tw"><table class="src-table"><thead><tr><th>Build</th><th>Opened</th><th>On a phone</th><th>In Ghana</th><th>Tapped</th><th>Made a record</th><th>Asked</th><th>On home screen</th></tr></thead><tbody id="funnelBody"><tr><td colspan="8" class="empty-note">No data yet.</td></tr></tbody></table></div>
   </div>
@@ -241,6 +242,10 @@ function renderKpis() {
   const dc = statsData.datacentre || [];
   const dcTotal = dc.reduce((s, r) => s + r.devices, 0);
   const langs = (statsData.languages || []).map(r => r.lang + ' ' + fmtInt(r.devices)).join(', ');
+  const T2 = statsData.timing || {};
+  const secs = ms => ms == null ? '-' : (ms < 60000 ? Math.round(ms / 1000) + ' s' : Math.round(ms / 60000) + ' min');
+  const spoken = (statsData.spoken || []).map(r => r.lang + ' ' + fmtInt(r.entries) + ' (' + fmtInt(r.devices) + ' devices)').join(', ');
+  document.getElementById('timingNote').textContent = 'Real people, from opening to the first tap: median ' + secs(T2.tapMedianMs) + ' (' + fmtInt(T2.tapN) + ' devices); to the first record: median ' + secs(T2.recordMedianMs) + ' (' + fmtInt(T2.recordN) + '). Voice entries by spoken language: ' + (spoken || 'none yet') + '.';
   document.getElementById('dcNote').textContent = 'Not counted below: ' + fmtInt(dcTotal) + ' visits from datacentre networks (crawlers, link previews, AI reviewers)' + (dc.length ? ' - ' + dc.map(r => r.org + ' ' + fmtInt(r.devices)).join(', ') : '') + '. Phone languages of real people: ' + (langs || 'none yet') + '.';
   const pct = (n, d) => d ? ' (' + Math.round(100 * n / d) + '%)' : '';
   document.getElementById('funnelBody').innerHTML = fun.length

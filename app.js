@@ -963,7 +963,12 @@ async function toggleMic(btn, statusId) {
           return;
         }
         if (looksLikeQuestion(heard) && await answerQuestion(heard)) return;
-        track('voice_extracted', { event_count: events.length });
+        // Which language was actually spoken (16 Sep). A guess from the
+        // transcript's own words, counted as en/twi/pidgin - the words
+        // themselves never leave the phone for this.
+        const spokenLang = guessSpokenLang(heard);
+        track('voice_extracted', { event_count: events.length, lang: spokenLang });
+        ping('voice_' + spokenLang);
         if (events.length >= 1) {
           pendingVoiceEvents = events;
           await autoSaveReadyEvents(pendingVoiceEvents);
@@ -1775,6 +1780,14 @@ function showEntryMilestone(total) {
 // phone's own records, no server, no reading. A question is only treated as
 // one when it carries no amount - "how much did I sell today" is a question,
 // "I sold rice for 30 cedis" is an entry - so an entry is never swallowed.
+function guessSpokenLang(text) {
+  const t = ' ' + String(text || '').toLowerCase().replace(/[\u0254\u0186]/g, 'o').replace(/[\u025b\u0190]/g, 'e') + ' ';
+  const twi = /\b(me|wo|ne|na)\s+(ton|to|tua|de|nya|gye)\b|\bde\s+me\s+ka\b|\b(baako|mmienu|mmiensa|enan|anum|nsia|nson|nwotwe|nkron|edu|aduonu|aduasa|aduanan|aduonum|oha|apem|sidi|sika|ntoma|nkate)\b/;
+  const pidgin = /\b(dey|wey|abeg|sef|chop|wetin|make\s+i|e\s+be|na\s+so|dem)\b/;
+  if (twi.test(t)) return 'twi';
+  if (pidgin.test(t)) return 'pidgin';
+  return 'en';
+}
 function looksLikeQuestion(text) {
   const t = text.toLowerCase();
   if (/\d/.test(t) || /\bcedis?\b|\bghs\b|\bcds?\b/.test(t)) return false;

@@ -179,7 +179,7 @@ async function handlePing(request, env) {
   const eventType = String((body && body.event) || '');
   if (!shop) return cors(new Response(JSON.stringify({ error: 'missing shop id' }), { status: 400 }));
   // share_shop / shop_created added 16 Sep for the spread-loop numbers.
-  if (!['open', 'save', 'share_shop', 'shop_created', 'ask', 'tap', 'install'].includes(eventType)) {
+  if (!['open', 'save', 'share_shop', 'shop_created', 'ask', 'tap', 'install', 'voice_en', 'voice_twi', 'voice_pidgin'].includes(eventType)) {
     return cors(new Response(JSON.stringify({ error: 'invalid event' }), { status: 400 }));
   }
   const shopHash = (await sha256Hex(shop)).slice(0, 32);
@@ -739,6 +739,11 @@ async function handleAdminStats(request, env) {
 
   stmts.push(env.COUNTMY_DB.prepare("SELECT asn_org, COUNT(*) as n, SUM(CASE WHEN country = 'GH' THEN 1 ELSE 0 END) as gh FROM live_devices WHERE COALESCE(is_dc, 0) = 1 GROUP BY asn_org ORDER BY n DESC LIMIT 15"));
   stmts.push(env.COUNTMY_DB.prepare("SELECT COALESCE(lang, '') as lang, COUNT(*) as n FROM people_devices GROUP BY lang ORDER BY n DESC LIMIT 12"));
+  // Spoken language per voice entry, and how long a real person takes from
+  // opening to the first tap and to the first record (the "30 seconds" test).
+  stmts.push(env.COUNTMY_DB.prepare("SELECT event_type, COUNT(*) as n, COUNT(DISTINCT shop_hash) as devices FROM live_events WHERE event_type IN ('voice_en', 'voice_twi', 'voice_pidgin') GROUP BY event_type"));
+  stmts.push(env.COUNTMY_DB.prepare('SELECT tapped_ts - first_ts as ms FROM people_devices WHERE tapped_ts IS NOT NULL AND tapped_ts >= first_ts ORDER BY ms LIMIT 500'));
+  stmts.push(env.COUNTMY_DB.prepare('SELECT saved_ts - first_ts as ms FROM people_devices WHERE saved_ts IS NOT NULL AND saved_ts >= first_ts ORDER BY ms LIMIT 500'));
   stmts.push(env.COUNTMY_DB.prepare('SELECT (SELECT COUNT(*) FROM devices WHERE is_test = 1) as devices, (SELECT COUNT(*) FROM events WHERE is_test = 1) as events, (SELECT COUNT(*) FROM entries WHERE is_test = 1) as entries, (SELECT COUNT(*) FROM shops WHERE is_test = 1) as shops'));
   const results = await env.COUNTMY_DB.batch(stmts);
 
@@ -772,6 +777,10 @@ async function handleAdminStats(request, env) {
   out.sources = (results[i++].results || []).map(r => ({ source: r.source, devices: r.n || 0, week: r.n7 || 0, activated: r.activated || 0, gh: r.gh || 0, mobile: r.mobile || 0 }));
   out.datacentre = (results[i++].results || []).map(r => ({ org: r.asn_org || '', devices: r.n || 0, gh: r.gh || 0 }));
   out.languages = (results[i++].results || []).map(r => ({ lang: r.lang || '(none)', devices: r.n || 0 }));
+  out.spoken = (results[i++].results || []).map(r => ({ lang: String(r.event_type).replace('voice_', ''), entries: r.n || 0, devices: r.devices || 0 }));
+  const median = rows => { const v = rows.map(r => Number(r.ms)).filter(x => x >= 0); if (!v.length) return null; const m = Math.floor(v.length / 2); return v.length % 2 ? v[m] : (v[m - 1] + v[m]) / 2; };
+  const tapRows = results[i++].results || [], recRows = results[i++].results || [];
+  out.timing = { tapMedianMs: median(tapRows), tapN: tapRows.length, recordMedianMs: median(recRows), recordN: recRows.length };
 
   return cors(new Response(JSON.stringify(out), {
     headers: { 'Content-Type': 'application/json' }
@@ -930,7 +939,7 @@ async function handleTranscribe(request, env) {
 // 50 is a transcription/parsing error, not a fabrication) - evidence-checking
 // targets fabrication specifically, not every possible error; the review UI is
 // still what catches a wrong-but-grounded number.
-const WORKER_VERSION = 'w32';
+const WORKER_VERSION = 'w33';
 
 const EXTRACT_SYSTEM_PROMPT = `You read a rough, possibly messy speech-to-text transcript from a Ghanaian shop owner describing what happened in their shop today, in English, Twi or Pidgin (Twi numbers: baako 1, mmienu 2, mmiensa 3, enan 4, anum 5, du 10, aduonu 20, aduasa 30, aduonum 50, oha 100, apem 1000; "de me ka" = owes me; transcripts may contain mistranscribed words like "cds" for "cedis"). Extract every distinct business event as a JSON array. Each event is one of these types:
 - "sale": the owner sold something. Fields: type, item, qty, and EITHER price (per-unit price in cedis, only if a per-unit price was actually spoken) OR total (the total amount actually spoken, if only a total was said - e.g. "2 bags for 300" has qty 2 and total 300, NOT price 150 - never do the division yourself).
