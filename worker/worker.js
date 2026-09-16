@@ -238,6 +238,8 @@ async function handlePing(request, env) {
       const lang = String((body && body.lang) || '').replace(/[^a-zA-Z-]/g, '').slice(0, 12);
       const standalone = (body.standalone === 1 || body.standalone === '1') ? 1 : 0;
       await env.COUNTMY_DB.prepare('INSERT OR IGNORE INTO devices (device_hash, source, first_ts, is_test, country, nudge, first_ver, asn_org, is_dc, mobile, lang) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').bind(dh, source, Date.now(), isTest, country, nudge, ver, asnOrg, isDc, mobile, lang).run();
+      // Devices first seen before these columns existed get them on their next visit.
+      await env.COUNTMY_DB.prepare('UPDATE devices SET asn_org = ?, is_dc = ?, mobile = ?, lang = ? WHERE device_hash = ? AND asn_org IS NULL').bind(asnOrg, isDc, mobile, lang, dh).run();
       if (eventType === 'install') {
         await env.COUNTMY_DB.prepare('UPDATE devices SET installed_ts = ? WHERE device_hash = ? AND installed_ts IS NULL').bind(Date.now(), dh).run();
       }
@@ -928,7 +930,7 @@ async function handleTranscribe(request, env) {
 // 50 is a transcription/parsing error, not a fabrication) - evidence-checking
 // targets fabrication specifically, not every possible error; the review UI is
 // still what catches a wrong-but-grounded number.
-const WORKER_VERSION = 'w30';
+const WORKER_VERSION = 'w31';
 
 const EXTRACT_SYSTEM_PROMPT = `You read a rough, possibly messy speech-to-text transcript from a Ghanaian shop owner describing what happened in their shop today, in English, Twi or Pidgin (Twi numbers: baako 1, mmienu 2, mmiensa 3, enan 4, anum 5, du 10, aduonu 20, aduasa 30, aduonum 50, oha 100, apem 1000; "de me ka" = owes me; transcripts may contain mistranscribed words like "cds" for "cedis"). Extract every distinct business event as a JSON array. Each event is one of these types:
 - "sale": the owner sold something. Fields: type, item, qty, and EITHER price (per-unit price in cedis, only if a per-unit price was actually spoken) OR total (the total amount actually spoken, if only a total was said - e.g. "2 bags for 300" has qty 2 and total 300, NOT price 150 - never do the division yourself).
