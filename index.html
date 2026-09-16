@@ -56,7 +56,7 @@
      app.js?v=. Lets anyone - a reviewer, a tester in Kumasi, a future session -
      answer "which CountMy am I looking at?" from view-source or the console,
      the same way the Worker answers with "wv". -->
-<meta name="countmy-version" content="v86">
+<meta name="countmy-version" content="v87">
 <!-- Real finding, 28 Aug: the bare "CountMy" title carried no keywords at all
      for what people actually search - a free sales/expense ledger for
      Ghanaian shop owners. The <title> tag is the single strongest on-page
@@ -436,6 +436,8 @@ input[type="number"]{-moz-appearance:textfield}
 .home-mic-label{font-family:"Manrope",sans-serif;font-weight:800;font-size:1.15rem}
 .mic-lang-line{text-align:center;font-size:.89rem;font-weight:500;color:var(--muted);margin:2px 0 6px}
 .what-is{margin:-6px 0 14px;color:var(--ink-soft);font-size:1rem}
+.trust-line{text-align:center;font-size:.92rem;color:var(--ink-soft);margin:0 0 10px;font-weight:500}
+.trust-line a{color:var(--leaf-deep);font-weight:700}
 .example-chat{display:flex;flex-direction:column;gap:6px;margin:10px 0 14px}
 .example-chat div{max-width:82%;padding:9px 13px;border-radius:14px;font-size:.95rem;line-height:1.3}
 .example-chat .ex-you{align-self:flex-start;background:var(--surface);border:1px solid var(--rule);color:var(--navy);font-weight:600}
@@ -588,6 +590,11 @@ input[type="number"]{-moz-appearance:textfield}
        user had no way to know without guessing and just trying. Say it
        plainly, right where the decision to speak is made. -->
   <div class="mic-lang-line">Say it in English, Twi or Pidgin. You can also ask: &ldquo;who owes me?&rdquo;</div>
+  <!-- Trust, before the tap (16 Sep, Bobby: "is it free? is it a scam? is there
+       a catch?"). Ghanaian online-trust research puts trust above ease of use;
+       GSMA lists confidence/safety as a top barrier. Three facts, one link,
+       first use only. -->
+  <p id="trustLine" class="trust-line">Free. No signup. Your records stay on this phone. <a href="safety.html">Is it safe?</a></p>
   <!-- Show, don't explain: the same exchange as the share card. First use only. -->
   <div id="exampleChat" class="example-chat" aria-label="Example">
     <div class="ex-you">&ldquo;Ama owes me 120.&rdquo;</div>
@@ -953,7 +960,7 @@ input[type="number"]{-moz-appearance:textfield}
      string is what forces a fresh script fetch even before any service worker logic
      runs, independent of it. Found live 27 Aug: without this, an already-visited
      browser can keep running old code from plain HTTP cache regardless of SW strategy. -->
-<script src="app.js?v=86"></script>
+<script src="app.js?v=87"></script>
 
 </body>
 </html>

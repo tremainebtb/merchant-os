@@ -1381,6 +1381,7 @@ async function render() {
   document.getElementById('homeMicBtn').classList.toggle('first-use', firstUse);
   document.getElementById('whatIs').hidden = !firstUse;
   document.getElementById('exampleChat').hidden = !firstUse;
+  document.getElementById('trustLine').hidden = !firstUse;
   if (typeof renderInstallBanner === 'function') renderInstallBanner();
 
   // Real advice, 28 Aug, sought independently from two AI reviews after
