@@ -56,7 +56,7 @@
      app.js?v=. Lets anyone - a reviewer, a tester in Kumasi, a future session -
      answer "which CountMy am I looking at?" from view-source or the console,
      the same way the Worker answers with "wv". -->
-<meta name="countmy-version" content="v85">
+<meta name="countmy-version" content="v86">
 <!-- Real finding, 28 Aug: the bare "CountMy" title carried no keywords at all
      for what people actually search - a free sales/expense ledger for
      Ghanaian shop owners. The <title> tag is the single strongest on-page
@@ -894,6 +894,16 @@ input[type="number"]{-moz-appearance:textfield}
       <button id="shopEditBtn" type="button" class="act-banner-dismiss">Edit</button>
     </div>
   </div>
+  <!-- Return mechanism (16 Sep). A stranger who records once and closes the
+       tab has no way back but memory. An icon on the phone is the way back.
+       Shown after the first entry, only where the browser offers install. -->
+  <div id="installBanner" class="act-banner" hidden>
+    <span>Put CountMy on your phone, so it is one tap away tomorrow.</span>
+    <div class="act-banner-actions">
+      <button id="installBtn" type="button" class="act-banner-go">Put it on my phone</button>
+      <button id="installLater" type="button" class="act-banner-dismiss">Not now</button>
+    </div>
+  </div>
   <div id="planSheet" class="sheet plan-sheet">
     <h2>Support CountMy</h2>
     <p class="plan-copy">CountMy is free, and all your records stay yours. If it helps your shop, 99 cedis once a year keeps it free for everyone. Nothing changes if you don't.</p>
@@ -943,7 +953,7 @@ input[type="number"]{-moz-appearance:textfield}
      string is what forces a fresh script fetch even before any service worker logic
      runs, independent of it. Found live 27 Aug: without this, an already-visited
      browser can keep running old code from plain HTTP cache regardless of SW strategy. -->
-<script src="app.js?v=85"></script>
+<script src="app.js?v=86"></script>
 
 </body>
 </html>

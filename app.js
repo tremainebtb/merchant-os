@@ -1105,6 +1105,9 @@ function nudgeCohort() {
     return Number(c);
   } catch (e) { return 1; }
 }
+function isStandalone() {
+  try { return (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true; } catch (e) { return false; }
+}
 function isTestDevice() { try { return localStorage.getItem('kym_test') === '1' ? 1 : 0; } catch (e) { return 0; } }
 function ping(eventType) {
   try {
@@ -1114,7 +1117,7 @@ function ping(eventType) {
     fetch(`${API_BASE}/ping`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ shop, event: eventType, programme: localStorage.getItem('kym_programme') || '', device: getDeviceId(), source: localStorage.getItem('kym_source') || '', test: isTestDevice(), nudge: nudgeCohort(), ver: window.KYM_VERSION || '' })
+      body: JSON.stringify({ shop, event: eventType, programme: localStorage.getItem('kym_programme') || '', device: getDeviceId(), source: localStorage.getItem('kym_source') || '', test: isTestDevice(), nudge: nudgeCohort(), ver: window.KYM_VERSION || '', lang: (navigator.language || '').slice(0, 12), mobile: /Mobi|Android/i.test(navigator.userAgent) ? 1 : 0, standalone: isStandalone() ? 1 : 0 })
     }).catch(() => {});
   } catch (err) {
     // Usage reporting must never interrupt a locally committed save.
@@ -1378,6 +1381,7 @@ async function render() {
   document.getElementById('homeMicBtn').classList.toggle('first-use', firstUse);
   document.getElementById('whatIs').hidden = !firstUse;
   document.getElementById('exampleChat').hidden = !firstUse;
+  if (typeof renderInstallBanner === 'function') renderInstallBanner();
 
   // Real advice, 28 Aug, sought independently from two AI reviews after
   // real Clarity data showed 97% of visits are new and returning usage is
@@ -2098,6 +2102,37 @@ document.getElementById('shopSaveBtn').addEventListener('click', async () => {
   } finally { btn.disabled = false; btn.textContent = 'Make my page'; }
 });
 renderShopReady();
+
+// ---------------------------------------------------------------------------
+// Install (16 Sep). Chromium fires beforeinstallprompt when the PWA is
+// installable; we hold it and offer it once there is a record to come back
+// to. Accepting is counted (ping 'install'); dismissing waits a week. The
+// open ping carries standalone:1 when the app is launched from the icon, so
+// "came back through the icon" is visible on the dashboard.
+// ---------------------------------------------------------------------------
+let deferredInstall = null;
+window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); deferredInstall = e; renderInstallBanner(); });
+window.addEventListener('appinstalled', () => { ping('install'); track('pwa_installed'); deferredInstall = null; renderInstallBanner(); });
+function renderInstallBanner() {
+  const box = document.getElementById('installBanner');
+  if (!box) return;
+  let snoozed = 0;
+  try { snoozed = Number(localStorage.getItem('kym_install_later') || 0); } catch (e) { /* optional */ }
+  const hasRecord = !document.querySelector('.today').hidden;
+  box.hidden = !(deferredInstall && hasRecord && !isStandalone() && Date.now() - snoozed > 7 * 86400000);
+}
+document.getElementById('installBtn').addEventListener('click', async () => {
+  if (!deferredInstall) return;
+  track('pwa_install_prompt');
+  const p = deferredInstall; deferredInstall = null;
+  try { p.prompt(); const r = await p.userChoice; track('pwa_install_choice', { outcome: r && r.outcome }); } catch (e) { /* user closed it */ }
+  renderInstallBanner();
+});
+document.getElementById('installLater').addEventListener('click', () => {
+  try { localStorage.setItem('kym_install_later', String(Date.now())); } catch (e) { /* optional */ }
+  track('pwa_install_later');
+  renderInstallBanner();
+});
 
 document.getElementById('planPill').addEventListener('click', () => document.getElementById('planSheet').classList.add('open'));
 document.getElementById('planCloseBtn').addEventListener('click', () => document.getElementById('planSheet').classList.remove('open'));

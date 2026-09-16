@@ -156,12 +156,15 @@ async function ensureTestSchema(env) {
     try { await env.COUNTMY_DB.prepare('ALTER TABLE ' + t + ' ADD COLUMN is_test INTEGER DEFAULT 0').run(); } catch (e) { /* already there */ }
     if (t === 'devices') { try { await env.COUNTMY_DB.prepare('ALTER TABLE devices ADD COLUMN country TEXT').run(); } catch (e) { /* already there */ } }
     if (t === 'devices') {
-      for (const col of ['nudge INTEGER', 'asked_ts INTEGER', 'tapped_ts INTEGER', 'first_ver TEXT']) {
+      for (const col of ['nudge INTEGER', 'asked_ts INTEGER', 'tapped_ts INTEGER', 'first_ver TEXT', 'asn_org TEXT', 'is_dc INTEGER DEFAULT 0', 'mobile INTEGER', 'lang TEXT', 'installed_ts INTEGER', 'icon_opens INTEGER DEFAULT 0']) {
         try { await env.COUNTMY_DB.prepare('ALTER TABLE devices ADD COLUMN ' + col).run(); } catch (e) { /* already there */ }
       }
     }
     await env.COUNTMY_DB.prepare('CREATE VIEW IF NOT EXISTS live_' + t + ' AS SELECT * FROM ' + t + ' WHERE COALESCE(is_test, 0) = 0').run();
   }
+  // Real people: not a test device and not a datacentre network (crawlers,
+  // link previews, AI reviewers). Those are counted separately, never dropped.
+  await env.COUNTMY_DB.prepare('CREATE VIEW IF NOT EXISTS people_devices AS SELECT * FROM devices WHERE COALESCE(is_test, 0) = 0 AND COALESCE(is_dc, 0) = 0').run();
   testSchemaReady = true;
 }
 function testFlag(body) { return body && (body.test === 1 || body.test === '1' || body.test === true) ? 1 : 0; }
@@ -176,7 +179,7 @@ async function handlePing(request, env) {
   const eventType = String((body && body.event) || '');
   if (!shop) return cors(new Response(JSON.stringify({ error: 'missing shop id' }), { status: 400 }));
   // share_shop / shop_created added 16 Sep for the spread-loop numbers.
-  if (!['open', 'save', 'share_shop', 'shop_created', 'ask', 'tap'].includes(eventType)) {
+  if (!['open', 'save', 'share_shop', 'shop_created', 'ask', 'tap', 'install'].includes(eventType)) {
     return cors(new Response(JSON.stringify({ error: 'invalid event' }), { status: 400 }));
   }
   const shopHash = (await sha256Hex(shop)).slice(0, 32);
@@ -227,7 +230,20 @@ async function handlePing(request, env) {
       const country = String((request.cf && request.cf.country) || '').slice(0, 2).toUpperCase();
       const nudge = (body.nudge === 0 || body.nudge === '0') ? 0 : ((body.nudge === 1 || body.nudge === '1') ? 1 : null);
       const ver = String((body && body.ver) || '').replace(/[^a-z0-9]/gi, '').slice(0, 12);
-      await env.COUNTMY_DB.prepare('INSERT OR IGNORE INTO devices (device_hash, source, first_ts, is_test, country, nudge, first_ver) VALUES (?, ?, ?, ?, ?, ?, ?)').bind(dh, source, Date.now(), isTest, country, nudge, ver).run();
+      // Network owner from Cloudflare; a datacentre ASN is a crawler, a link
+      // preview, or a reviewer's browsing agent - not a trader with a phone.
+      const asnOrg = String((request.cf && request.cf.asOrganization) || '').slice(0, 60);
+      const isDc = /google|amazon|aws|microsoft|azure|meta platforms|facebook|openai|oracle|digitalocean|hetzner|ovh|linode|akamai|alibaba|tencent|cloudflare|fastly|vultr|scaleway|contabo/i.test(asnOrg) ? 1 : 0;
+      const mobile = (body.mobile === 1 || body.mobile === '1') ? 1 : 0;
+      const lang = String((body && body.lang) || '').replace(/[^a-zA-Z-]/g, '').slice(0, 12);
+      const standalone = (body.standalone === 1 || body.standalone === '1') ? 1 : 0;
+      await env.COUNTMY_DB.prepare('INSERT OR IGNORE INTO devices (device_hash, source, first_ts, is_test, country, nudge, first_ver, asn_org, is_dc, mobile, lang) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').bind(dh, source, Date.now(), isTest, country, nudge, ver, asnOrg, isDc, mobile, lang).run();
+      if (eventType === 'install') {
+        await env.COUNTMY_DB.prepare('UPDATE devices SET installed_ts = ? WHERE device_hash = ? AND installed_ts IS NULL').bind(Date.now(), dh).run();
+      }
+      if (eventType === 'open' && standalone) {
+        await env.COUNTMY_DB.prepare('UPDATE devices SET icon_opens = COALESCE(icon_opens, 0) + 1, installed_ts = COALESCE(installed_ts, ?) WHERE device_hash = ?').bind(Date.now(), dh).run();
+      }
       if (eventType === 'tap') {
         await env.COUNTMY_DB.prepare('UPDATE devices SET tapped_ts = ? WHERE device_hash = ? AND tapped_ts IS NULL').bind(Date.now(), dh).run();
       }
@@ -708,17 +724,19 @@ async function handleAdminStats(request, env) {
   // button -> made a record -> asked. This is how a first-screen change is
   // judged: activation per version, not opinion.
   stmts.push(env.COUNTMY_DB.prepare(
-    "SELECT COALESCE(first_ver, '') as ver, COUNT(*) as devices, SUM(CASE WHEN country = 'GH' THEN 1 ELSE 0 END) as gh, SUM(CASE WHEN tapped_ts IS NOT NULL THEN 1 ELSE 0 END) as tapped, SUM(CASE WHEN saved_ts IS NOT NULL THEN 1 ELSE 0 END) as recorded, SUM(CASE WHEN asked_ts IS NOT NULL THEN 1 ELSE 0 END) as asked FROM live_devices GROUP BY ver ORDER BY ver DESC LIMIT 30"
+    "SELECT COALESCE(first_ver, '') as ver, COUNT(*) as devices, SUM(CASE WHEN country = 'GH' THEN 1 ELSE 0 END) as gh, SUM(CASE WHEN tapped_ts IS NOT NULL THEN 1 ELSE 0 END) as tapped, SUM(CASE WHEN saved_ts IS NOT NULL THEN 1 ELSE 0 END) as recorded, SUM(CASE WHEN asked_ts IS NOT NULL THEN 1 ELSE 0 END) as asked, SUM(CASE WHEN installed_ts IS NOT NULL THEN 1 ELSE 0 END) as installed, SUM(CASE WHEN mobile = 1 THEN 1 ELSE 0 END) as mobile FROM people_devices GROUP BY ver ORDER BY ver DESC LIMIT 30"
   ));
   // Memory activation by cohort: of the devices that made a record, how many
   // asked a question - with the spoken prompt (nudge 1) and without (0).
   stmts.push(env.COUNTMY_DB.prepare(
-    'SELECT nudge, COUNT(*) as devices, SUM(CASE WHEN saved_ts IS NOT NULL THEN 1 ELSE 0 END) as activated, SUM(CASE WHEN saved_ts IS NOT NULL AND asked_ts IS NOT NULL THEN 1 ELSE 0 END) as asked, SUM(CASE WHEN country = ? THEN 1 ELSE 0 END) as gh FROM live_devices GROUP BY nudge'
+    'SELECT nudge, COUNT(*) as devices, SUM(CASE WHEN saved_ts IS NOT NULL THEN 1 ELSE 0 END) as activated, SUM(CASE WHEN saved_ts IS NOT NULL AND asked_ts IS NOT NULL THEN 1 ELSE 0 END) as asked, SUM(CASE WHEN country = ? THEN 1 ELSE 0 END) as gh FROM people_devices GROUP BY nudge'
   ).bind('GH'));
   stmts.push(env.COUNTMY_DB.prepare(
-    "SELECT source, COUNT(*) as n, SUM(CASE WHEN first_ts >= ? THEN 1 ELSE 0 END) as n7, SUM(CASE WHEN saved_ts IS NOT NULL THEN 1 ELSE 0 END) as activated, SUM(CASE WHEN country = 'GH' THEN 1 ELSE 0 END) as gh FROM live_devices GROUP BY source ORDER BY n DESC LIMIT 40"
+    "SELECT source, COUNT(*) as n, SUM(CASE WHEN first_ts >= ? THEN 1 ELSE 0 END) as n7, SUM(CASE WHEN saved_ts IS NOT NULL THEN 1 ELSE 0 END) as activated, SUM(CASE WHEN country = 'GH' THEN 1 ELSE 0 END) as gh, SUM(CASE WHEN mobile = 1 THEN 1 ELSE 0 END) as mobile FROM people_devices GROUP BY source ORDER BY n DESC LIMIT 40"
   ).bind(now - 7 * DAY));
 
+  stmts.push(env.COUNTMY_DB.prepare("SELECT asn_org, COUNT(*) as n, SUM(CASE WHEN country = 'GH' THEN 1 ELSE 0 END) as gh FROM live_devices WHERE COALESCE(is_dc, 0) = 1 GROUP BY asn_org ORDER BY n DESC LIMIT 15"));
+  stmts.push(env.COUNTMY_DB.prepare("SELECT COALESCE(lang, '') as lang, COUNT(*) as n FROM people_devices GROUP BY lang ORDER BY n DESC LIMIT 12"));
   stmts.push(env.COUNTMY_DB.prepare('SELECT (SELECT COUNT(*) FROM devices WHERE is_test = 1) as devices, (SELECT COUNT(*) FROM events WHERE is_test = 1) as events, (SELECT COUNT(*) FROM entries WHERE is_test = 1) as entries, (SELECT COUNT(*) FROM shops WHERE is_test = 1) as shops'));
   const results = await env.COUNTMY_DB.batch(stmts);
 
@@ -747,9 +765,11 @@ async function handleAdminStats(request, env) {
   out.loop.shopViews = shopsRow.v || 0;
   out.loop.shops7 = one().n || 0;
   out.test = ((results[results.length - 1].results || [])[0]) || { devices: 0, events: 0, entries: 0, shops: 0 };
-  out.funnel = (results[i++].results || []).map(r => ({ ver: r.ver || 'before v85', devices: r.devices || 0, gh: r.gh || 0, tapped: r.tapped || 0, recorded: r.recorded || 0, asked: r.asked || 0 }));
+  out.funnel = (results[i++].results || []).map(r => ({ ver: r.ver || 'before v85', devices: r.devices || 0, gh: r.gh || 0, tapped: r.tapped || 0, recorded: r.recorded || 0, asked: r.asked || 0, installed: r.installed || 0, mobile: r.mobile || 0 }));
   out.cohorts = (results[i++].results || []).map(r => ({ nudge: r.nudge, devices: r.devices || 0, activated: r.activated || 0, asked: r.asked || 0, gh: r.gh || 0 }));
-  out.sources = (results[i++].results || []).map(r => ({ source: r.source, devices: r.n || 0, week: r.n7 || 0, activated: r.activated || 0, gh: r.gh || 0 }));
+  out.sources = (results[i++].results || []).map(r => ({ source: r.source, devices: r.n || 0, week: r.n7 || 0, activated: r.activated || 0, gh: r.gh || 0, mobile: r.mobile || 0 }));
+  out.datacentre = (results[i++].results || []).map(r => ({ org: r.asn_org || '', devices: r.n || 0, gh: r.gh || 0 }));
+  out.languages = (results[i++].results || []).map(r => ({ lang: r.lang || '(none)', devices: r.n || 0 }));
 
   return cors(new Response(JSON.stringify(out), {
     headers: { 'Content-Type': 'application/json' }
@@ -908,7 +928,7 @@ async function handleTranscribe(request, env) {
 // 50 is a transcription/parsing error, not a fabrication) - evidence-checking
 // targets fabrication specifically, not every possible error; the review UI is
 // still what catches a wrong-but-grounded number.
-const WORKER_VERSION = 'w29';
+const WORKER_VERSION = 'w30';
 
 const EXTRACT_SYSTEM_PROMPT = `You read a rough, possibly messy speech-to-text transcript from a Ghanaian shop owner describing what happened in their shop today, in English, Twi or Pidgin (Twi numbers: baako 1, mmienu 2, mmiensa 3, enan 4, anum 5, du 10, aduonu 20, aduasa 30, aduonum 50, oha 100, apem 1000; "de me ka" = owes me; transcripts may contain mistranscribed words like "cds" for "cedis"). Extract every distinct business event as a JSON array. Each event is one of these types:
 - "sale": the owner sold something. Fields: type, item, qty, and EITHER price (per-unit price in cedis, only if a per-unit price was actually spoken) OR total (the total amount actually spoken, if only a total was said - e.g. "2 bags for 300" has qty 2 and total 300, NOT price 150 - never do the division yourself).

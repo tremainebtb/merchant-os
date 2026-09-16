@@ -140,8 +140,9 @@ footer p{margin:0 0 6px}
 
   <div class="panel">
     <h3>First-screen funnel, by build</h3>
+    <p class="note" id="dcNote"></p>
     <p class="note">Each device is counted under the build it first opened. Opened -> tapped the orange button -> made a record -> asked a question. Compare rows to judge a first-screen change; "tapped" starts at v85.</p>
-    <div class="tw"><table class="src-table"><thead><tr><th>Build</th><th>Opened</th><th>In Ghana</th><th>Tapped</th><th>Made a record</th><th>Asked</th></tr></thead><tbody id="funnelBody"><tr><td colspan="6" class="empty-note">No data yet.</td></tr></tbody></table></div>
+    <div class="tw"><table class="src-table"><thead><tr><th>Build</th><th>Opened</th><th>On a phone</th><th>In Ghana</th><th>Tapped</th><th>Made a record</th><th>Asked</th><th>On home screen</th></tr></thead><tbody id="funnelBody"><tr><td colspan="8" class="empty-note">No data yet.</td></tr></tbody></table></div>
   </div>
 
   <div class="panel">
@@ -237,10 +238,14 @@ async function loadStats(key) {
 
 function renderKpis() {
   const fun = statsData.funnel || [];
+  const dc = statsData.datacentre || [];
+  const dcTotal = dc.reduce((s, r) => s + r.devices, 0);
+  const langs = (statsData.languages || []).map(r => r.lang + ' ' + fmtInt(r.devices)).join(', ');
+  document.getElementById('dcNote').textContent = 'Not counted below: ' + fmtInt(dcTotal) + ' visits from datacentre networks (crawlers, link previews, AI reviewers)' + (dc.length ? ' - ' + dc.map(r => r.org + ' ' + fmtInt(r.devices)).join(', ') : '') + '. Phone languages of real people: ' + (langs || 'none yet') + '.';
   const pct = (n, d) => d ? ' (' + Math.round(100 * n / d) + '%)' : '';
   document.getElementById('funnelBody').innerHTML = fun.length
-    ? fun.map(r => `<tr><td>${String(r.ver).replace(/</g, '&lt;')}</td><td>${fmtInt(r.devices)}</td><td>${fmtInt(r.gh)}</td><td>${fmtInt(r.tapped)}${pct(r.tapped, r.devices)}</td><td>${fmtInt(r.recorded)}${pct(r.recorded, r.devices)}</td><td>${fmtInt(r.asked)}${pct(r.asked, r.recorded)}</td></tr>`).join('')
-    : '<tr><td colspan="6" class="empty-note">No data yet.</td></tr>';
+    ? fun.map(r => `<tr><td>${String(r.ver).replace(/</g, '&lt;')}</td><td>${fmtInt(r.devices)}</td><td>${fmtInt(r.mobile)}</td><td>${fmtInt(r.gh)}</td><td>${fmtInt(r.tapped)}${pct(r.tapped, r.devices)}</td><td>${fmtInt(r.recorded)}${pct(r.recorded, r.devices)}</td><td>${fmtInt(r.asked)}${pct(r.asked, r.recorded)}</td><td>${fmtInt(r.installed)}${pct(r.installed, r.recorded)}</td></tr>`).join('')
+    : '<tr><td colspan="8" class="empty-note">No data yet.</td></tr>';
   const coh = statsData.cohorts || [];
   const cohName = n => n === 1 ? 'Prompted (heard "you can also ask me")' : n === 0 ? 'Organic (no prompt)' : 'Before cohorts existed';
   document.getElementById('cohortBody').innerHTML = coh.length
