@@ -1963,7 +1963,11 @@ function maybeShowEodPrompt() {
     // good once the habit exists (five entries recorded) - a shop that is
     // already using this must never be nagged.
     if (!hasToday) {
-      const isNew = (Date.now() - firstSeenAt()) < FIRST_WEEK_MS && entries.length < FIRST_ENTRIES_TARGET;
+      // Found 16 Sep on a fresh device in the evening: this fired with ZERO
+      // entries, so a stranger's first screen carried a second "say it now"
+      // banner on top of everything else. A ritual nudge needs a first
+      // record to be a ritual about - one entry or more, fewer than five.
+      const isNew = (Date.now() - firstSeenAt()) < FIRST_WEEK_MS && entries.length >= 1 && entries.length < FIRST_ENTRIES_TARGET;
       const nudge = document.getElementById('eveningNudge');
       if (isNew && nudge) {
         localStorage.setItem('kym_eod_prompted', today);
