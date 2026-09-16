@@ -1114,7 +1114,7 @@ function ping(eventType) {
     fetch(`${API_BASE}/ping`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ shop, event: eventType, programme: localStorage.getItem('kym_programme') || '', device: getDeviceId(), source: localStorage.getItem('kym_source') || '', test: isTestDevice(), nudge: nudgeCohort() })
+      body: JSON.stringify({ shop, event: eventType, programme: localStorage.getItem('kym_programme') || '', device: getDeviceId(), source: localStorage.getItem('kym_source') || '', test: isTestDevice(), nudge: nudgeCohort(), ver: window.KYM_VERSION || '' })
     }).catch(() => {});
   } catch (err) {
     // Usage reporting must never interrupt a locally committed save.
@@ -1376,6 +1376,8 @@ async function render() {
   document.getElementById('shopPageBtn').hidden = firstUse;
   document.getElementById('planPill').hidden = firstUse;
   document.getElementById('homeMicBtn').classList.toggle('first-use', firstUse);
+  document.getElementById('whatIs').hidden = !firstUse;
+  document.getElementById('exampleChat').hidden = !firstUse;
 
   // Real advice, 28 Aug, sought independently from two AI reviews after
   // real Clarity data showed 97% of visits are new and returning usage is
@@ -2155,6 +2157,7 @@ if (eodBanner) {
 }
 document.getElementById('homeMicBtn').addEventListener('click', () => {
   track('open_sheet', { type: 'home_mic' });
+  ping('tap'); // funnel step between 'opened' and 'recorded' (16 Sep)
   toggleMic(document.getElementById('homeMicBtn'), 'homeMicStatus');
 });
 if (!micSupported()) {
@@ -2395,6 +2398,13 @@ function bumpVisitCount() {
     }
   } catch (e) { /* optional */ }
   console.info('CountMy ' + window.KYM_VERSION);
+  // Same three labels on every analytics surface (16 Sep), so GA4, Clarity
+  // and the owner dashboard can all be cut the same way: build, source, cohort.
+  try {
+    const labels = { app_version: window.KYM_VERSION || '', source: localStorage.getItem('kym_source') || '', nudge_cohort: String(nudgeCohort()) };
+    if (window.gtag) window.gtag('set', 'user_properties', labels);
+    if (window.clarity) { window.clarity('set', 'version', labels.app_version); window.clarity('set', 'source', labels.source); window.clarity('set', 'cohort', labels.nudge_cohort); }
+  } catch (e) { /* analytics must never interrupt the app */ }
   // Receiving side of the http -> https record bridge (see the head script
   // in index.html). Only ever accepts rows from our own http origin, only
   // when opened as ?bridge=1, and uses put so a row that already exists is

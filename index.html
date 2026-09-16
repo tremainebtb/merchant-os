@@ -56,7 +56,7 @@
      app.js?v=. Lets anyone - a reviewer, a tester in Kumasi, a future session -
      answer "which CountMy am I looking at?" from view-source or the console,
      the same way the Worker answers with "wv". -->
-<meta name="countmy-version" content="v84">
+<meta name="countmy-version" content="v85">
 <!-- Real finding, 28 Aug: the bare "CountMy" title carried no keywords at all
      for what people actually search - a free sales/expense ledger for
      Ghanaian shop owners. The <title> tag is the single strongest on-page
@@ -435,6 +435,11 @@ input[type="number"]{-moz-appearance:textfield}
 .ask-line{font-family:"Manrope",sans-serif;font-weight:800;font-size:1.45rem;line-height:1.2;margin:0 0 14px;color:var(--navy);letter-spacing:-.01em}
 .home-mic-label{font-family:"Manrope",sans-serif;font-weight:800;font-size:1.15rem}
 .mic-lang-line{text-align:center;font-size:.89rem;font-weight:500;color:var(--muted);margin:2px 0 6px}
+.what-is{margin:-6px 0 14px;color:var(--ink-soft);font-size:1rem}
+.example-chat{display:flex;flex-direction:column;gap:6px;margin:10px 0 14px}
+.example-chat div{max-width:82%;padding:9px 13px;border-radius:14px;font-size:.95rem;line-height:1.3}
+.example-chat .ex-you{align-self:flex-start;background:var(--surface);border:1px solid var(--rule);color:var(--navy);font-weight:600}
+.example-chat .ex-app{align-self:flex-end;background:var(--leaf-soft);color:var(--leaf-deep);font-weight:600}
 .mic-trust-line{text-align:center;font-size:.94rem;font-weight:700;color:var(--leaf-deep);margin-bottom:14px}
 .home-mic-status{min-height:1.4em;text-align:center;font-size:.95rem;color:var(--ink-soft);margin-bottom:14px}
 .home-mic-status.heard{color:var(--leaf-deep);font-weight:600}
@@ -495,6 +500,56 @@ input[type="number"]{-moz-appearance:textfield}
    of the two-column actions grid, 167px of the 343px available. */
 .type-choices,.type-toggle{grid-column:1 / -1}
 </style>
+<!-- Moved to the head 16 Sep so a two-second visit is still counted. -->
+<!-- Analytics for the Silent Alpha pilot only (27 Aug) - added to observe real
+     merchant behavior (what they tap first, voice vs manual usage), NOT to
+     collect financial data. Both IDs are placeholders until Bobby creates the
+     free GA4 property and Clarity project himself (account creation is his to
+     do, not something done on his behalf) - this whole block is inert with the
+     placeholder values in place, both SDKs no-op safely on a blank/invalid ID.
+     GA4 only ever receives page views and structural button-click events (which
+     TYPE of button, e.g. "add_sale_click") - never an item name, price, or
+     customer name. Clarity's own dashboard is configured to mask financial
+     content, and every element showing a real cedis figure or a name also
+     carries data-clarity-mask="True" directly as defense-in-depth, regardless
+     of whatever Clarity's own default masking behavior turns out to be. -->
+<script>
+  // Owner device opt-out, added 28 Aug. An IP-based exclusion (already set up in
+  // GA4 and Clarity) only ever covers ONE network - it misses a phone on mobile
+  // data entirely, and breaks the moment a home/office IP changes. This instead
+  // marks the DEVICE itself, permanently, independent of network: visiting the
+  // site once with ?owner=1 on a given phone or laptop sets a local flag that
+  // skips loading GA4 and Clarity on every future visit from that browser, and
+  // also tells ping() (see app.js) not to count this device in the owner
+  // dashboard's business/usage stats. One visit per device, done forever - no
+  // IP to track down, works the same on a phone as a laptop.
+  (function() {
+    var params = new URLSearchParams(location.search);
+    if (params.get('owner') === '1') localStorage.setItem('kym_owner_device', '1');
+  })();
+  window.KYM_IS_OWNER_DEVICE = localStorage.getItem('kym_owner_device') === '1';
+
+  // The only two lines that need editing once Bobby sends the real IDs.
+  window.GA4_ID = 'G-YJW9J53BL9';
+  window.CLARITY_ID = 'y91blwr2nq';
+
+  if (!window.KYM_IS_OWNER_DEVICE && window.GA4_ID.indexOf('XXXXXXXXXX') === -1) {
+    var gaScript = document.createElement('script');
+    gaScript.async = true;
+    gaScript.src = 'https://www.googletagmanager.com/gtag/js?id=' + window.GA4_ID;
+    document.head.appendChild(gaScript);
+    window.dataLayer = window.dataLayer || [];
+    window.gtag = function(){ window.dataLayer.push(arguments); };
+    window.gtag('js', new Date());
+    window.gtag('config', window.GA4_ID, { anonymize_ip: true });
+  }
+  (function(c,l,a,r,i,t,y){
+    if (window.KYM_IS_OWNER_DEVICE || !i || i.indexOf('XXXXXXXXXX') !== -1) return;
+    c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
+    t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;
+    y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
+  })(window, document, "clarity", "script", window.CLARITY_ID);
+</script>
 </head>
 <body>
 <main class="wrap">
@@ -512,6 +567,11 @@ input[type="number"]{-moz-appearance:textfield}
        different sizes. Down to one line: the name, self-explained in the
        same breath, nothing above it, nothing to read before it. -->
   <h1 class="pitch"><svg class="mark" viewBox="0 0 64 64" aria-hidden="true"><rect x="15" y="9" width="30" height="12" rx="6" fill="#E8641F" transform="rotate(-7 30 15)"/><rect x="10" y="26" width="38" height="12" rx="6" fill="#F2B233"/><rect class="navy" x="17" y="43" width="32" height="12" rx="6" transform="rotate(4 33 49)"/></svg><span>Count<span class="my">My</span></span></h1>
+  <!-- Cold arrival (16 Sep). Clarity: 8 sessions, 76% scroll, 0 taps - people
+       who click a link scroll looking for what this is and find nothing. The
+       aunt handed a phone does not need this line; the stranger does. One
+       line, first use only. -->
+  <p id="whatIs" class="what-is">Your free money notebook. You talk, it remembers.</p>
   <div class="ask-line">What happened in your shop today?</div>
   <button id="homeMicBtn" class="home-mic-btn" type="button" aria-label="Tell CountMy what happened">
     <svg viewBox="0 0 24 24" fill="none"><path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3Z" stroke="currentColor" stroke-width="2"/><path d="M19 11a7 7 0 0 1-14 0M12 18v3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
@@ -528,6 +588,13 @@ input[type="number"]{-moz-appearance:textfield}
        user had no way to know without guessing and just trying. Say it
        plainly, right where the decision to speak is made. -->
   <div class="mic-lang-line">Say it in English, Twi or Pidgin. You can also ask: &ldquo;who owes me?&rdquo;</div>
+  <!-- Show, don't explain: the same exchange as the share card. First use only. -->
+  <div id="exampleChat" class="example-chat" aria-label="Example">
+    <div class="ex-you">&ldquo;Ama owes me 120.&rdquo;</div>
+    <div class="ex-app">Saved: Ama, 120 cedis.</div>
+    <div class="ex-you">&ldquo;Who owes me?&rdquo;</div>
+    <div class="ex-app">Ama owes you 120 cedis.</div>
+  </div>
   <div id="homeMicStatus" class="home-mic-status" aria-live="polite"></div>
   <div id="voiceReview" class="voice-review">
     <div class="voice-review-head">
@@ -876,56 +943,7 @@ input[type="number"]{-moz-appearance:textfield}
      string is what forces a fresh script fetch even before any service worker logic
      runs, independent of it. Found live 27 Aug: without this, an already-visited
      browser can keep running old code from plain HTTP cache regardless of SW strategy. -->
-<script src="app.js?v=84"></script>
+<script src="app.js?v=85"></script>
 
-<!-- Analytics for the Silent Alpha pilot only (27 Aug) - added to observe real
-     merchant behavior (what they tap first, voice vs manual usage), NOT to
-     collect financial data. Both IDs are placeholders until Bobby creates the
-     free GA4 property and Clarity project himself (account creation is his to
-     do, not something done on his behalf) - this whole block is inert with the
-     placeholder values in place, both SDKs no-op safely on a blank/invalid ID.
-     GA4 only ever receives page views and structural button-click events (which
-     TYPE of button, e.g. "add_sale_click") - never an item name, price, or
-     customer name. Clarity's own dashboard is configured to mask financial
-     content, and every element showing a real cedis figure or a name also
-     carries data-clarity-mask="True" directly as defense-in-depth, regardless
-     of whatever Clarity's own default masking behavior turns out to be. -->
-<script>
-  // Owner device opt-out, added 28 Aug. An IP-based exclusion (already set up in
-  // GA4 and Clarity) only ever covers ONE network - it misses a phone on mobile
-  // data entirely, and breaks the moment a home/office IP changes. This instead
-  // marks the DEVICE itself, permanently, independent of network: visiting the
-  // site once with ?owner=1 on a given phone or laptop sets a local flag that
-  // skips loading GA4 and Clarity on every future visit from that browser, and
-  // also tells ping() (see app.js) not to count this device in the owner
-  // dashboard's business/usage stats. One visit per device, done forever - no
-  // IP to track down, works the same on a phone as a laptop.
-  (function() {
-    var params = new URLSearchParams(location.search);
-    if (params.get('owner') === '1') localStorage.setItem('kym_owner_device', '1');
-  })();
-  window.KYM_IS_OWNER_DEVICE = localStorage.getItem('kym_owner_device') === '1';
-
-  // The only two lines that need editing once Bobby sends the real IDs.
-  window.GA4_ID = 'G-YJW9J53BL9';
-  window.CLARITY_ID = 'y91blwr2nq';
-
-  if (!window.KYM_IS_OWNER_DEVICE && window.GA4_ID.indexOf('XXXXXXXXXX') === -1) {
-    var gaScript = document.createElement('script');
-    gaScript.async = true;
-    gaScript.src = 'https://www.googletagmanager.com/gtag/js?id=' + window.GA4_ID;
-    document.head.appendChild(gaScript);
-    window.dataLayer = window.dataLayer || [];
-    window.gtag = function(){ window.dataLayer.push(arguments); };
-    window.gtag('js', new Date());
-    window.gtag('config', window.GA4_ID, { anonymize_ip: true });
-  }
-  (function(c,l,a,r,i,t,y){
-    if (window.KYM_IS_OWNER_DEVICE || !i || i.indexOf('XXXXXXXXXX') !== -1) return;
-    c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
-    t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;
-    y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
-  })(window, document, "clarity", "script", window.CLARITY_ID);
-</script>
 </body>
 </html>
