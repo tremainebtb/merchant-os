@@ -1657,11 +1657,11 @@ function speakToday() {
 // alone (Lightspeed, 2019). Every reminder a trader sends to a customer now
 // carries the door in. Kept to one plain line under the real message.
 function reminderHook() {
-  return ' - Sent with CountMy, the free money notebook for shop owners: countmy.app/?utm_source=whatsapp&utm_medium=reminder&utm_campaign=debt';
+  return ' - Sent with CountMy, the free money notebook for anyone in business: countmy.app/?utm_source=whatsapp&utm_medium=reminder&utm_campaign=debt';
 }
 
 function shareFooter(campaign) {
-  return '\n\nI keep my shop money with CountMy. It is free: https://countmy.app/?utm_source=whatsapp&utm_medium=share&utm_campaign=' + campaign;
+  return '\n\nI keep my business money with CountMy. It is free: https://countmy.app/?utm_source=whatsapp&utm_medium=share&utm_campaign=' + campaign;
 }
 
 // Backup state, shown to the user 4 Sep. The single most repeated reason
@@ -1754,7 +1754,7 @@ function showEntryMilestone(total) {
   const left = FIRST_ENTRIES_TARGET - total;
   let msg;
   if (total >= FIRST_ENTRIES_TARGET) {
-    msg = `That is ${total}. CountMy knows your shop now - come back tomorrow and it will tell you if you did better.`;
+    msg = `That is ${total}. CountMy knows your business now - come back tomorrow and it will tell you if you did better.`;
   } else if (left === 1) {
     msg = `That is ${total}. One more and CountMy can tell you if today beat yesterday.`;
   } else {
@@ -2047,7 +2047,7 @@ function renderShopReady() {
   const st = shopPageState();
   const box = document.getElementById('shopReady');
   const btn = document.getElementById('shopPageBtn');
-  if (!st || !st.url) { box.hidden = true; if (btn) btn.textContent = 'Get a free page for your shop'; return; }
+  if (!st || !st.url) { box.hidden = true; if (btn) btn.textContent = 'Get a free page for your business'; return; }
   if (btn) btn.textContent = 'My shop page';
   document.getElementById('shopReadyText').textContent = `${st.name} has a page: ${st.url.replace('https://', '')}`;
   const items = (st.items || []).map(i => i.name).filter(Boolean).slice(0, 4).join(', ');
@@ -2084,7 +2084,7 @@ document.getElementById('shopSaveBtn').addEventListener('click', async () => {
     items: readShopItems(),
     programme: localStorage.getItem('kym_programme') || ''
   };
-  if (!payload.name) { setMicStatus('Please give your shop a name.', 'err', 'shopStatus'); return; }
+  if (!payload.name) { setMicStatus('Please give your business a name.', 'err', 'shopStatus'); return; }
   if (!payload.whatsapp) { setMicStatus('Please enter your WhatsApp number.', 'err', 'shopStatus'); return; }
   btn.disabled = true; btn.textContent = 'Making\u2026';
   try {

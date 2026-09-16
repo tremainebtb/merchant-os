@@ -312,7 +312,7 @@ async function handleShopUpsert(request, env) {
   try { body = await request.json(); } catch (e) { return cors(new Response(JSON.stringify({ error: 'invalid request' }), { status: 400 })); }
   const name = cleanText(body.name, 60);
   const whatsapp = cleanPhone(body.whatsapp);
-  if (!name) return cors(new Response(JSON.stringify({ error: 'Please give your shop a name.' }), { status: 400 }));
+  if (!name) return cors(new Response(JSON.stringify({ error: 'Please give your business a name.' }), { status: 400 }));
   if (!whatsapp) return cors(new Response(JSON.stringify({ error: 'Please enter a Ghana WhatsApp number, like 024 430 8111.' }), { status: 400 }));
   const category = SHOP_CATEGORIES.includes(String(body.category)) ? String(body.category) : 'other';
   const row = {
@@ -930,7 +930,7 @@ async function handleTranscribe(request, env) {
 // 50 is a transcription/parsing error, not a fabrication) - evidence-checking
 // targets fabrication specifically, not every possible error; the review UI is
 // still what catches a wrong-but-grounded number.
-const WORKER_VERSION = 'w31';
+const WORKER_VERSION = 'w32';
 
 const EXTRACT_SYSTEM_PROMPT = `You read a rough, possibly messy speech-to-text transcript from a Ghanaian shop owner describing what happened in their shop today, in English, Twi or Pidgin (Twi numbers: baako 1, mmienu 2, mmiensa 3, enan 4, anum 5, du 10, aduonu 20, aduasa 30, aduonum 50, oha 100, apem 1000; "de me ka" = owes me; transcripts may contain mistranscribed words like "cds" for "cedis"). Extract every distinct business event as a JSON array. Each event is one of these types:
 - "sale": the owner sold something. Fields: type, item, qty, and EITHER price (per-unit price in cedis, only if a per-unit price was actually spoken) OR total (the total amount actually spoken, if only a total was said - e.g. "2 bags for 300" has qty 2 and total 300, NOT price 150 - never do the division yourself).

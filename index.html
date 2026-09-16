@@ -56,12 +56,12 @@
      app.js?v=. Lets anyone - a reviewer, a tester in Kumasi, a future session -
      answer "which CountMy am I looking at?" from view-source or the console,
      the same way the Worker answers with "wv". -->
-<meta name="countmy-version" content="v87">
+<meta name="countmy-version" content="v88">
 <!-- Real finding, 28 Aug: the bare "CountMy" title carried no keywords at all
      for what people actually search - a free sales/expense ledger for
      Ghanaian shop owners. The <title> tag is the single strongest on-page
      ranking signal there is; a brand name alone wastes it. -->
-<title>CountMy - Free Sales &amp; Expense Ledger for Ghana Shop Owners</title>
+<title>CountMy - Free Sales &amp; Expense Record for Ghanaian Traders, Farmers and Small Businesses</title>
 <!-- Real, temporary diagnostic, 2 Sep: a real report of "every button is
      broken" that doesn't reproduce in testing across desktop, mobile
      emulation, or incognito - which rules out caching. The only way left to
@@ -92,7 +92,7 @@
   });
 })();
 </script>
-<meta name="description" content="Know your money. A free daily ledger for Ghanaian shop owners - works offline, no signup, your records stay on your phone.">
+<meta name="description" content="Your business remembers. A free money notebook for anyone in business in Ghana - traders, farmers, artisans, drivers. You talk, it keeps the record. Works offline, no signup, your records stay on your phone.">
 <meta name="theme-color" content="#D9541A">
 <link rel="canonical" href="https://countmy.app/">
 <meta name="google-site-verification" content="6w5arKM8VWqCfC1lWHKA7k_7m0KZL756_LMHC239ws0">
@@ -112,14 +112,14 @@
      graphic - the whole point is looking like a real product, not a scam link. -->
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://countmy.app">
-<meta property="og:title" content="CountMy - Know your money">
-<meta property="og:description" content="A free daily ledger for Ghanaian shop owners - works offline, no signup, your records stay on your phone.">
+<meta property="og:title" content="CountMy - Your business remembers">
+<meta property="og:description" content="Just tell CountMy what happened. It remembers for you. Free, works offline, no signup - for traders, farmers and every small business in Ghana.">
 <meta property="og:image" content="https://countmy.app/og-image.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="CountMy - Know your money">
-<meta name="twitter:description" content="A free daily ledger for Ghanaian shop owners - works offline, no signup, your records stay on your phone.">
+<meta name="twitter:description" content="Just tell CountMy what happened. It remembers for you. Free, works offline, no signup - for traders, farmers and every small business in Ghana.">
 <meta name="twitter:image" content="https://countmy.app/og-image.png">
 <!-- Structured data, added 28 Aug - real gap found via a live SEO check: zero
      JSON-LD on the page before this, so Google had nothing to build a rich
@@ -131,7 +131,7 @@
   "@type": "SoftwareApplication",
   "name": "CountMy",
   "url": "https://countmy.app",
-  "description": "A free daily sales and expense ledger for Ghanaian shop owners. Works offline, no signup required, records stay on your phone.",
+  "description": "A free voice money notebook for Ghanaian traders, farmers and small businesses. Works offline, no signup required, records stay on your phone.",
   "applicationCategory": "FinanceApplication",
   "operatingSystem": "Any (works in any mobile web browser)",
   "offers": {
@@ -574,7 +574,7 @@ input[type="number"]{-moz-appearance:textfield}
        aunt handed a phone does not need this line; the stranger does. One
        line, first use only. -->
   <p id="whatIs" class="what-is">Your free money notebook. You talk, it remembers.</p>
-  <div class="ask-line">What happened in your shop today?</div>
+  <div class="ask-line">What happened in your business today?</div>
   <button id="homeMicBtn" class="home-mic-btn" type="button" aria-label="Tell CountMy what happened">
     <svg viewBox="0 0 24 24" fill="none"><path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3Z" stroke="currentColor" stroke-width="2"/><path d="M19 11a7 7 0 0 1-14 0M12 18v3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
     <span class="home-mic-label">Tell CountMy</span>
@@ -795,7 +795,7 @@ input[type="number"]{-moz-appearance:textfield}
     <!-- Shop page entry (16 Sep). Small on purpose: the first screen stays the
          name, the question and the button. This is for the seller who wants
          customers, and the button she taps changes once she has a page. -->
-    <button id="shopPageBtn" type="button" class="type-toggle shop-page-link">Get a free page for your shop</button>
+    <button id="shopPageBtn" type="button" class="type-toggle shop-page-link">Get a free page for your business</button>
   </div>
   <div id="snapStatus" class="home-mic-status snap-status" aria-live="polite"></div>
 
@@ -850,12 +850,12 @@ input[type="number"]{-moz-appearance:textfield}
        down, and give her a route to a human. -->
   <div id="recoverSheet" class="sheet recover-sheet">
     <h2>Getting your records back</h2>
-    <p class="recover-step">Your records are saved on this phone, and a safe copy is kept for you under your shop name.</p>
+    <p class="recover-step">Your records are saved on this phone, and a safe copy is kept for you under your business name.</p>
     <p class="recover-step"><b>Your shop name is:</b></p>
     <div id="recoverShopName" class="recover-key">not set yet</div>
     <p class="recover-step">Write it down somewhere safe. It is how your copy is found again.</p>
     <p class="recover-step"><b>1.</b> The safest thing today: tap <b>Send my records to my own WhatsApp</b> and send it to yourself. That copy is yours forever, even without this app.</p>
-    <p class="recover-step"><b>2.</b> If your phone is lost or broken, message us on WhatsApp with your shop name and we will send your records back to you.</p>
+    <p class="recover-step"><b>2.</b> If your phone is lost or broken, message us on WhatsApp with your business name and we will send your records back to you.</p>
     <a class="export-btn" style="text-decoration:none;margin-bottom:12px" target="_blank" rel="noopener" href="https://wa.me/233209090019?text=Hello%2C%20I%20lost%20my%20phone%20and%20I%20need%20my%20CountMy%20records%20back.%20My%20shop%20name%20is%3A%20">Message us to get my records</a>
     <button id="recoverCloseBtn" class="btn btn-cancel" style="width:100%">Close</button>
   </div>
@@ -872,8 +872,8 @@ input[type="number"]{-moz-appearance:textfield}
        reachable, but not pushed. -->
   <div id="shopSheet" class="sheet shop-sheet" hidden>
     <h2>Your shop page</h2>
-    <p class="shop-copy">Customers open it from WhatsApp, see what you sell, and message you. This page is public: your shop name and WhatsApp number will be shown.</p>
-    <div class="field"><label for="shopName">Shop name</label><input id="shopName" type="text" maxlength="60" autocomplete="organization" placeholder="Ama's Fashion"></div>
+    <p class="shop-copy">Customers open it from WhatsApp, see what you sell, and message you. This page is public: your business name and WhatsApp number will be shown.</p>
+    <div class="field"><label for="shopName">Business name</label><input id="shopName" type="text" maxlength="60" autocomplete="organization" placeholder="Ama's Fashion"></div>
     <div class="field"><label for="shopCategory">What you sell</label>
       <select id="shopCategory">
         <option value="fashion">Fashion and clothes</option><option value="beauty">Beauty and hair</option><option value="food">Food and drinks</option><option value="provisions">Provisions</option><option value="phones">Phones and electronics</option><option value="fabrics">Fabrics</option><option value="shoes">Shoes and bags</option><option value="drinks">Drinks</option><option value="hardware">Hardware</option><option value="services">Services</option><option value="other">Other</option>
@@ -913,9 +913,9 @@ input[type="number"]{-moz-appearance:textfield}
   </div>
   <div id="planSheet" class="sheet plan-sheet">
     <h2>Support CountMy</h2>
-    <p class="plan-copy">CountMy is free, and all your records stay yours. If it helps your shop, 99 cedis once a year keeps it free for everyone. Nothing changes if you don't.</p>
+    <p class="plan-copy">CountMy is free, and all your records stay yours. If it helps your business, 99 cedis once a year keeps it free for everyone. Nothing changes if you don't.</p>
     <div class="plan-pay-box">
-      <div class="plan-pay-label">Step 1 &#x2014; Please type your shop name below</div>
+      <div class="plan-pay-label">Step 1 &#x2014; Please type your business name below</div>
       <input id="shopIdInput" class="plan-pay-input" type="text" autocomplete="off" placeholder="mama ama provisions" data-clarity-mask="True">
       <div class="plan-pay-hint">This tells us the payment is from you.</div>
       <div class="plan-pay-label">Step 2 &#x2014; Please send 99 cedis by MoMo to</div>
@@ -934,7 +934,7 @@ input[type="number"]{-moz-appearance:textfield}
          idea of a threat into someone's head who wasn't thinking about one
          at all, and the fear made them quit rather than feel reassured.
          Said as a plain fact about what we ask for, with no threat words. -->
-    <div class="plan-safety"><span>&#x1F512;</span> All we need is your shop name above &#x2014; nothing else, ever.</div>
+    <div class="plan-safety"><span>&#x1F512;</span> All we need is your business name above &#x2014; nothing else, ever.</div>
     <p class="plan-note">Thank you. Nothing changes in the app whether you send it or not &#x2014; every part of CountMy stays free for you.</p>
     <button id="planCloseBtn" class="btn btn-cancel" style="width:100%">Close</button>
   </div>
@@ -960,7 +960,7 @@ input[type="number"]{-moz-appearance:textfield}
      string is what forces a fresh script fetch even before any service worker logic
      runs, independent of it. Found live 27 Aug: without this, an already-visited
      browser can keep running old code from plain HTTP cache regardless of SW strategy. -->
-<script src="app.js?v=87"></script>
+<script src="app.js?v=88"></script>
 
 </body>
 </html>
