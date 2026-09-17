@@ -824,7 +824,7 @@ async function handleAdminStats(request, env) {
 // of extra round trip that hurts most on the weak mobile connections this
 // app is built to tolerate. handleTranscribe below still works standalone
 // (nothing that already calls /transcribe breaks).
-async function transcribeAudio(audioBytes, audioType, env) {
+async function transcribeAudio(audioBytes, audioType, env, lang) {
   if (audioBytes.length === 0) return { text: '', error: 'no audio received' };
 
   // whisper-large-v3-turbo's input schema wants 'audio' as an array of raw byte
@@ -852,9 +852,19 @@ async function transcribeAudio(audioBytes, audioType, env) {
   // does nothing worse for Twi (still unsupported either way).
   let result;
   try {
-    result = await env.AI.run('@cf/openai/whisper-large-v3-turbo', {
-      audio: base64Audio
-    });
+    // 17 Sep: Spanish (Venezuela) gets an explicit language so Whisper never
+    // guesses Portuguese/Italian on a short clip, plus a short vocabulary
+    // prompt in both languages so money words are spelled the way the
+    // extractor expects. English/Twi/Pidgin keeps auto-detect (Twi is not a
+    // Whisper language; forcing 'en' hurt Pidgin - see above).
+    const whisperInput = { audio: base64Audio };
+    if (lang === 'es') {
+      whisperInput.language = 'es';
+      whisperInput.initial_prompt = 'Vendí, compré, me debe, le debo, fiao, dólares, bolívares, bs, cedis.';
+    } else {
+      whisperInput.initial_prompt = 'Sold, bought, owes me, cedis, momo, Ama, Kofi.';
+    }
+    result = await env.AI.run('@cf/openai/whisper-large-v3-turbo', whisperInput);
   } catch (err) {
     // Covers the daily-quota-exhausted case (real, documented risk on the free tier)
     // as well as any other Workers AI failure - same honest-error path either way.
@@ -959,7 +969,28 @@ async function handleTranscribe(request, env) {
 // 50 is a transcription/parsing error, not a fabrication) - evidence-checking
 // targets fabrication specifically, not every possible error; the review UI is
 // still what catches a wrong-but-grounded number.
-const WORKER_VERSION = 'w38';
+const WORKER_VERSION = 'w39';
+
+// Spanish (Venezuela) twin of EXTRACT_SYSTEM_PROMPT below: same event types,
+// same {value, evidence} rule, same JSON-only answer. Amounts are bare
+// numbers; the currency word is kept in "currency" evidence only so the app
+// can show $ or Bs. "fiao/fiado" = sold on credit = debt_in.
+const EXTRACT_SYSTEM_PROMPT_ES = `Lees una transcripción de voz, posiblemente desordenada, de un vendedor o comerciante venezolano contando qué pasó hoy en su negocio, en español (puede usar palabras como "fiao", "fiado", "me quedó debiendo", "plata", "real", "lucas", "verdes", "dólares", "bolívares", "bs"). Extrae cada evento de negocio distinto como un arreglo JSON. Cada evento es de uno de estos tipos:
+- "sale": el dueño vendió algo. Campos: type, item, qty, y O BIEN price (precio por unidad, solo si se dijo un precio por unidad) O BIEN total (el monto total dicho, si solo se dijo un total - por ejemplo "2 sacos por 300" tiene qty 2 y total 300, NO price 150 - nunca hagas la división tú mismo).
+- "expense": el dueño gastó dinero en algo. Campos: type, item, price (monto total).
+- "debt_in": un cliente le debe dinero al dueño (incluye "fiao", "fiado", "me debe", "me quedó debiendo"). Campos: type, customer (nombre de la persona), price (monto), note (opcional, por qué).
+- "debt_out": el dueño le debe a un proveedor. Campos: type, supplier (nombre de la persona o negocio), price (monto), note (opcional).
+REGLA CRÍTICA: cada campo excepto "type" debe ser un objeto {"value": ..., "evidence": "..."}, donde "evidence" es el fragmento EXACTO copiado palabra por palabra de la transcripción en el que se basa el valor (por ejemplo evidence "tres" para qty 3, evidence "300" para total 300, evidence "Carlos" para customer). NUNCA inventes evidence para un número que calculaste tú. Si no puedes señalar palabras reales que respalden un campo, NO incluyas ese campo - no adivines, no uses precios típicos. Los "value" de qty, price y total deben ser números simples. Ignora palabras de ruido que no encajan con ningún producto.
+Responde SOLO con un arreglo JSON crudo, sin prosa, sin marcas de código, sin campos extra. Si no hay nada extraíble, responde [].
+Si alguien le debe al dueño y no se dijo un nombre (por ejemplo "un cliente me debe 20 dólares"), igual devuelve debt_in usando la palabra exacta dicha para la persona, como "cliente".
+Ejemplos, uno por tipo - todos los tipos son igual de probables, NO asumas que es una venta:
+[{"type":"sale","item":{"value":"arroz","evidence":"arroz"},"qty":{"value":5,"evidence":"cinco"},"price":{"value":2,"evidence":"dos dólares"}}]
+[{"type":"sale","item":{"value":"camisas","evidence":"camisas"},"qty":{"value":2,"evidence":"dos"},"total":{"value":30,"evidence":"30"}}]
+[{"type":"expense","item":{"value":"transporte","evidence":"transporte"},"price":{"value":5,"evidence":"5 dólares"}}]
+[{"type":"expense","item":{"value":"mercancía","evidence":"mercancía"},"price":{"value":200,"evidence":"200"}}]
+[{"type":"debt_in","customer":{"value":"Carlos","evidence":"Carlos"},"price":{"value":20,"evidence":"20 dólares"}}]
+[{"type":"debt_in","customer":{"value":"María","evidence":"María"},"price":{"value":15,"evidence":"quince"},"note":{"value":"fiao","evidence":"fiao"}}]
+[{"type":"debt_out","supplier":{"value":"Pedro","evidence":"Pedro"},"price":{"value":400,"evidence":"400"}}]`;
 
 const EXTRACT_SYSTEM_PROMPT = `You read a rough, possibly messy speech-to-text transcript from a Ghanaian shop owner describing what happened in their shop today, in English, Twi or Pidgin (Twi numbers: baako 1, mmienu 2, mmiensa 3, enan 4, anum 5, du 10, aduonu 20, aduasa 30, aduonum 50, oha 100, apem 1000; "de me ka" = owes me; transcripts may contain mistranscribed words like "cds" for "cedis"). Extract every distinct business event as a JSON array. Each event is one of these types:
 - "sale": the owner sold something. Fields: type, item, qty, and EITHER price (per-unit price in cedis, only if a per-unit price was actually spoken) OR total (the total amount actually spoken, if only a total was said - e.g. "2 bags for 300" has qty 2 and total 300, NOT price 150 - never do the division yourself).
@@ -1253,6 +1284,15 @@ function fixDebtDirection(events, transcriptNorm) {
 // sentence ("I owe Mensah 400 cedis" came back empty, 15 Sep): a strict
 // pattern, digits only, name must be a single capitalised-or-plain word
 // right after "owe". Anything looser is left to the model.
+// Spanish twin of debtFallback: "le debo a Pedro 400" / "Carlos me debe 20".
+function debtFallbackEs(transcript) {
+  const t = String(transcript || '').toLowerCase();
+  let m = t.match(/\ble\s+debo\s+a\s+([a-záéíóúñ]+)\s+(\d{1,7})/i);
+  if (m) return [{ type: 'debt_out', supplier: m[1], price: Number(m[2]) }];
+  m = t.match(/\b([a-záéíóúñ]+)\s+me\s+(?:debe|quedó\s+debiendo|quedo\s+debiendo)\s+(\d{1,7})/i);
+  if (m) return [{ type: 'debt_in', customer: m[1], price: Number(m[2]) }];
+  return [];
+}
 function debtFallback(transcript) {
   const m = /\b(?:i|we)\s+(?:still\s+)?owe\s+([a-z]+)\s+(\d{1,7})\s*(?:cedis|cedi|ghs|cds)?\b/i.exec(transcript || '');
   if (!m) return [];
@@ -1296,10 +1336,10 @@ function mentionsANumber(text) {
   return /\b(one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand)\b/.test(t);
 }
 
-async function runExtractionModel(text, env, temperature) {
+async function runExtractionModel(text, env, temperature, lang) {
   return env.AI.run('@cf/meta/llama-3.2-3b-instruct', {
     messages: [
-      { role: 'system', content: EXTRACT_SYSTEM_PROMPT },
+      { role: 'system', content: lang === 'es' ? EXTRACT_SYSTEM_PROMPT_ES : EXTRACT_SYSTEM_PROMPT },
       { role: 'user', content: text }
     ],
     max_tokens: 700,
@@ -1315,11 +1355,11 @@ async function runExtractionModel(text, env, temperature) {
   });
 }
 
-async function extractFromText(text, env) {
+async function extractFromText(text, env, lang) {
   if (!text) return { events: [] };
   let result;
   try {
-    result = await runExtractionModel(text, env, 0);
+    result = await runExtractionModel(text, env, 0, lang);
   } catch (err) {
     return { events: [], error: 'extraction unavailable right now - try again, or fill in manually', detail: String(err).slice(0, 200) };
   }
@@ -1354,7 +1394,7 @@ async function extractFromText(text, env) {
   // number was actually mentioned, so a cough never costs a second call.
   if (clean.length === 0 && mentionsANumber(text)) {
     try {
-      const retry = await runExtractionModel(text, env, 0.4);
+      const retry = await runExtractionModel(text, env, 0.4, lang);
       const retryField = retry && retry.response;
       let retryEvents = [];
       if (Array.isArray(retryField)) {
@@ -1371,11 +1411,55 @@ async function extractFromText(text, env) {
     }
   }
 
-  if (clean.length === 0) clean = debtFallback(text);
+  if (clean.length === 0) clean = lang === 'es' ? debtFallbackEs(text) : debtFallback(text);
   return { events: clean };
 }
 
 // Thin wrapper kept for backward compatibility.
+// Spoken replies (17 Sep). The phone's own voice is robotic and has no
+// Spanish worth hearing; this returns a short clip the app plays instead.
+// English: MeloTTS (about one neuron per phrase). Spanish: Deepgram Aura-2
+// Latin-American voice, which costs ~100x more, so it runs under a daily
+// character cap in KV; past the cap (or on any error) the app falls back to
+// the phone's voice. Clips are cached at the edge by URL, so a fixed phrase
+// ("Saved.") costs once. Text is capped at 220 characters. Never logs the text.
+const TTS_ES_DAILY_CHARS = 2500;
+async function handleSay(request, env) {
+  if (!env.AI) return cors(new Response('', { status: 503 }));
+  const url = new URL(request.url);
+  const lang = url.searchParams.get('l') === 'es' ? 'es' : 'en';
+  const text = String(url.searchParams.get('t') || '').replace(/\s+/g, ' ').trim().slice(0, 220);
+  if (!text) return cors(new Response('', { status: 400 }));
+  const cacheKey = new Request(url.toString(), { method: 'GET' });
+  const edge = caches.default;
+  const hit = await edge.match(cacheKey);
+  if (hit) return cors(new Response(hit.body, hit));
+  let bytes = null, mime = 'audio/mpeg';
+  try {
+    if (lang === 'es') {
+      const day = new Date().toISOString().slice(0, 10);
+      const key = 'tts-es:' + day;
+      const used = Number((env.COUNTMY_STATUS && await env.COUNTMY_STATUS.get(key)) || 0);
+      if (used + text.length > TTS_ES_DAILY_CHARS) return cors(new Response('', { status: 429 }));
+      if (env.COUNTMY_STATUS) await env.COUNTMY_STATUS.put(key, String(used + text.length), { expirationTtl: 172800 });
+      const resp = await env.AI.run('@cf/deepgram/aura-2-es', { text, speaker: 'aquila', encoding: 'mp3' }, { returnRawResponse: true });
+      if (!resp || !resp.ok) throw new Error('aura ' + (resp && resp.status));
+      bytes = new Uint8Array(await resp.arrayBuffer());
+    } else {
+      const r = await env.AI.run('@cf/myshell-ai/melotts', { prompt: text, lang: 'en' });
+      const b64 = r && (r.audio || (typeof r === 'string' ? r : ''));
+      if (!b64) throw new Error('melotts empty');
+      bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+    }
+  } catch (err) {
+    console.log('say failed', { lang, chars: text.length, err: String(err).slice(0, 120) });
+    return cors(new Response('', { status: 503 }));
+  }
+  const out = new Response(bytes, { headers: { 'Content-Type': mime, 'Cache-Control': 'public, max-age=31536000, immutable' } });
+  try { await edge.put(cacheKey, out.clone()); } catch (e) { /* cache is a bonus */ }
+  return cors(out);
+}
+
 async function handleExtract(request, env) {
   if (!env.AI) {
     return cors(new Response(JSON.stringify({ error: 'extraction not configured yet' }), { status: 503 }));
@@ -1386,7 +1470,7 @@ async function handleExtract(request, env) {
   }
   const text = (body && body.text || '').trim();
   if (!text) return cors(new Response(JSON.stringify({ error: 'no text received' }), { status: 400 }));
-  const result = await extractFromText(text, env);
+  const result = await extractFromText(text, env, (body && body.lang) === 'es' ? 'es' : 'en');
   if (result.error) {
     return cors(new Response(JSON.stringify({ error: result.error, detail: result.detail }), { status: 502 }));
   }
@@ -1421,8 +1505,10 @@ async function handleTranscribeAndExtract(request, env) {
   const diag = { bytes: (audio && audio.size) || 0, type: (audio && audio.type) || '', ua: (request.headers.get('user-agent') || '').slice(0, 80), country: (request.cf && request.cf.country) || '' };
   if (!audio) { console.log('transcribe no-audio', diag); return cors(new Response(JSON.stringify({ error: 'no audio received' }), { status: 400, headers: { 'Content-Type': 'application/json' } })); }
   const audioBytes = new Uint8Array(await audio.arrayBuffer());
+  const lang = String(incomingForm.get('lang') || '') === 'es' ? 'es' : 'en';
+  diag.lang = lang;
 
-  const transcribed = await transcribeAudio(audioBytes, audio.type, env);
+  const transcribed = await transcribeAudio(audioBytes, audio.type, env, lang);
   console.log('transcribe', Object.assign(diag, { ms: Date.now() - t0, ok: !transcribed.error, chars: (transcribed.text || '').length, err: transcribed.error ? String(transcribed.detail || transcribed.error).slice(0, 100) : '' }));
   if (transcribed.error) {
     return cors(new Response(JSON.stringify({ text: '', events: [], error: transcribed.error, detail: transcribed.detail }), { status: 502, headers: { 'Content-Type': 'application/json' } }));
@@ -1431,11 +1517,11 @@ async function handleTranscribeAndExtract(request, env) {
   // Whisper answers silence and noise with a stock phrase ("Thank you.",
   // "Bye.", "."). Treat those as nothing heard, so the phone says so instead
   // of "I heard 'Thank you' but could not work out what happened".
-  if (/^[\s.!?,]*$|^(thank you|thanks|thank you very much|bye|you|okay|ok|hello|hi|mm+|hmm+|uh+)[.!?]?$/i.test(text.trim())) text = '';
+  if (/^[\s.!?,¡¿]*$|^(thank you|thanks|thank you very much|bye|you|okay|ok|hello|hi|mm+|hmm+|uh+|gracias|muchas gracias|adiós|adios|hola|sí|si)[.!?]?$/i.test(text.trim()) || /amara\.org|subt[ií]tulos/i.test(text)) text = '';
   if (!text.trim()) {
     return cors(new Response(JSON.stringify({ text: '', events: [] }), { headers: { 'Content-Type': 'application/json' } }));
   }
-  const extracted = await extractFromText(text, env);
+  const extracted = await extractFromText(text, env, lang);
   return cors(new Response(JSON.stringify({ text, events: extracted.events || [] }), {
     headers: { 'Content-Type': 'application/json' }
   }));
@@ -1639,7 +1725,7 @@ export default {
       // Abuse limits (see the constants at the top). Checked before the
       // handler runs so a capped request never touches Workers AI or D1.
       const path = url.pathname;
-      const isAiRoute = path === '/transcribe' || path === '/extract' || path === '/transcribe-and-extract' || path === '/extract-from-image';
+      const isAiRoute = path === '/transcribe' || path === '/extract' || path === '/transcribe-and-extract' || path === '/extract-from-image' || path === '/say';
       const isWriteRoute = path === '/ping' || path === '/sync' || path === '/shop';
       const isAdminRoute = path.startsWith('/admin/');
       const ip = clientIp(request);
@@ -1656,6 +1742,7 @@ export default {
       }
 
       if (path === '/transcribe' && request.method === 'POST') return withLimitHeader(await handleTranscribe(request, env));
+      if (path === '/say' && request.method === 'GET') return withLimitHeader(await handleSay(request, env));
       if (path === '/extract' && request.method === 'POST') return withLimitHeader(await handleExtract(request, env));
       if (path === '/transcribe-and-extract' && request.method === 'POST') return withLimitHeader(await handleTranscribeAndExtract(request, env));
       if (path === '/extract-from-image' && request.method === 'POST') return withLimitHeader(await handleExtractFromImage(request, env));
