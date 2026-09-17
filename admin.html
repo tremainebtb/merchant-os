@@ -78,7 +78,7 @@ td.best{font-weight:700}
 svg text{font-family:"Work Sans",sans-serif;fill:var(--muted)}
 .empty-note{color:var(--muted);font-size:.86rem;padding:18px 0;text-align:center}
 .mini{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
-.mini div{border:1px solid var(--rule);border-radius:12px;padding:10px 12px}
+.mini>div{border:1px solid var(--rule);border-radius:12px;padding:10px 12px}
 .mini .n{font-family:"IBM Plex Mono",monospace;font-size:1.4rem;font-weight:700}
 .mini .l{font-size:.78rem;color:var(--muted)}
 
@@ -250,16 +250,19 @@ function renderKpis() {
 
   const rows = (statsData.sources || []).slice().sort((a, b) => b.devices - a.devices);
   const pct = (n, d) => d ? `<span class="pct">${Math.round(100 * n / d)}%</span>` : '';
-  const bestRec = rows.reduce((m, r) => (r.activated > (m ? m.activated : 0) ? r : m), null);
+  // "Best source" only when it means something: at least 3 records from that
+  // source, ranked by the share of its people who recorded, not raw count.
+  const eligible = rows.filter(r => r.activated >= 3);
+  const bestRec = eligible.length ? eligible.reduce((m, r) => (r.activated / r.devices > m.activated / m.devices ? r : m)) : null;
   document.getElementById('srcBody').innerHTML = rows.length
-    ? rows.map(r => `<tr><td>${esc(sourceName(r.source))}</td><td>${fmtInt(r.devices)}</td><td>${fmtInt(r.gh)}${pct(r.gh, r.devices)}</td><td class="${bestRec && r === bestRec && r.activated ? 'best' : ''}">${fmtInt(r.activated)}${pct(r.activated, r.devices)}</td></tr>`).join('')
+    ? rows.map(r => `<tr><td>${esc(sourceName(r.source))}</td><td>${fmtInt(r.devices)}</td><td>${fmtInt(r.gh)}${pct(r.gh, r.devices)}</td><td class="${bestRec && r === bestRec ? 'best' : ''}">${fmtInt(r.activated)}${pct(r.activated, r.devices)}</td></tr>`).join('')
     : '<tr><td colspan="4" class="empty-note">Nobody yet.</td></tr>';
   const ads = rows.filter(r => /^facebook\//.test(r.source));
   const adPeople = ads.reduce((s, r) => s + r.devices, 0), adRec = ads.reduce((s, r) => s + r.activated, 0);
   const totalPeople = rows.reduce((s, r) => s + r.devices, 0), totalRec = rows.reduce((s, r) => s + r.activated, 0);
   let v = `${fmtInt(totalPeople)} real people so far, ${fmtInt(totalRec)} made a record.`;
   if (adPeople) v += ` From the Facebook ads: ${fmtInt(adPeople)} people, ${fmtInt(adRec)} made a record.`;
-  if (bestRec && bestRec.activated) v += ` Best source for records: ${sourceName(bestRec.source)}.`;
+  if (bestRec) v += ` Best source for records: ${sourceName(bestRec.source)} (${Math.round(100 * bestRec.activated / bestRec.devices)}% of its people recorded).`;
   document.getElementById('verdict').textContent = v;
 
   document.getElementById('kShops').textContent = fmtInt(L.shops);
@@ -273,10 +276,12 @@ function renderChart() {
   const DAY = 86400000, days = 30, today = Math.floor(Date.now() / DAY);
   const dates = [];
   for (let i = days - 1; i >= 0; i--) dates.push(new Date((today - i) * DAY).toISOString().slice(0, 10));
+  // Drawn back to front: blue (used it) is always >= green (new), so green
+  // goes on top or it would be hidden whenever the two are equal.
   const series = [
-    { data: d.signups, color: 'var(--leaf)' },
-    { data: d.active, color: 'var(--steel)' },
-    { data: d.entries, color: 'var(--flame)' }
+    { data: d.active, color: 'var(--steel)', w: 4 },
+    { data: d.entries, color: 'var(--flame)', w: 2.5 },
+    { data: d.signups, color: 'var(--leaf)', w: 2.5 }
   ];
   const el = document.getElementById('chartDaily');
   const any = series.some(s => dates.some(x => (s.data || {})[x]));
@@ -292,7 +297,7 @@ function renderChart() {
   svg += `<text x="4" y="${padT + 4}" font-size="10">${fmtInt(maxV)}</text><text x="4" y="${padT + innerH + 4}" font-size="10">0</text>`;
   series.forEach(s => {
     const pts = dates.map((x, i) => [X(i), Y((s.data || {})[x] || 0)]);
-    svg += `<path d="${pts.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' ')}" fill="none" stroke="${s.color}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>`;
+    svg += `<path d="${pts.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' ')}" fill="none" stroke="${s.color}" stroke-width="${s.w}" stroke-linecap="round" stroke-linejoin="round"/>`;
     pts.forEach((p, i) => { const v = (s.data || {})[dates[i]]; if (v) svg += `<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="3.5" fill="${s.color}"><title>${dates[i]}: ${v}</title></circle>`; });
   });
   dates.forEach((x, i) => { if (i % 5 === 0 || i === dates.length - 1) svg += `<text x="${X(i).toFixed(1)}" y="${H - 8}" font-size="10" text-anchor="middle">${x.slice(8)}/${x.slice(5, 7)}</text>`; });
