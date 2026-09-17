@@ -969,7 +969,7 @@ async function handleTranscribe(request, env) {
 // 50 is a transcription/parsing error, not a fabrication) - evidence-checking
 // targets fabrication specifically, not every possible error; the review UI is
 // still what catches a wrong-but-grounded number.
-const WORKER_VERSION = 'w42';
+const WORKER_VERSION = 'w43';
 
 // Spanish (Venezuela) twin of EXTRACT_SYSTEM_PROMPT below: same event types,
 // same {value, evidence} rule, same JSON-only answer. Amounts are bare
@@ -1420,6 +1420,7 @@ async function extractFromText(text, env, lang) {
   // extracted" - the merchant can still fill fields in manually either way.
   let events = [];
   const respField = result && result.response;
+  if (lang === 'es') console.log('extract-es raw', { kind: Array.isArray(respField) ? 'array' : typeof respField, head: (typeof respField === 'string' ? respField : JSON.stringify(respField || '')).slice(0, 160) });
   if (Array.isArray(respField)) {
     events = respField;
   } else if (typeof respField === 'string') {
@@ -1464,6 +1465,12 @@ async function extractFromText(text, env, lang) {
     // A name of one or two letters is a preposition the model grabbed
     // ("fié a María" -> customer "a"), never a person.
     clean = clean.filter(e => (e.item || e.customer || e.supplier || '').trim().length > 2);
+    // "vendí 3 kilos EN 1500" / "POR 1500": that is the total, not each one.
+    clean = clean.map(e => {
+      if (e.type !== 'sale' || !e.qty || e.qty <= 1 || !e.price) return e;
+      const re = new RegExp('\\b(en|por)\\s+' + String(e.price).replace('.', '\\.') + '\\b');
+      return re.test(tt) ? Object.assign({}, e, { price: e.price / e.qty }) : e;
+    });
     // One number in the sentence and an event without an amount: that number
     // is the amount ("Pedro me quedó debiendo 2000 bolos").
     const nums = (tt.match(/\d+(?:[.,]\d+)?/g) || []);
