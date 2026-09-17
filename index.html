@@ -56,7 +56,7 @@
      app.js?v=. Lets anyone - a reviewer, a tester in Kumasi, a future session -
      answer "which CountMy am I looking at?" from view-source or the console,
      the same way the Worker answers with "wv". -->
-<meta name="countmy-version" content="v102">
+<meta name="countmy-version" content="v103">
 <!-- Real finding, 28 Aug: the bare "CountMy" title carried no keywords at all
      for what people actually search - a free sales/expense ledger for
      Ghanaian shop owners. The <title> tag is the single strongest on-page
@@ -438,6 +438,27 @@ input[type="number"]{-moz-appearance:textfield}
 .home-mic-label{font-family:"Manrope",sans-serif;font-weight:800;font-size:1.15rem}
 .mic-lang-line{text-align:center;font-size:.89rem;font-weight:500;color:var(--muted);margin:2px 0 6px}
 .what-is{margin:-6px 0 14px;color:var(--ink-soft);font-size:1rem}
+.home-greeting{font-family:"Manrope",sans-serif;font-weight:800;font-size:1.6rem;color:var(--navy);margin:2px 0 10px;letter-spacing:-.01em}
+.today-strip{background:var(--surface);border:1px solid var(--rule);border-radius:18px;padding:12px 12px 10px;margin:0 0 16px;box-shadow:0 2px 10px rgba(34,26,18,.06)}
+.ts-head{display:flex;justify-content:space-between;align-items:baseline;padding:0 4px 8px}
+.ts-title{font-family:"Manrope",sans-serif;font-weight:800;font-size:.95rem;color:var(--ink);text-transform:uppercase;letter-spacing:.06em}
+.ts-date{font-size:.82rem;color:var(--muted)}
+.ts-tiles{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+.ts-tile{border:none;border-radius:14px;padding:12px 10px 10px;text-align:left;display:flex;flex-direction:column;gap:4px;cursor:pointer;font-family:inherit;color:var(--ink);min-width:0}
+.ts-in{background:var(--leaf-soft)}.ts-out{background:var(--flame-soft)}.ts-owe{background:var(--steel-soft, #E1EAF6)}
+.ts-label{font-size:.74rem;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.04em;line-height:1.15}
+.ts-num{font-family:"Manrope",sans-serif;font-weight:800;font-size:1.25rem;line-height:1.1;word-break:break-word}
+.ts-in .ts-num{color:var(--leaf-deep)}.ts-out .ts-num{color:var(--flame-deep)}.ts-owe .ts-num{color:var(--navy)}
+.ts-sub{font-size:.72rem;color:var(--muted);min-height:1em}
+@media (max-width:360px){.ts-tiles{grid-template-columns:1fr 1fr}.ts-owe{grid-column:1 / -1}}
+.try-line{text-align:center;font-size:.95rem;color:var(--ink-soft);margin:-2px 0 12px}
+.try-label{color:var(--muted)}.try-example{font-weight:600;color:var(--ink)}
+.second-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:2px 0 14px}
+.second-btn{background:var(--surface);border:1.5px solid var(--rule);border-radius:16px;padding:14px 12px;text-align:left;cursor:pointer;font-family:inherit;color:var(--ink);display:flex;flex-direction:column;gap:3px}
+.second-btn:active{border-color:var(--flame)}
+.sb-title{font-family:"Manrope",sans-serif;font-weight:800;font-size:1rem;color:var(--navy)}
+.sb-sub{font-size:.78rem;color:var(--muted);line-height:1.25}
+.mic-lang-line{text-align:center;color:var(--muted);font-size:.85rem;margin:0 0 14px}
 .trust-line{text-align:center;font-size:.92rem;color:var(--ink-soft);margin:0 0 10px;font-weight:500}
 .trust-line a{color:var(--leaf-deep);font-weight:700}
 .example-chat{display:flex;flex-direction:column;gap:6px;margin:10px 0 14px}
@@ -595,7 +616,19 @@ input[type="number"]{-moz-appearance:textfield}
        who click a link scroll looking for what this is and find nothing. The
        aunt handed a phone does not need this line; the stranger does. One
        line, first use only. -->
+  <!-- Home v103 (17 Sep, layout #2): the business first, then the button.
+       Greeting, three plain numbers for today, the mic, then the two
+       second-order actions. Nothing to learn, nothing to read first. -->
+  <div id="homeGreeting" class="home-greeting">Good morning</div>
   <p id="whatIs" class="what-is" hidden>Your free money notebook. You talk, it remembers.</p>
+  <div class="today-strip" id="todayStrip" role="group" aria-label="Today">
+    <div class="ts-head"><span class="ts-title">Today</span><span class="ts-date" id="tsDate"></span></div>
+    <div class="ts-tiles">
+      <button type="button" class="ts-tile ts-in" data-goto="today"><span class="ts-label">Money in</span><span class="ts-num" id="tsIn" data-clarity-mask="True">0 cedis</span><span class="ts-sub" id="tsInSub"></span></button>
+      <button type="button" class="ts-tile ts-out" data-goto="today"><span class="ts-label">Money out</span><span class="ts-num" id="tsOut" data-clarity-mask="True">0 cedis</span><span class="ts-sub" id="tsOutSub"></span></button>
+      <button type="button" class="ts-tile ts-owe" data-goto="history"><span class="ts-label">People who owe you</span><span class="ts-num" id="tsOwe" data-clarity-mask="True">0 cedis</span><span class="ts-sub" id="tsOweSub"></span></button>
+    </div>
+  </div>
   <div class="ask-line">What happened in your business today?</div>
   <button id="homeMicBtn" class="home-mic-btn" type="button" aria-label="Tell CountMy what happened">
     <svg viewBox="0 0 24 24" fill="none"><path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3Z" stroke="currentColor" stroke-width="2"/><path d="M19 11a7 7 0 0 1-14 0M12 18v3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
@@ -611,7 +644,7 @@ input[type="number"]{-moz-appearance:textfield}
   <!-- Real feedback, 28 Aug: "is twi available? or pidgin english?" - a real
        user had no way to know without guessing and just trying. Say it
        plainly, right where the decision to speak is made. -->
-  <div class="mic-lang-line">Say it in English, Twi or Pidgin. You can also ask: &ldquo;who owes me?&rdquo;</div>
+  <div class="try-line"><span class="try-label">Try saying:</span> <span id="tryExample" class="try-example">&ldquo;I sold 3 bowls of waakye for 60 cedis.&rdquo;</span></div>
   <!-- Trust, before the tap (16 Sep, Bobby: "is it free? is it a scam? is there
        a catch?"). Ghanaian online-trust research puts trust above ease of use;
        GSMA lists confidence/safety as a top barrier. Three facts, one link,
@@ -625,6 +658,11 @@ input[type="number"]{-moz-appearance:textfield}
     <div class="ex-app">Ama owes you 120 cedis.</div>
   </div>
   <div id="homeMicStatus" class="home-mic-status" aria-live="polite"></div>
+  <div class="second-row">
+    <button type="button" class="second-btn" id="askBtn"><span class="sb-title">Ask CountMy</span><span class="sb-sub">&ldquo;Who owes me?&rdquo; &ldquo;What did I sell?&rdquo;</span></button>
+    <button type="button" class="second-btn" id="seeBtn"><span class="sb-title">See my business</span><span class="sb-sub">Today and all your records</span></button>
+  </div>
+  <div class="mic-lang-line">English &middot; Twi &middot; Pidgin</div>
   <div id="voiceReview" class="voice-review">
     <div class="voice-review-head">
       <span id="voiceReviewTitle">What I heard</span>
@@ -982,7 +1020,7 @@ input[type="number"]{-moz-appearance:textfield}
      string is what forces a fresh script fetch even before any service worker logic
      runs, independent of it. Found live 27 Aug: without this, an already-visited
      browser can keep running old code from plain HTTP cache regardless of SW strategy. -->
-<script src="app.js?v=102"></script>
+<script src="app.js?v=103"></script>
 
 </body>
 </html>

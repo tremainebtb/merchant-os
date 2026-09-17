@@ -1179,6 +1179,7 @@ function stopMicLevelMeter() {
 }
 
 let micArming = false;
+let askMode = false;
 async function toggleMic(btn, statusId) {
   if (micArming) return; // a second tap while "Speak now" is playing
   if (!micSupported()) {
@@ -1365,7 +1366,8 @@ async function toggleMic(btn, statusId) {
     const lbl = btn.querySelector('.home-mic-label');
     if (lbl) { if (!lbl.dataset.idle) lbl.dataset.idle = lbl.textContent; lbl.textContent = t('Speak now\u2026', 'Habla ahora\u2026'); }
     setMicStatus(t('Speak now. It stops by itself when you finish.', 'Habla ahora. Cuando termines, se apaga solo.'), null, statusId);
-    await Promise.race([say(t('Speak now.', 'Habla ahora.')), new Promise(r => setTimeout(r, 1800))]);
+    await Promise.race([say(askMode ? t('Ask me.', 'Preg\u00fantame.') : t('Speak now.', 'Habla ahora.')), new Promise(r => setTimeout(r, 1800))]);
+    askMode = false;
     stopSpeaking(); // never let the prompt run into the recording
     try { if (navigator.vibrate) navigator.vibrate(40); } catch (e) { /* optional */ }
     mediaRecorder.start();
@@ -1719,6 +1721,8 @@ async function render() {
   const bsToday = ES ? todayAll.filter(e => e.cur === 'VES') : [];
   renderAdmin();
   document.getElementById('todayGreeting').textContent = greeting();
+  const hg = document.getElementById('homeGreeting'); if (hg) hg.textContent = greeting();
+  const tsd = document.getElementById('tsDate'); if (tsd) tsd.textContent = new Date().toLocaleDateString(ES ? 'es-VE' : 'en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
   // First screen for a first-timer is the name, the button and one line (15
   // Sep). A card of zeros and an empty 'Recent' answered a question she had
   // not asked yet; both appear the moment there is something to show.
@@ -1741,7 +1745,7 @@ async function render() {
   document.getElementById('planPill').hidden = firstUse;
   document.getElementById('homeMicBtn').classList.toggle('first-use', firstUse);
   document.getElementById('whatIs').hidden = !firstUse;
-  document.getElementById('exampleChat').hidden = !firstUse;
+  document.getElementById('exampleChat').hidden = true;
   document.getElementById('trustLine').hidden = !firstUse;
   if (typeof renderInstallBanner === 'function') renderInstallBanner();
 
@@ -1797,6 +1801,14 @@ async function render() {
   const cashInHand = balance - stockBought - takenHome;
 
   document.getElementById('tSales').textContent = fmt(sales);
+  // Home strip (v103): the three numbers an owner actually thinks about.
+  const nIn = todayEntries.filter(e => e.type === 'sale').length, nOut = todayEntries.filter(e => e.type === 'expense').length;
+  const owedPeople = entries.filter(e => e.type === 'debt_in' && (Number(e.amount) || 0) - (Number(e.paid) || 0) > 0).length;
+  const setT = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+  setT('tsIn', fmt(sales)); setT('tsOut', fmt(expenses)); setT('tsOwe', fmt(owedMe));
+  setT('tsInSub', nIn ? t(`${nIn} record${nIn === 1 ? '' : 's'}`, `${nIn} venta${nIn === 1 ? '' : 's'}`) : t('nothing yet today', 'nada todav\u00eda hoy'));
+  setT('tsOutSub', nOut ? t(`${nOut} record${nOut === 1 ? '' : 's'}`, `${nOut} gasto${nOut === 1 ? '' : 's'}`) : '');
+  setT('tsOweSub', owedPeople ? t(`${owedPeople} ${owedPeople === 1 ? 'person' : 'people'}`, `${owedPeople} persona${owedPeople === 1 ? '' : 's'}`) : t('nobody', 'nadie'));
   const cashMomoEl = document.getElementById('tCashMomo');
   cashMomoEl.textContent = sales > 0 ? t(`Cash ${fmt(cashSales)} - MoMo ${fmt(momoSales)}`, `Efectivo ${fmt(cashSales)} - ${tc('Pago M\u00f3vil', 'Nequi / transferencia')} ${fmt(momoSales)}`) : '';
   if (bsToday.length) {
@@ -2624,6 +2636,25 @@ if (eodBanner) {
   });
   document.getElementById('eodDismissBtn').addEventListener('click', () => { eodBanner.hidden = true; });
 }
+document.getElementById('askBtn').addEventListener('click', () => {
+  track('open_sheet', { type: 'ask' });
+  askMode = true;
+  toggleMic(document.getElementById('homeMicBtn'), 'homeMicStatus');
+});
+document.getElementById('seeBtn').addEventListener('click', async () => {
+  track('see_business');
+  const entries = await getAllEntries();
+  if (!entries.length) { speakShort(t('Nothing recorded yet. Tap Tell CountMy and say what happened.', 'Todav\u00eda no hay nada anotado. Toca Cu\u00e9ntale a CountMy y di qu\u00e9 pas\u00f3.')); return; }
+  const card = document.querySelector('.today'); card.hidden = false;
+  card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+});
+document.querySelectorAll('.ts-tile').forEach(tile => tile.addEventListener('click', () => document.getElementById('seeBtn').click()));
+// The example under the button is one a person here would actually say.
+(function setTryExample() {
+  const el = document.getElementById('tryExample'); if (!el) return;
+  const ex = !ES ? '\u201cI sold 3 bowls of waakye for 60 cedis.\u201d' : (CO ? '\u201cVend\u00ed cinco camisas de a diez mil.\u201d' : '\u201cVend\u00ed tres refrescos a dos d\u00f3lares.\u201d');
+  el.textContent = ex;
+})();
 document.getElementById('homeMicBtn').addEventListener('click', () => {
   track('open_sheet', { type: 'home_mic' });
   ping('tap'); // funnel step between 'opened' and 'recorded' (16 Sep)
@@ -2642,6 +2673,10 @@ if (ES) {
     '\u201cWho owes me?\u201d': '\u201c\u00bfQui\u00e9n me debe?\u201d',
     'Ama owes you 120 cedis.': 'Mar\u00eda te debe 20 d\u00f3lares.',
     'See how it works': 'Ver c\u00f3mo funciona',
+    'Money in': 'Entr\u00f3', 'Money out': 'Sali\u00f3', 'People who owe you': 'Te deben',
+    'Try saying:': 'Prueba diciendo:', 'Ask CountMy': 'Preg\u00fantale a CountMy', 'See my business': 'Ver mi negocio',
+    '\u201cWho owes me?\u201d \u201cWhat did I sell?\u201d': '\u201c\u00bfQui\u00e9n me debe?\u201d \u201c\u00bfQu\u00e9 vend\u00ed?\u201d', 'Today and all your records': 'Hoy y todas tus cuentas',
+    'English \u00b7 Twi \u00b7 Pidgin': 'Espa\u00f1ol',
     'Type it instead': 'Mejor escr\u00edbelo',
     '+ Sale': '+ Venta', '+ Expense': '+ Gasto', 'Customer owes me': 'Cliente me debe', 'I owe supplier': 'Le debo al proveedor',
     'Snap your book or receipt': 'T\u00f3male foto al cuaderno o a la factura',
