@@ -969,7 +969,7 @@ async function handleTranscribe(request, env) {
 // 50 is a transcription/parsing error, not a fabrication) - evidence-checking
 // targets fabrication specifically, not every possible error; the review UI is
 // still what catches a wrong-but-grounded number.
-const WORKER_VERSION = 'w43';
+const WORKER_VERSION = 'w44';
 
 // Spanish (Venezuela) twin of EXTRACT_SYSTEM_PROMPT below: same event types,
 // same {value, evidence} rule, same JSON-only answer. Amounts are bare
@@ -1460,11 +1460,12 @@ async function extractFromText(text, env, lang) {
   }
 
   if (clean.length === 0) clean = lang === 'es' ? debtFallbackEs(text) : debtFallback(text);
+  if (lang === 'es') console.log('extract-es stages', { rawN: Array.isArray(respField) ? respField.length : -1, cleanN: clean.length, names: clean.map(e => e.item || e.customer || e.supplier || '').join('|') });
   if (lang === 'es') {
     const tt = String(text).toLowerCase();
     // A name of one or two letters is a preposition the model grabbed
     // ("fié a María" -> customer "a"), never a person.
-    clean = clean.filter(e => (e.item || e.customer || e.supplier || '').trim().length > 2);
+    clean = clean.filter(e => { const nm = (e.item || e.customer || e.supplier || '').trim(); return !nm || nm.length > 2; });
     // "vendí 3 kilos EN 1500" / "POR 1500": that is the total, not each one.
     clean = clean.map(e => {
       if (e.type !== 'sale' || !e.qty || e.qty <= 1 || !e.price) return e;
@@ -1484,7 +1485,11 @@ async function extractFromText(text, env, lang) {
     clean = clean.map(e => {
       let cur = null;
       const amts = e.type === 'sale' && e.qty && e.price ? [String(e.price * e.qty), String(e.price)] : [String(e.price || '')];
-      for (const x of amts) { const i = x ? tt.indexOf(x) : -1; if (i >= 0) { cur = curAt(i + x.length); if (cur) break; } }
+      for (const x of amts) {
+        if (!x) continue;
+        const mm = new RegExp('(?<![\\d.,])' + x.replace('.', '\\.') + '(?![\\d.,])').exec(tt);
+        if (mm) { cur = curAt(mm.index + x.length); if (cur) break; }
+      }
       return Object.assign({}, e, { currency: cur || global });
     });
   }
@@ -1500,6 +1505,15 @@ async function extractFromText(text, env, lang) {
 // the phone's voice. Clips are cached at the edge by URL, so a fixed phrase
 // ("Saved.") costs once. Text is capped at 220 characters. Never logs the text.
 const TTS_ES_DAILY_CHARS = 2500;
+// Voice per country (17 Sep): the Spanish voices Cloudflare exposes carry
+// real accents - aquila/selena are Latin-American (Venezuela), celeste is
+// Colombian, sirio/estrella/javier Mexican. ?c=CO picks the Colombian one.
+function voiceFor(env, url) {
+  const c = String(url.searchParams.get('c') || '').toUpperCase();
+  if (c === 'CO') return 'celeste';
+  if (c === 'MX') return 'estrella';
+  return 'aquila';
+}
 const TTS_EN_AURA_DAILY_CHARS = 3000;
 async function ttsBudget(env, key, chars, cap) {
   const day = new Date().toISOString().slice(0, 10);
@@ -1537,17 +1551,20 @@ async function handleSay(request, env) {
   let bytes = null, mime = 'audio/mpeg', engine = '';
   try {
     if (lang === 'es') {
-      if (!await ttsBudget(env, 'tts-es', text.length, TTS_ES_DAILY_CHARS)) return cors(new Response('', { status: 429 }));
-      bytes = await auraBytes(env, '@cf/deepgram/aura-2-es', text, 'aquila'); engine = 'aura-2-es';
+      if (!await ttsBudget(env, 'tts-es', 0, TTS_ES_DAILY_CHARS)) return cors(new Response('', { status: 429 }));
+      bytes = await auraBytes(env, '@cf/deepgram/aura-2-es', text, voiceFor(env, url)); engine = 'aura-2-es';
+      await ttsBudget(env, 'tts-es', text.length, 1e9); // charge only what succeeded
     } else {
       try { bytes = await melottsBytes(env, text); engine = 'melotts'; }
       catch (e1) {
         // MeloTTS returned AiError 3043 on 17 Sep; Aura-1 is the fallback,
         // ~70x dearer per phrase, so it lives under its own daily cap.
-        if (!await ttsBudget(env, 'tts-en', text.length, TTS_EN_AURA_DAILY_CHARS)) throw e1;
+        if (!await ttsBudget(env, 'tts-en', 0, TTS_EN_AURA_DAILY_CHARS)) throw e1;
         bytes = await auraBytes(env, '@cf/deepgram/aura-1', text, 'luna'); engine = 'aura-1';
+        await ttsBudget(env, 'tts-en', text.length, 1e9);
       }
     }
+    if (!bytes || bytes.length < 200) throw new Error('empty clip');
   } catch (err) {
     console.log('say failed', { lang, chars: text.length, err: String(err).slice(0, 120) });
     return cors(new Response('', { status: 503 }));
@@ -1826,11 +1843,12 @@ export default {
       // Abuse limits (see the constants at the top). Checked before the
       // handler runs so a capped request never touches Workers AI or D1.
       const path = url.pathname;
-      const isAiRoute = path === '/transcribe' || path === '/extract' || path === '/transcribe-and-extract' || path === '/extract-from-image' || path === '/say';
+      const isAiRoute = path === '/transcribe' || path === '/extract' || path === '/transcribe-and-extract' || path === '/extract-from-image';
+      const isSayRoute = path === '/say' && request.method === 'GET';
       const isWriteRoute = path === '/ping' || path === '/sync' || path === '/shop';
       const isAdminRoute = path.startsWith('/admin/');
       const ip = clientIp(request);
-      if (isAiRoute && request.method === 'POST') {
+      if ((isAiRoute && request.method === 'POST') || isSayRoute) {
         if (!(await allowedByLimiter(env.AI_LIMIT, ip))) return tooManyRequests(MINUTE);
       }
       if (isWriteRoute && request.method === 'POST') {
