@@ -168,9 +168,17 @@ async function ensureTestSchema(env) {
   // for every row, so the live views can drop them at the source. The view
   // is recreated (not IF NOT EXISTS) so an existing database picks up the
   // new definition on the next isolate start.
-  for (const t of ['events', 'entries']) {
-    await env.COUNTMY_DB.prepare('DROP VIEW IF EXISTS live_' + t).run();
-    await env.COUNTMY_DB.prepare('CREATE VIEW live_' + t + ' AS SELECT * FROM ' + t + ' WHERE COALESCE(is_test, 0) = 0 AND shop_hash NOT IN (SELECT device_hash FROM devices WHERE COALESCE(is_dc, 0) = 1)').run();
+  // One-shot, recorded in schema_meta: a DROP VIEW under a concurrent request
+  // produced a real 500 on /ping for a user in Accra on 17 Sep 11:07. Every
+  // isolate used to redo it; now only the first after the change does.
+  await env.COUNTMY_DB.prepare('CREATE TABLE IF NOT EXISTS schema_meta (k TEXT PRIMARY KEY, v TEXT)').run();
+  const viewsRow = await env.COUNTMY_DB.prepare("SELECT v FROM schema_meta WHERE k = 'live_views'").first();
+  if (!viewsRow || viewsRow.v !== '2') {
+    for (const t of ['events', 'entries']) {
+      await env.COUNTMY_DB.prepare('DROP VIEW IF EXISTS live_' + t).run();
+      await env.COUNTMY_DB.prepare('CREATE VIEW live_' + t + ' AS SELECT * FROM ' + t + ' WHERE COALESCE(is_test, 0) = 0 AND shop_hash NOT IN (SELECT device_hash FROM devices WHERE COALESCE(is_dc, 0) = 1)').run();
+    }
+    await env.COUNTMY_DB.prepare("INSERT OR REPLACE INTO schema_meta (k, v) VALUES ('live_views', '2')").run();
   }
   // Real people: not a test device and not a datacentre network (crawlers,
   // link previews, AI reviewers). Those are counted separately, never dropped.
@@ -951,7 +959,7 @@ async function handleTranscribe(request, env) {
 // 50 is a transcription/parsing error, not a fabrication) - evidence-checking
 // targets fabrication specifically, not every possible error; the review UI is
 // still what catches a wrong-but-grounded number.
-const WORKER_VERSION = 'w37';
+const WORKER_VERSION = 'w38';
 
 const EXTRACT_SYSTEM_PROMPT = `You read a rough, possibly messy speech-to-text transcript from a Ghanaian shop owner describing what happened in their shop today, in English, Twi or Pidgin (Twi numbers: baako 1, mmienu 2, mmiensa 3, enan 4, anum 5, du 10, aduonu 20, aduasa 30, aduonum 50, oha 100, apem 1000; "de me ka" = owes me; transcripts may contain mistranscribed words like "cds" for "cedis"). Extract every distinct business event as a JSON array. Each event is one of these types:
 - "sale": the owner sold something. Fields: type, item, qty, and EITHER price (per-unit price in cedis, only if a per-unit price was actually spoken) OR total (the total amount actually spoken, if only a total was said - e.g. "2 bags for 300" has qty 2 and total 300, NOT price 150 - never do the division yourself).
@@ -1669,6 +1677,8 @@ export default {
       }
       return cors(new Response('Not found', { status: 404 }));
     } catch (err) {
+      // Visible in the Worker logs: which route, which phone, what broke.
+      console.log('unhandled', { path, ua: (request.headers.get('user-agent') || '').slice(0, 80), err: String(err).slice(0, 200) });
       return cors(new Response(JSON.stringify({ error: 'server error', detail: String(err) }), { status: 500, headers: { 'Content-Type': 'application/json' } }));
     }
   }
