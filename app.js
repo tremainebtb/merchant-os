@@ -101,7 +101,7 @@ function fmtSay(n, cur) {
   cur = cur || HOME_CUR;
   if (cur === 'COP') {
     const w = Math.round(v);
-    if (w >= 1000000) { const m = Math.floor(w / 1000000), r = w % 1000000; return `${m} ${m === 1 ? 'mill\u00f3n' : 'millones'}${r ? ' ' + fmtSay(r, 'COP').replace(' pesos', '') : ''} de pesos`; }
+    if (w >= 1000000) { const m = Math.floor(w / 1000000), r = w % 1000000; const mw = m === 1 ? 'mill\u00f3n' : 'millones'; return r ? `${m} ${mw} ${fmtSay(r, 'COP')}` : `${m} ${mw} de pesos`; }
     if (w >= 1000) { const k = Math.floor(w / 1000), r = w % 1000; return `${k} mil${r ? ' ' + r : ''} pesos`; }
     return `${w} pesos`;
   }
@@ -624,8 +624,16 @@ const DISFLUENCY = /\b(um+|uh+|erm+|ehm+|hmm+|like|actually|basically|so|yeah|ye
 const FILLER = /\b(a|an|the|for|of|on|to|me|i|owe|owes|he|she|they|it|at|each|cedis|cedi|ghs|cds|cd|sold|spent|bought|paid|is|was|and)\b/gi;
 
 const FILLER_ES = /\b(d[o\u00f3]lares?|bol[i\u00edv]vares?|bolos?|bs|pesos?|lucas?|luca|verdes?|plata|de a|cada una|cada uno|vend[i\u00ed]|compr[e\u00e9]|gast[e\u00e9]|pagu[e\u00e9]|me debe|me qued[o\u00f3] debiendo|le fi[e\u00e9] a|le debo a|fiao|fiado)\b/gi;
+// Spanish money shorthand for the typed fields: "20 mil" / "20 lucas" = 20000,
+// "un palo" = 1000000, "medio palo" = 500000 (Colombia).
+function scaleSpanishMoney(text) {
+  let t = String(text || '');
+  t = t.replace(/\b(\d+(?:[.,]\d+)?)\s*(mil|lucas?|barras)\b/gi, (m, n) => String(Math.round(parseFloat(n.replace(',', '.')) * 1000)));
+  t = t.replace(/\bmedio\s+(palo|mill\u00f3n|millon)\b/gi, '500000').replace(/\b(un|1)\s+(palo|mill\u00f3n|millon)\b/gi, '1000000').replace(/\b(\d+)\s+(palos?|millon(?:es)?|mill\u00f3n)\b/gi, (m, n) => String(Number(n) * 1000000));
+  return t;
+}
 function parseHeardText(type, raw) {
-  const text = wordsToNumber(raw);
+  const text = ES ? scaleSpanishMoney(wordsToNumber(raw)) : wordsToNumber(raw);
   const numbers = (text.match(/\d+(\.\d+)?/g) || []).map(Number);
   const cleaned = text
     .replace(/\d+(\.\d+)?/g, ' ')
