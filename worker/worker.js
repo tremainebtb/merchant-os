@@ -969,7 +969,7 @@ async function handleTranscribe(request, env) {
 // 50 is a transcription/parsing error, not a fabrication) - evidence-checking
 // targets fabrication specifically, not every possible error; the review UI is
 // still what catches a wrong-but-grounded number.
-const WORKER_VERSION = 'w39';
+const WORKER_VERSION = 'w40';
 
 // Spanish (Venezuela) twin of EXTRACT_SYSTEM_PROMPT below: same event types,
 // same {value, evidence} rule, same JSON-only answer. Amounts are bare
@@ -1022,7 +1022,9 @@ Examples, one per type - every type below is equally likely, do NOT assume an ut
 function normalizeForMatch(s) {
   // Akan open vowels folded to ASCII first (15 Sep), otherwise the plain
   // a-z strip splits a Twi number word like "aduoson" (70) in two.
-  return String(s).toLowerCase().replace(/\u0254/g, 'o').replace(/\u025b/g, 'e').replace(/[^a-z0-9]+/g, ' ').trim();
+  return String(s).toLowerCase().replace(/\u0254/g, 'o').replace(/\u025b/g, 'e')
+    // Spanish accents and n-tilde (17 Sep): "María" must stay one token.
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
 }
 
 // A field's evidence must be a real, boundedly-short substring of the actual
@@ -1330,9 +1332,51 @@ function sanitizeImageEvents(rawEvents) {
 // Does the sentence contain an amount at all? Used only to decide whether a
 // completely empty extraction is worth one more attempt - there is no point
 // retrying "hello" or a cough.
+// Spanish number words to digits (17 Sep): the 3B extractor dropped
+// "veinte dólares" and "mil quinientos bolos" while handling "20" fine, so
+// the transcript is normalised first and the evidence rule then matches
+// the digits. Handles 0-999999 built from units, tens (+ y), hundreds, mil.
+const ES_UNITS = { cero: 0, uno: 1, una: 1, dos: 2, tres: 3, cuatro: 4, cinco: 5, seis: 6, siete: 7, ocho: 8, nueve: 9, diez: 10, once: 11, doce: 12, trece: 13, catorce: 14, quince: 15, dieciseis: 16, diecisiete: 17, dieciocho: 18, diecinueve: 19, veinte: 20, veintiuno: 21, veintidos: 22, veintitres: 23, veinticuatro: 24, veinticinco: 25, veintiseis: 26, veintisiete: 27, veintiocho: 28, veintinueve: 29 };
+const ES_TENS = { treinta: 30, cuarenta: 40, cincuenta: 50, sesenta: 60, setenta: 70, ochenta: 80, noventa: 90 };
+const ES_HUNDREDS = { cien: 100, ciento: 100, doscientos: 200, doscientas: 200, trescientos: 300, trescientas: 300, cuatrocientos: 400, cuatrocientas: 400, quinientos: 500, quinientas: 500, seiscientos: 600, seiscientas: 600, setecientos: 700, setecientas: 700, ochocientos: 800, ochocientas: 800, novecientos: 900, novecientas: 900 };
+function spanishNumbersToDigits(text) {
+  const fold = w => w.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  const words = String(text || '').split(/(\s+)/);
+  const out = [];
+  let i = 0;
+  while (i < words.length) {
+    const w = words[i];
+    if (/^\s+$/.test(w) || w === '') { out.push(w); i++; continue; }
+    const f = fold(w).replace(/[.,;:!?]+$/, '');
+    const isNum = t => t in ES_UNITS || t in ES_TENS || t in ES_HUNDREDS || t === 'mil';
+    if (!isNum(f) || f === 'una' || f === 'uno') { out.push(w); i++; continue; }
+    // consume a run of number words (with "y" joining tens and units)
+    let total = 0, cur = 0, j = i, any = false, lastMil = false;
+    while (j < words.length) {
+      const wj = words[j];
+      if (/^\s+$/.test(wj) || wj === '') { j++; continue; }
+      const fj = fold(wj).replace(/[.,;:!?]+$/, '');
+      if (fj === 'y' && any) { j++; continue; }
+      if (fj in ES_HUNDREDS) { cur += ES_HUNDREDS[fj]; any = true; }
+      else if (fj in ES_TENS) { cur += ES_TENS[fj]; any = true; }
+      else if (fj in ES_UNITS && fj !== 'una' && (fj !== 'uno' || any)) { cur += ES_UNITS[fj]; any = true; }
+      else if (fj === 'mil') { total += (cur || 1) * 1000; cur = 0; any = true; lastMil = true; }
+      else break;
+      j++;
+      if (lastMil && fj !== 'mil') lastMil = false;
+    }
+    if (!any) { out.push(w); i++; continue; }
+    total += cur;
+    const trailing = (words[j - 1] || '').match(/[.,;:!?]+$/);
+    out.push(String(total) + (trailing ? trailing[0] : ''));
+    i = j;
+  }
+  return out.join('');
+}
 function mentionsANumber(text) {
   const t = String(text || '').toLowerCase();
   if (/\d/.test(t)) return true;
+  if (/\b(uno|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|once|doce|quince|veinte|treinta|cuarenta|cincuenta|cien|ciento|quinientos|mil)\b/.test(t.normalize('NFD').replace(/[\u0300-\u036f]/g, ''))) return true;
   return /\b(one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand)\b/.test(t);
 }
 
@@ -1412,6 +1456,15 @@ async function extractFromText(text, env, lang) {
   }
 
   if (clean.length === 0) clean = lang === 'es' ? debtFallbackEs(text) : debtFallback(text);
+  if (lang === 'es') {
+    // Venezuela prices in dollars and pays in bolívares; a debt is kept in
+    // the currency it was spoken in. Default USD unless bolívares/bolos/Bs
+    // were said and dollars were not (mixed sentences default to USD).
+    const tt = String(text).toLowerCase();
+    const saysBs = /bol[ií]var|\bbolos?\b|\bbs\b/.test(tt), saysUsd = /d[oó]lar|\bverdes?\b|\$/.test(tt);
+    const cur = saysBs && !saysUsd ? 'VES' : 'USD';
+    clean = clean.map(e => Object.assign({}, e, { currency: cur }));
+  }
   return { events: clean };
 }
 
@@ -1424,6 +1477,30 @@ async function extractFromText(text, env, lang) {
 // the phone's voice. Clips are cached at the edge by URL, so a fixed phrase
 // ("Saved.") costs once. Text is capped at 220 characters. Never logs the text.
 const TTS_ES_DAILY_CHARS = 2500;
+const TTS_EN_AURA_DAILY_CHARS = 3000;
+async function ttsBudget(env, key, chars, cap) {
+  const day = new Date().toISOString().slice(0, 10);
+  const k = key + ':' + day;
+  const used = Number((env.COUNTMY_STATUS && await env.COUNTMY_STATUS.get(k)) || 0);
+  if (used + chars > cap) return false;
+  if (env.COUNTMY_STATUS) await env.COUNTMY_STATUS.put(k, String(used + chars), { expirationTtl: 172800 });
+  return true;
+}
+async function auraBytes(env, model, text, speaker) {
+  const resp = await env.AI.run(model, { text, speaker, encoding: 'mp3' }, { returnRawResponse: true });
+  if (!resp || !resp.ok) throw new Error(model + ' ' + (resp && resp.status));
+  return new Uint8Array(await resp.arrayBuffer());
+}
+async function melottsBytes(env, text) {
+  const r = await env.AI.run('@cf/myshell-ai/melotts', { prompt: text, lang: 'en' });
+  if (r instanceof ArrayBuffer) return new Uint8Array(r);
+  if (r instanceof Uint8Array) return r;
+  if (r && typeof r.arrayBuffer === 'function') return new Uint8Array(await r.arrayBuffer());
+  if (r && r.getReader) { const chunks = []; const rd = r.getReader(); for (;;) { const { done, value } = await rd.read(); if (done) break; chunks.push(value); } const n = chunks.reduce((a, c) => a + c.length, 0); const out = new Uint8Array(n); let o = 0; for (const c of chunks) { out.set(c, o); o += c.length; } return out; }
+  const b64 = r && (r.audio || (typeof r === 'string' ? r : ''));
+  if (!b64) throw new Error('melotts empty');
+  return Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+}
 async function handleSay(request, env) {
   if (!env.AI) return cors(new Response('', { status: 503 }));
   const url = new URL(request.url);
@@ -1434,27 +1511,25 @@ async function handleSay(request, env) {
   const edge = caches.default;
   const hit = await edge.match(cacheKey);
   if (hit) return cors(new Response(hit.body, hit));
-  let bytes = null, mime = 'audio/mpeg';
+  let bytes = null, mime = 'audio/mpeg', engine = '';
   try {
     if (lang === 'es') {
-      const day = new Date().toISOString().slice(0, 10);
-      const key = 'tts-es:' + day;
-      const used = Number((env.COUNTMY_STATUS && await env.COUNTMY_STATUS.get(key)) || 0);
-      if (used + text.length > TTS_ES_DAILY_CHARS) return cors(new Response('', { status: 429 }));
-      if (env.COUNTMY_STATUS) await env.COUNTMY_STATUS.put(key, String(used + text.length), { expirationTtl: 172800 });
-      const resp = await env.AI.run('@cf/deepgram/aura-2-es', { text, speaker: 'aquila', encoding: 'mp3' }, { returnRawResponse: true });
-      if (!resp || !resp.ok) throw new Error('aura ' + (resp && resp.status));
-      bytes = new Uint8Array(await resp.arrayBuffer());
+      if (!await ttsBudget(env, 'tts-es', text.length, TTS_ES_DAILY_CHARS)) return cors(new Response('', { status: 429 }));
+      bytes = await auraBytes(env, '@cf/deepgram/aura-2-es', text, 'aquila'); engine = 'aura-2-es';
     } else {
-      const r = await env.AI.run('@cf/myshell-ai/melotts', { prompt: text, lang: 'en' });
-      const b64 = r && (r.audio || (typeof r === 'string' ? r : ''));
-      if (!b64) throw new Error('melotts empty');
-      bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+      try { bytes = await melottsBytes(env, text); engine = 'melotts'; }
+      catch (e1) {
+        // MeloTTS returned AiError 3043 on 17 Sep; Aura-1 is the fallback,
+        // ~70x dearer per phrase, so it lives under its own daily cap.
+        if (!await ttsBudget(env, 'tts-en', text.length, TTS_EN_AURA_DAILY_CHARS)) throw e1;
+        bytes = await auraBytes(env, '@cf/deepgram/aura-1', text, 'luna'); engine = 'aura-1';
+      }
     }
   } catch (err) {
     console.log('say failed', { lang, chars: text.length, err: String(err).slice(0, 120) });
     return cors(new Response('', { status: 503 }));
   }
+  console.log('say', { lang, engine, chars: text.length, bytes: bytes.length });
   const out = new Response(bytes, { headers: { 'Content-Type': mime, 'Cache-Control': 'public, max-age=31536000, immutable' } });
   try { await edge.put(cacheKey, out.clone()); } catch (e) { /* cache is a bonus */ }
   return cors(out);
@@ -1468,9 +1543,11 @@ async function handleExtract(request, env) {
   try { body = await request.json(); } catch (e) {
     return cors(new Response(JSON.stringify({ error: 'invalid request' }), { status: 400 }));
   }
-  const text = (body && body.text || '').trim();
+  let text = (body && body.text || '').trim();
   if (!text) return cors(new Response(JSON.stringify({ error: 'no text received' }), { status: 400 }));
-  const result = await extractFromText(text, env, (body && body.lang) === 'es' ? 'es' : 'en');
+  const lang = (body && body.lang) === 'es' ? 'es' : 'en';
+  if (lang === 'es') text = spanishNumbersToDigits(text);
+  const result = await extractFromText(text, env, lang);
   if (result.error) {
     return cors(new Response(JSON.stringify({ error: result.error, detail: result.detail }), { status: 502 }));
   }
@@ -1521,6 +1598,7 @@ async function handleTranscribeAndExtract(request, env) {
   if (!text.trim()) {
     return cors(new Response(JSON.stringify({ text: '', events: [] }), { headers: { 'Content-Type': 'application/json' } }));
   }
+  if (lang === 'es') text = spanishNumbersToDigits(text);
   const extracted = await extractFromText(text, env, lang);
   return cors(new Response(JSON.stringify({ text, events: extracted.events || [] }), {
     headers: { 'Content-Type': 'application/json' }
