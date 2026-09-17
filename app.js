@@ -1894,7 +1894,8 @@ async function render() {
   const setT = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
   const paysToday = entries.filter(e => e.type === 'debt_in' && (!ES || e.cur !== 'VES')).flatMap(e => Array.isArray(e.payments) ? e.payments : []).filter(p => todayKey(p.ts) === today);
   const repaidToday = paysToday.reduce((s, p) => s + (Number(p.amount) || 0), 0);
-  setT('tsIn', fmt(sales + repaidToday)); setT('tsOut', fmt(expenses)); setT('tsOwe', fmt(owedMe));
+  const fmtTile = n => ES ? fmt(n) : 'GH\u20b5' + Math.round(Number(n) || 0).toLocaleString('en-GH');
+  setT('tsIn', fmtTile(sales + repaidToday)); setT('tsOut', fmtTile(expenses)); setT('tsOwe', fmtTile(owedMe));
   const nInAll = nIn + paysToday.length;
   setT('tsInSub', nInAll ? t(`${nInAll} record${nInAll === 1 ? '' : 's'}`, `${nInAll} registro${nInAll === 1 ? '' : 's'}`) : t('nothing yet today', 'nada todav\u00eda hoy'));
   setT('tsOutSub', nOut ? t(`${nOut} record${nOut === 1 ? '' : 's'}`, `${nOut} gasto${nOut === 1 ? '' : 's'}`) : '');
