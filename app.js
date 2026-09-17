@@ -2673,7 +2673,7 @@ if (ES) {
     '\u201cWho owes me?\u201d': '\u201c\u00bfQui\u00e9n me debe?\u201d',
     'Ama owes you 120 cedis.': 'Mar\u00eda te debe 20 d\u00f3lares.',
     'See how it works': 'Ver c\u00f3mo funciona',
-    'Money in': 'Entr\u00f3', 'Money out': 'Sali\u00f3', 'People who owe you': 'Te deben',
+    'Money in': 'Entr\u00f3', 'Money out': 'Sali\u00f3', 'Owed to you': 'Te deben',
     'Try saying:': 'Prueba diciendo:', 'Ask CountMy': 'Preg\u00fantale a CountMy', 'See my business': 'Ver mi negocio',
     '\u201cWho owes me?\u201d \u201cWhat did I sell?\u201d': '\u201c\u00bfQui\u00e9n me debe?\u201d \u201c\u00bfQu\u00e9 vend\u00ed?\u201d', 'Today and all your records': 'Hoy y todas tus cuentas',
     'English \u00b7 Twi \u00b7 Pidgin': 'Espa\u00f1ol',

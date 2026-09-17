@@ -56,7 +56,7 @@
      app.js?v=. Lets anyone - a reviewer, a tester in Kumasi, a future session -
      answer "which CountMy am I looking at?" from view-source or the console,
      the same way the Worker answers with "wv". -->
-<meta name="countmy-version" content="v103">
+<meta name="countmy-version" content="v104">
 <!-- Real finding, 28 Aug: the bare "CountMy" title carried no keywords at all
      for what people actually search - a free sales/expense ledger for
      Ghanaian shop owners. The <title> tag is the single strongest on-page
@@ -446,7 +446,7 @@ input[type="number"]{-moz-appearance:textfield}
 .ts-tiles{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
 .ts-tile{border:none;border-radius:14px;padding:12px 10px 10px;text-align:left;display:flex;flex-direction:column;gap:4px;cursor:pointer;font-family:inherit;color:var(--ink);min-width:0}
 .ts-in{background:var(--leaf-soft)}.ts-out{background:var(--flame-soft)}.ts-owe{background:var(--steel-soft, #E1EAF6)}
-.ts-label{font-size:.74rem;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.04em;line-height:1.15}
+.ts-label{font-size:.72rem;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.03em;line-height:1.15;min-height:2.3em;display:flex;align-items:flex-end}
 .ts-num{font-family:"Manrope",sans-serif;font-weight:800;font-size:1.25rem;line-height:1.1;word-break:break-word}
 .ts-in .ts-num{color:var(--leaf-deep)}.ts-out .ts-num{color:var(--flame-deep)}.ts-owe .ts-num{color:var(--navy)}
 .ts-sub{font-size:.72rem;color:var(--muted);min-height:1em}
@@ -626,7 +626,7 @@ input[type="number"]{-moz-appearance:textfield}
     <div class="ts-tiles">
       <button type="button" class="ts-tile ts-in" data-goto="today"><span class="ts-label">Money in</span><span class="ts-num" id="tsIn" data-clarity-mask="True">0 cedis</span><span class="ts-sub" id="tsInSub"></span></button>
       <button type="button" class="ts-tile ts-out" data-goto="today"><span class="ts-label">Money out</span><span class="ts-num" id="tsOut" data-clarity-mask="True">0 cedis</span><span class="ts-sub" id="tsOutSub"></span></button>
-      <button type="button" class="ts-tile ts-owe" data-goto="history"><span class="ts-label">People who owe you</span><span class="ts-num" id="tsOwe" data-clarity-mask="True">0 cedis</span><span class="ts-sub" id="tsOweSub"></span></button>
+      <button type="button" class="ts-tile ts-owe" data-goto="history"><span class="ts-label">Owed to you</span><span class="ts-num" id="tsOwe" data-clarity-mask="True">0 cedis</span><span class="ts-sub" id="tsOweSub"></span></button>
     </div>
   </div>
   <div class="ask-line">What happened in your business today?</div>
@@ -1020,7 +1020,7 @@ input[type="number"]{-moz-appearance:textfield}
      string is what forces a fresh script fetch even before any service worker logic
      runs, independent of it. Found live 27 Aug: without this, an already-visited
      browser can keep running old code from plain HTTP cache regardless of SW strategy. -->
-<script src="app.js?v=103"></script>
+<script src="app.js?v=104"></script>
 
 </body>
 </html>
