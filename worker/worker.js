@@ -971,7 +971,7 @@ async function handleTranscribe(request, env) {
 // 50 is a transcription/parsing error, not a fabrication) - evidence-checking
 // targets fabrication specifically, not every possible error; the review UI is
 // still what catches a wrong-but-grounded number.
-const WORKER_VERSION = 'w52';
+const WORKER_VERSION = 'w53';
 
 // Spanish (Venezuela) twin of EXTRACT_SYSTEM_PROMPT below: same event types,
 // same {value, evidence} rule, same JSON-only answer. Amounts are bare
@@ -1439,7 +1439,7 @@ function spanishPrep(text, country) {
   let t = String(text || '');
   t = t.replace(/\b(\d+(?:[.,]\d+)?)\s*mil\b/gi, (m, n) => String(Math.round(parseFloat(n.replace(',', '.')) * 1000)));
   if (country === 'CO') t = t.replace(/\b(\d+)\s*(lucas?|barras)\b/gi, (m, n) => String(Number(n) * 1000) + ' pesos');
-  t = t.replace(/\b(un|1)\s+(dolar|d\u00f3lar)(c)?ito\b/gi, '1 d\u00f3lar').replace(/\b(\d+)\s+(dolar|d\u00f3lar)(c)?itos\b/gi, '$1 d\u00f3lares').replace(/\bbolitos?\b/gi, 'bol\u00edvares');
+  t = t.replace(/\b(un|1)\s+(dolar|d\u00f3lar)(c)?ito\s+de\s+(\w+)/gi, '$4 1 d\u00f3lar').replace(/\b(un|1)\s+(dolar|d\u00f3lar)(c)?ito\b/gi, '1 d\u00f3lar').replace(/\b(\d+)\s+(dolar|d\u00f3lar)(c)?itos\b/gi, '$1 d\u00f3lares').replace(/\bbolitos?\b/gi, 'bol\u00edvares');
   t = t.replace(/\b(por|con|en)\s+(nequi|daviplata|bancolombia|pago\s+m[o\u00f3]vil|zelle|transferencia|efectivo|binance|usdt)\b/gi, '');
   t = t.replace(/\s*,?\s*y\s+me\s+pag(o|\u00f3)\s*\.?\s*$/i, '');
   return t;
@@ -1449,7 +1449,7 @@ const PRONOUN_NAMES = new Set(['am', 'e', 'im', 'dem', 'me', 'he', 'she', 'him',
 const COUNT_WORDS = /\b(bags?|baskets?|tins?|yards?|pieces?|crates?|bunches?|boxes?|cups?|olonka|bowls?|kilos?|kg|libras?|bultos?|arrobas?|cajas?|docenas?|paquetes?|sacos?|cartones?)\b/i;
 // (?=\s|$) instead of \b: JS word boundaries are ASCII-only, so 'compré' never ended on \b.
 const EXPENSE_LEAD = /^\s*(i\s+|we\s+)?(bought|buy|pay|paid|spend|spent|give|gave|dash|me\s+to|compr[e\u00e9]|pagu[e\u00e9]|gast[e\u00e9]|me\s+traje|ped[i\u00ed])(?=\s|$)/i;
-const EXPENSE_WORDS = /\b(chop money|market toll|toll|fare|trotro|fuel|petrol|diesel|transport|transporte|rent|arriendo|alquiler|airtime|light bill|water bill|electricity|la luz|el agua|pasaje|gasolina)\b/i;
+const EXPENSE_WORDS = /\b(chop money|market toll|toll|fare|trotro|fuel|petrol|diesel|transport|transporte|rent|arriendo|alquiler|light bill|water bill|electricity|la luz|el agua|pasaje|gasolina)\b/i;
 // Deterministic rules after the model, for the ways people actually talk.
 function fragmentRules(clean, text, lang, country) {
   const raw = String(text || '');
@@ -1463,6 +1463,14 @@ function fragmentRules(clean, text, lang, country) {
   const salePrices = new Set(clean.filter(e => e.type === 'sale' && e.price !== undefined).map(e => e.price));
   return clean.map(e0 => {
     const e = Object.assign({}, e0);
+    // "bought 5 bags" stuffed into the item: pull the verb and the count out
+    const im = /^(?:i\s+|we\s+)?(?:bought|buy|paid|spent|sold|sell|compr[e\u00e9]|pagu[e\u00e9]|gast[e\u00e9]|vend[i\u00ed])\s+(\d+)\s+(.+)$/i.exec(String(e.item || ''));
+    if (im) { if (e.qty === undefined) e.qty = Number(im[1]); e.item = im[2]; }
+    // "compré 3 kilos de harina": the unit count is the quantity
+    if (lang === 'es' && e.qty === undefined && (e.type === 'sale' || e.type === 'expense')) {
+      const q = /\b(\d+)\s+(?:kilos?|kg|libras?|bultos?|cajas?|docenas?|paquetes?|sacos?|cartones?|arrobas?|latas?|botellas?|bolsas?)\s+de\s+/i.exec(tt);
+      if (q && Number(q[1]) !== e.price) e.qty = Number(q[1]);
+    }
     const name = String(e.item || e.customer || e.supplier || '').trim();
     // payment words are never things or people
     for (const k of ['item', 'customer', 'supplier']) { if (e[k] && PAY_METHOD_WORDS.test(String(e[k]).trim())) delete e[k]; }
@@ -1496,9 +1504,12 @@ function fragmentRules(clean, text, lang, country) {
     }
     // the one stated money amount IS the amount (never quantity x amount) - for
     // debts and expenses; a sale keeps its per-unit maths
-    if (moneyAmts.length === 1 && e.type !== 'sale' && e.price !== undefined && e.price !== moneyAmts[0]) e.price = moneyAmts[0];
+    if (!totalM && moneyAmts.length === 1 && e.type !== 'sale' && e.price !== undefined && e.price !== moneyAmts[0]) e.price = moneyAmts[0];
     // "caramelos 3 verdes": a number followed by a currency word is money, not a count
     if (e.qty !== undefined && e.qty === e.price && moneyAmts.includes(e.price)) delete e.qty;
+    if (e.price === undefined && e.qty !== undefined && moneyAmts.includes(e.qty)) { e.price = e.qty; delete e.qty; }
+    // a currency word that leaked into the item name
+    if (e.item) e.item = String(e.item).replace(/^(d[o\u00f3]lar(es)?|pesos?|bol[i\u00ed]vares?|bolos?|cedis?)\s+(de\s+)?/i, '').trim() || e.item;
     // "sales today 130" / "sales apem": the number is the money, the item is "sales"
     if (e.type === 'sale' && /\b(sales?|total)\b/.test(tt) && lang !== 'es') {
       const it = String(e.item || '').replace(/\b(small small|today|sales?|total)\b/gi, ' ').replace(/\s+/g, ' ').trim();
@@ -1509,12 +1520,20 @@ function fragmentRules(clean, text, lang, country) {
     if (e.type === 'expense' && e.qty !== undefined && e.qty === e.price) delete e.qty;
     // Ghana: "ntoma anum, cedis oha" / "two yards 80" - a count then one amount
     // with no "each" is the total; split it when it divides cleanly
-    if (lang !== 'es' && e.type === 'sale' && e.qty > 1 && e.price && !eachM && nums.length <= 1 && e.price % e.qty === 0 && e.price > e.qty) {
+    if (lang !== 'es' && e.type === 'sale' && e.qty > 1 && e.price && !eachM && e.price % e.qty === 0 && e.price > e.qty) {
       const runs = twiRunSums(normalizeForMatch(raw));
-      const twiTotal = runs.length && runs[0] === e.price;
-      const digitTotal = nums.length === 1 && nums[0] === e.price;
-      if (twiTotal || digitTotal) e.price = e.price / e.qty;
+      const qtyInText = nums.includes(e.qty) || runs.includes(e.qty);
+      const others = nums.filter(n => n !== e.qty);
+      const twiTotal = runs.length && runs[0] === e.price && runs.includes(e.qty);
+      const digitTotal = others.length === 1 && others[0] === e.price;
+      if (qtyInText && (twiTotal || digitTotal)) e.price = e.price / e.qty;
+      // a count the model invented ("kenkey and fish" -> 2) is not a count
+      if (!qtyInText && !COUNT_WORDS.test(tt)) delete e.qty;
     }
+    // "sales today 130" / "sold fuel 200" with nothing numeric returned: the one number is the money
+    if (e.type === 'sale' && e.price === undefined && e.qty === undefined && nums.length === 1) e.price = nums[0];
+    // "Adwoa paid me back 50": money came IN from a customer
+    if (e.type === 'debt_out' && /\b(paid|pay|give|gave|dash)\s+me\b/.test(tt) && !/\b(i|we)\s+(paid|pay|owe)\b/.test(tt)) { e.type = 'debt_in'; e.customer = e.supplier; delete e.supplier; }
     // "me pagaron 200 de una arepa" is a sale of an arepa
     if (e.type === 'debt_in' && e.customer && /\bme pagaron\b/.test(tt) && new RegExp('\\bde\\s+una?\\s+' + String(e.customer).toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '')).test(tt)) { e.type = 'sale'; e.item = e.customer; delete e.customer; }
     return e;
@@ -1527,8 +1546,11 @@ function fragmentRules(clean, text, lang, country) {
 }
 // English fallbacks when the model returned nothing
 function expenseFallback(text) {
-  const m = /^\s*(chop money|market toll|toll|fare|trotro fare|fuel|transport|rent|airtime|light bill|water bill)\s+(?:cedis\s+)?(\d{1,7})/i.exec(String(text || ''));
+  const t = String(text || '');
+  const m = /^\s*(chop money|market toll|toll|fare|trotro fare|fuel|transport|rent|light bill|water bill)\s+(?:cedis\s+)?(\d{1,7})/i.exec(t);
   if (m) return [{ type: 'expense', item: m[1].toLowerCase(), price: Number(m[2]) }];
+  const g = /^\s*(?:i\s+)?(give|gave|dash)\s+(am|him|her|them|the boy|the girl|\w+)\s+(\d{1,7})/i.exec(t);
+  if (g) return [{ type: 'expense', item: 'given out', price: Number(g[3]) }];
   return [];
 }
 function twiFallback(transcriptNorm) {
@@ -1661,6 +1683,11 @@ async function extractFromText(text, env, lang, country) {
   }
 
   clean = fragmentRules(clean, text, lang, country);
+  if (lang === 'es' && clean.length === 1 && clean[0].type === 'sale') {
+    // "aguacates 8000 pesos y mango 12000 pesos": the model keeps one; add the other
+    const m2 = /\by\s+([a-z\u00e1\u00e9\u00ed\u00f3\u00fa\u00f1]+(?:\s+[a-z\u00e1\u00e9\u00ed\u00f3\u00fa\u00f1]+)?)\s+(\d+(?:[.,]\d+)?)\s*(pesos|d[o\u00f3]lares|verdes|bolos|bs|bol[i\u00ed]vares)\b/i.exec(String(text).toLowerCase());
+    if (m2 && m2[1] !== String(clean[0].item || '').toLowerCase() && Number(m2[2]) !== clean[0].price) clean.push({ type: 'sale', item: m2[1], price: Number(m2[2].replace(',', '.')) });
+  }
   if (clean.length === 0) clean = lang === 'es' ? debtFallbackEs(text) : debtFallback(text);
   if (clean.length === 0 && lang !== 'es') clean = expenseFallback(text);
   if (clean.length === 0 && lang !== 'es') clean = twiFallback(normalizeForMatch(text));
