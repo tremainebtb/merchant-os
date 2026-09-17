@@ -56,7 +56,7 @@
      app.js?v=. Lets anyone - a reviewer, a tester in Kumasi, a future session -
      answer "which CountMy am I looking at?" from view-source or the console,
      the same way the Worker answers with "wv". -->
-<meta name="countmy-version" content="v104">
+<meta name="countmy-version" content="v105">
 <!-- Real finding, 28 Aug: the bare "CountMy" title carried no keywords at all
      for what people actually search - a free sales/expense ledger for
      Ghanaian shop owners. The <title> tag is the single strongest on-page
@@ -171,7 +171,7 @@
   --brick:#A83F2E; --brick-soft:#F6E1DC; --amber:#8C5F0F; --amber-soft:#FBEFD9;
   /* Brand warmth pass, 16 Sep: navy is the trust colour for headings and the
      wordmark; flame stays the one action colour. */
-  --navy:#1E2F55;
+  --navy:#1E2F55; --steel-soft:#E1EAF6;
 }
 /* Real issue, 1 Sep ("dark and doesn't look top elite/western SaaS"): the
    old dark palette was a muddy brown-black (#161009 - literally black mixed
@@ -186,7 +186,7 @@
     --rule:#2E323A; --flame:#F0713A; --flame-deep:#F79764; --flame-soft:#2E2119;
     --leaf:#4CC585; --leaf-deep:#6FD79E; --leaf-soft:#152420;
     --brick:#E08670; --brick-soft:#2E1E1A; --amber:#E0B25C; --amber-soft:#2A2216;
-    --navy:#D6DEF2;
+    --navy:#D6DEF2; --steel-soft:#1F2A3D;
   }
 }
 :root[data-theme="dark"]{
@@ -194,7 +194,7 @@
   --rule:#2E323A; --flame:#F0713A; --flame-deep:#F79764; --flame-soft:#2E2119;
   --leaf:#4CC585; --leaf-deep:#6FD79E; --leaf-soft:#152420;
   --brick:#E08670; --brick-soft:#2E1E1A; --amber:#E0B25C; --amber-soft:#2A2216;
-  --navy:#D6DEF2;
+  --navy:#D6DEF2; --steel-soft:#1F2A3D;
 }
 *{box-sizing:border-box}
 /* Real bug, found 2 Sep from a real phone screenshot: the end-of-day
@@ -445,11 +445,11 @@ input[type="number"]{-moz-appearance:textfield}
 .ts-date{font-size:.82rem;color:var(--muted)}
 .ts-tiles{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
 .ts-tile{border:none;border-radius:14px;padding:12px 10px 10px;text-align:left;display:flex;flex-direction:column;gap:4px;cursor:pointer;font-family:inherit;color:var(--ink);min-width:0}
-.ts-in{background:var(--leaf-soft)}.ts-out{background:var(--flame-soft)}.ts-owe{background:var(--steel-soft, #E1EAF6)}
-.ts-label{font-size:.72rem;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.03em;line-height:1.15;min-height:2.3em;display:flex;align-items:flex-end}
+.ts-in{background:var(--leaf-soft)}.ts-out{background:var(--flame-soft)}.ts-owe{background:var(--steel-soft)}
+.ts-label{font-size:.78rem;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.03em;line-height:1.15;min-height:2.3em;display:flex;align-items:flex-end}
 .ts-num{font-family:"Manrope",sans-serif;font-weight:800;font-size:1.25rem;line-height:1.1;word-break:break-word}
 .ts-in .ts-num{color:var(--leaf-deep)}.ts-out .ts-num{color:var(--flame-deep)}.ts-owe .ts-num{color:var(--navy)}
-.ts-sub{font-size:.72rem;color:var(--muted);min-height:1em}
+.ts-sub{font-size:.8rem;color:var(--ink-soft);min-height:1em}
 @media (max-width:360px){.ts-tiles{grid-template-columns:1fr 1fr}.ts-owe{grid-column:1 / -1}}
 .try-line{text-align:center;font-size:.95rem;color:var(--ink-soft);margin:-2px 0 12px}
 .try-label{color:var(--muted)}.try-example{font-weight:600;color:var(--ink)}
@@ -457,8 +457,8 @@ input[type="number"]{-moz-appearance:textfield}
 .second-btn{background:var(--surface);border:1.5px solid var(--rule);border-radius:16px;padding:14px 12px;text-align:left;cursor:pointer;font-family:inherit;color:var(--ink);display:flex;flex-direction:column;gap:3px}
 .second-btn:active{border-color:var(--flame)}
 .sb-title{font-family:"Manrope",sans-serif;font-weight:800;font-size:1rem;color:var(--navy)}
-.sb-sub{font-size:.78rem;color:var(--muted);line-height:1.25}
-.mic-lang-line{text-align:center;color:var(--muted);font-size:.85rem;margin:0 0 14px}
+.sb-sub{font-size:.84rem;color:var(--ink-soft);line-height:1.25}
+.mic-lang-line{text-align:center;color:var(--ink-soft);font-size:.9rem;margin:0 0 14px}
 .trust-line{text-align:center;font-size:.92rem;color:var(--ink-soft);margin:0 0 10px;font-weight:500}
 .trust-line a{color:var(--leaf-deep);font-weight:700}
 .example-chat{display:flex;flex-direction:column;gap:6px;margin:10px 0 14px}
@@ -1020,7 +1020,7 @@ input[type="number"]{-moz-appearance:textfield}
      string is what forces a fresh script fetch even before any service worker logic
      runs, independent of it. Found live 27 Aug: without this, an already-visited
      browser can keep running old code from plain HTTP cache regardless of SW strategy. -->
-<script src="app.js?v=104"></script>
+<script src="app.js?v=105"></script>
 
 </body>
 </html>

@@ -864,10 +864,10 @@ async function transcribeAudio(audioBytes, audioType, env, lang, country) {
     if (lang === 'es') {
       whisperInput.language = 'es';
       whisperInput.initial_prompt = country === 'CO'
-        ? 'Cuentas de la tienda: vendí cinco camisas de a diez mil pesos, Juan me quedó debiendo veinte lucas, pagué doscientos mil de arriendo, le fié a doña Marta quince mil, un bulto de papa en ochenta mil, me pagaron por Nequi, tres libras de tomate a dos quinientos, dos panes a quinientos, un palo.'
+        ? 'Cuentas de la tienda: vendí cinco camisas de a diez mil pesos, Juan me quedó debiendo veinte lucas, pagué doscientos mil de arriendo, le fié a doña Marta quince mil, un bulto de papa en ochenta mil, me pagaron por Nequi, tres libras de tomate a dos quinientos, dos panes a quinientos, un palo, Yorbelis abonó treinta mil.'
         : 'Cuentas de la bodega: vendí tres refrescos a dos dólares, María me quedó debiendo veinte verdes, pagué la luz cuarenta bolos, caramelos tres verdes, le fié a Yusmary, me pagó por pago móvil, mil quinientos bolívares, un dolarito de hielo, fiao, abonó diez dólares.';
     } else {
-      whisperInput.initial_prompt = 'Shop records: pepper 25 cedis, chop money 20 cedis, bought stock 400 cedis, Kofi 200, Ama owes me 120 cedis, sold 4 bags of rice 120 each, transport 15, momo 50, ntoma anum cedis oha, Adwoa dey owe me 50, I sell kenkey and fish twenty cedis.';
+      whisperInput.initial_prompt = 'Shop records: pepper 25 cedis, chop money 20 cedis, bought stock 400 cedis, Kofi 200, Ama owes me 120 cedis, sold 4 bags of rice 120 each, transport 15, momo 50, ntoma anum cedis oha, Adwoa dey owe me 50, I sell kenkey and fish twenty cedis, Yaw come take oil 25 he go pay tomorrow, I owe Mensah 400, airtime 50, Kofi paid me 200.';
     }
     result = await env.AI.run('@cf/openai/whisper-large-v3-turbo', whisperInput);
   } catch (err) {
@@ -974,7 +974,7 @@ async function handleTranscribe(request, env) {
 // 50 is a transcription/parsing error, not a fabrication) - evidence-checking
 // targets fabrication specifically, not every possible error; the review UI is
 // still what catches a wrong-but-grounded number.
-const WORKER_VERSION = 'w59';
+const WORKER_VERSION = 'w60';
 
 // Spanish (Venezuela) twin of EXTRACT_SYSTEM_PROMPT below: same event types,
 // same {value, evidence} rule, same JSON-only answer. Amounts are bare
@@ -1619,7 +1619,7 @@ function repairTranscript(text, lang, country) {
     t = t.replace(/\blucas?\b/gi, m => m.toLowerCase());
     t = t.replace(/\b(quedo|qued\u00f3)\s+de\s+viendo\b/gi, 'qued\u00f3 debiendo');
     t = t.replace(/\b(bi-?es|b\.s\.|bes)\b/gi, 'bs');
-    t = t.replace(/(^|[^a-z])me\s+pararon(?=\s+\d)/gi, '$1me pagaron');
+    t = t.replace(/(^|[^a-z])me\s+pararon\b/gi, '$1me pagaron');
     t = t.replace(/\b(daste|gaste|gasté)\s+(\d)/gi, 'gast\u00e9 $2');
     // a trailing "a" / "a." after an amount is the voice's own breath, not a word
     t = t.replace(/(\d)\s+a\s*\.?\s*$/i, '$1');
@@ -1634,6 +1634,8 @@ function repairTranscript(text, lang, country) {
     t = t.replace(/\bfree\s+(baskets?|bags?|crates?|tins?|yards?|pieces?|bunches?|boxes?)\b/gi, '3 $1');
     t = t.replace(/\b(air time|hair time|our time|airtime)\b/gi, 'airtime');
     t = t.replace(/\bmo\s?mo\b/gi, 'momo');
+    t = t.replace(/\by'?all\b/gi, 'Yaw');
+    t = t.replace(/\bI owe me a\b/gi, 'I owe Mensah');
     // "$1.20 each" is Whisper turning "one twenty" into a price: the digits are the amount
     t = t.replace(/\$\s?(\d+)\.(\d{2})\b/g, (m, a, b) => String(Number(a + b)));
     t = t.replace(/\$\s?(\d+)\b/g, '$1 cedis');
@@ -1668,6 +1670,54 @@ async function runExtractionModel(text, env, temperature, lang, country) {
     // testable at all.
     temperature
   });
+}
+
+// Real bug, 17 Sep (found on the home screen's new "Owed to you" number):
+// "Kofi paid me 200", "José abonó 10", "momo received 50 from Ama" all came
+// back as a NEW debt_in, so a customer paying you back made "Owed to you"
+// go UP. The model is good at the person and the amount; this pass fixes
+// the direction from the words actually said. A payment event is
+// {type:'payment', customer, price} and the phone applies it to that
+// person's open debt (or records it as money in if there is none).
+const PAY_EN = /\b(paid|pay|payed|don\s+pay)\s+me\b|\bpaid\s+(me\s+)?back\b|\breceived\b[^.]*\bfrom\b|\bmomo\s+(from|received)\b|\b(gave|give|dash|bring|brought|sent|send)\s+me\b|\bsettled?\b|\bhas\s+paid\b|\batua\b|\b[a-z]+\s+(has\s+)?paid\b(?!\s+(for|\d+\s+for))|\bpay\s+small\b|\bwas\s+owing\b/i;
+const NOT_PAY_EN = /\b(owes?\s+me|dey\s+owe|owing\s+me|go\s+pay|will\s+pay|pay\s+(me\s+)?(later|tomorrow|next)|on\s+credit|credit|(i|we)\s+(still\s+)?owe|(i|we)\s+(paid|pay|payed)|paid\s+for|pay\s+for|paid\s+\d+\s+for)\b/i;
+const PAY_ES = /\babono\b|\bme\s+pago\b|\bme\s+pagaron\b|\bpago\s+(lo\s+que|la\s+deuda|todo)\b|\bse\s+puso\s+al\s+dia\b|\b(me\s+)?cancelo\b|\bme\s+(trajo|dio|consigno|transfirio|paso|abono)\b|\bsaldo\s+(la|su)\b|\bme\s+devolvio\b/i;
+const NOT_PAY_ES = /\bfie\b|\bfiao\b|\bfiado\b|\bdebiendo\b|\bme\s+debe\b|\bcredito\b|\bva\s+a\s+pagar\b|\bme\s+paga\s+(luego|manana|despues|la\s+semana)\b|\ble\s+debo\b|\bdebo\b/i;
+function finalizeEvents(events, text, lang) {
+  let out = Array.isArray(events) ? events.slice() : [];
+  const raw = String(text || '');
+  const tt = foldAccents(raw.toLowerCase());
+  const nums = (raw.match(/\d+(?:\.\d+)?/g) || []).map(Number);
+  const esc = v => String(v || '').toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const isPay = lang === 'es' ? (PAY_ES.test(tt) && !NOT_PAY_ES.test(tt)) : (PAY_EN.test(tt) && !NOT_PAY_EN.test(tt));
+  const bothEs = lang === 'es' && PAY_ES.test(tt) && NOT_PAY_ES.test(tt);
+  const toPayment = (e, who) => { const p = { type: 'payment', customer: who || 'customer', price: e.price }; if (e.currency) p.currency = e.currency; if (e.note) p.note = e.note; return p; };
+  if (isPay) {
+    out = out.map(e => {
+      if (e.type === 'debt_in' || e.type === 'debt_out') return toPayment(e, e.customer || e.supplier);
+      // "Kofi paid 200" can come back as an expense called Kofi
+      if (e.type === 'expense' && e.item && new RegExp('\\b' + esc(e.item) + '\\s+(has\\s+)?(paid|pay|payed|don\\s+pay|abono|me\\s+pago)\\b').test(tt)) return toPayment(e, e.item);
+      // "Yaa pay small, 30" can come back as a sale called "yaa pay small"
+      if (e.type === 'sale' && e.item && /\b(paid|pay|payed)\b/.test(String(e.item).toLowerCase())) return toPayment(e, String(e.item).replace(/\s*\b(has\s+)?(paid|pay|payed)\b.*$/i, '').trim());
+      return e;
+    });
+  } else if (bothEs && out.length === 1 && out[0].type === 'debt_in' && nums.length >= 2 && /\b(y|pero)\s+(me\s+)?(quedo|queda)\s+debiendo\b/.test(tt)) {
+    // "María me pagó 10 y me quedó debiendo 20": a payment AND what is still owed
+    const e = out[0];
+    out = [toPayment({ price: nums[0], currency: e.currency }, e.customer), { type: 'debt_in', customer: e.customer, price: nums[1], currency: e.currency }];
+  }
+  // "I owe 400 cedis" with no name: the placeholder, never the words "I owe"
+  out.forEach(e => { if (e.type === 'debt_out' && /^(i|we)\s+(still\s+)?owe$/i.test(String(e.supplier || '').trim())) e.supplier = 'supplier'; });
+  // "From all small sales to made 130" (a garbled "small small sales today
+  // 130"): the word sales plus one number is the day's takings
+  if (!out.length && lang !== 'es' && /\bsales?\b|\bsold\b/.test(tt) && nums.length === 1 && nums[0] > 0) out = [{ type: 'sale', item: 'sales', price: nums[0] }];
+  // "kenkey and fish 20": one dish with "and" in its name, not two events
+  if (out.length === 1 && nums.length <= 1 && out[0].type === 'sale' && out[0].item && lang !== 'es') {
+    const e = out[0];
+    const m = new RegExp('\\b' + esc(e.item) + '\\s+and\\s+([a-z]+)\\b').exec(tt);
+    if (m && !/^\d/.test(m[1]) && !COUNT_WORDS.test(m[1]) && !/^(i|he|she|we|they|then|also|momo|cash|the|a|some)$/.test(m[1]) && !/\bsold\b.*\band\b.*\bsold\b/.test(tt)) e.item = String(e.item) + ' and ' + m[1];
+  }
+  return out;
 }
 
 async function extractFromText(text, env, lang, country) {
@@ -1867,6 +1917,7 @@ async function handleExtract(request, env) {
   if (lang === 'es') { text = spanishPrep(text, country); text = spanishNumbersToDigits(text); if (country === 'CO') text = colombianMoneyToDigits(text); text = spanishPrep(text, country); }
   else text = englishNumbersToDigits(text);
   const result = (lang === 'es' && /^\s*[\u00bf]?\s*(a c[o\u00f3]mo|cu[a\u00e1]nt[oa]s?|qui[e\u00e9]n|qu[e\u00e9])\b/i.test(text) && !/\d/.test(text)) ? { events: [] } : await extractFromText(text, env, lang, country);
+  if (result.events) result.events = finalizeEvents(result.events, text, lang);
   if (result.error) {
     return cors(new Response(JSON.stringify({ error: result.error, detail: result.detail }), { status: 502 }));
   }
@@ -1929,6 +1980,7 @@ async function handleTranscribeAndExtractInner(request, env) {
   if (lang === 'es') { text = spanishPrep(text, country); text = spanishNumbersToDigits(text); if (country === 'CO') text = colombianMoneyToDigits(text); text = spanishPrep(text, country); }
   else text = englishNumbersToDigits(text);
   const extracted = (lang === 'es' && /^\s*[\u00bf]?\s*(a c[o\u00f3]mo|cu[a\u00e1]nt[oa]s?|qui[e\u00e9]n|qu[e\u00e9])\b/i.test(text) && !/\d/.test(text)) ? { events: [] } : await extractFromText(text, env, lang, country);
+  if (extracted.events) extracted.events = finalizeEvents(extracted.events, text, lang);
   return cors(new Response(JSON.stringify({ text, events: extracted.events || [], wv: WORKER_VERSION, rep: text !== String(transcribed.text || '') }), {
     headers: { 'Content-Type': 'application/json' }
   }));

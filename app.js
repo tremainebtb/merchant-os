@@ -927,7 +927,8 @@ function speakVoiceReview(events) {
     else lines.push(t(`I heard ${entry.item} but not the price - please tap it in below.`, `Escuch\u00e9 ${entry.item} pero no el precio. Escr\u00edbelo abajo, por favor.`));
   });
   const saved = events.filter(ev => ev._savedId);
-  if (!lines.length) return;
+  const prefix = voiceSpeechPrefix; voiceSpeechPrefix = '';
+  if (!lines.length) { if (prefix) say(prefix); return; }
   let closer = saved.length
     ? t('If any of this is wrong, tap Undo under it.', 'Si algo est\u00e1 mal, toca Deshacer debajo.')
     : '';
@@ -941,7 +942,7 @@ function speakVoiceReview(events) {
       localStorage.setItem('kym_ask_nudged', '1');
     }
   } catch (e) { /* optional */ }
-  say(`${lines.join(' ')} ${closer}`.trim());
+  say(`${prefix} ${lines.join(' ')} ${closer}`.trim());
 }
 
 // Spoken version of the photo review. Unlike speakVoiceReview above this
@@ -968,6 +969,67 @@ function speakPhotoReview(events) {
 // still silently required a manual tap this whole time. This is the actual
 // trigger: called once right after events are produced, before the first
 // render, so a complete entry shows already in its saved state.
+// Real bug, 17 Sep: "Kofi paid me 200" used to be saved as a NEW debt, so
+// the home screen's "Owed to you" went up when a customer paid. The worker
+// now sends {type:'payment', customer, price}; this applies it to that
+// person's open debts (oldest first) and says what is still owed. With no
+// open debt for that name the money is still real, so it is kept as money
+// in, and the spoken line says exactly that.
+function nameKey(s) {
+  return String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/^(do\u00f1a|dona|don|mr|mrs|madam|auntie|aunty|uncle|maame|sister|brother|bra|se\u00f1or|senor|se\u00f1ora|senora)\s+/, '').trim();
+}
+function sameName(a, b) {
+  const x = nameKey(a), y = nameKey(b);
+  if (!x || !y) return false;
+  if (x === y || x.startsWith(y) || y.startsWith(x)) return true;
+  const fx = x.split(/\s+/)[0], fy = y.split(/\s+/)[0];
+  return fx.length >= 3 && fx === fy;
+}
+async function applyVoicePayment(p) {
+  const amount = Number(p.price) || 0;
+  const name = String(p.customer || '').trim();
+  const placeholder = !name || /^(customer|cliente|somebody|someone|alguien|supplier|proveedor)$/i.test(name);
+  const cur = ES ? (p.currency === 'VES' ? 'VES' : (p.currency === 'COP' ? 'COP' : HOME_CUR)) : undefined;
+  const open = e => Math.max(0, (Number(e.amount) || 0) - (Number(e.paid) || 0));
+  const entries = await getAllEntries();
+  const matches = placeholder ? [] : entries.filter(e => e.type === 'debt_in' && open(e) > 0 && sameName(e.item, name)).sort((x, y) => x.ts - y.ts);
+  const spoken = matches.length ? matches[0].item : name;
+  if (amount <= 0) return t(`I heard ${spoken || 'a payment'} but not the amount - please tap the debt below and enter it.`, `Escuch\u00e9 ${spoken || 'un pago'} pero no el monto. Toca la deuda abajo y an\u00f3talo.`);
+  if (!matches.length) {
+    const ts = Date.now();
+    const item = placeholder ? t('payment received', 'pago recibido') : t(`payment from ${name}`, `pago de ${name}`);
+    const record = { id: crypto.randomUUID(), type: 'sale', item, note: '', qty: 1, price: amount, kind: '', paid: 0, amount, source: pendingVoiceSource, day: todayKey(ts), ts };
+    if (cur) record.cur = cur;
+    try { await addEntry(record); track('save_entry', { type: 'payment_as_sale', input_method: pendingVoiceSource }); ping('save'); } catch (err) { track('save_error', { where: 'voice_payment', reason: (err && err.name) || 'unknown' }); }
+    return placeholder
+      ? t(`Saved ${fmtSay(amount, cur)} as money in.`, `Guard\u00e9 ${fmtSay(amount, cur)} como dinero que entr\u00f3.`)
+      : t(`${name} paid ${fmtSay(amount, cur)}. I had no debt for ${name}, so I saved it as money in.`, `${name} pag\u00f3 ${fmtSay(amount, cur)}. No ten\u00eda ninguna deuda de ${name}, as\u00ed que lo guard\u00e9 como dinero que entr\u00f3.`);
+  }
+  let left = amount;
+  for (const m of matches) {
+    if (left <= 0) break;
+    const pay = Math.min(open(m), left);
+    const payments = Array.isArray(m.payments) ? m.payments.slice() : [];
+    payments.push({ amount: pay, ts: Date.now(), source: 'voice' });
+    await updateEntry(m.id, { paid: (Number(m.paid) || 0) + pay, payments });
+    left -= pay;
+  }
+  const stillOwed = matches.reduce((s, m) => s + open(m), 0) - (amount - left);
+  track('debt_paid', { full: stillOwed <= 0, voice: true });
+  ping('save');
+  if (left > 0) {
+    // paid more than was owed: the extra is money in, said out loud
+    const ts = Date.now();
+    const record = { id: crypto.randomUUID(), type: 'sale', item: t(`extra from ${spoken}`, `extra de ${spoken}`), note: '', qty: 1, price: left, kind: '', paid: 0, amount: left, source: pendingVoiceSource, day: todayKey(ts), ts };
+    if (cur) record.cur = cur;
+    try { await addEntry(record); } catch (err) { /* the debt itself is already settled */ }
+    return t(`${spoken} paid ${fmtSay(amount, cur)}. That clears the debt, with ${fmtSay(left, cur)} extra saved as money in.`, `${spoken} pag\u00f3 ${fmtSay(amount, cur)}. Con eso queda saldado, y ${fmtSay(left, cur)} de m\u00e1s lo guard\u00e9 como dinero que entr\u00f3.`);
+  }
+  if (stillOwed <= 0) return t(`${spoken} paid ${fmtSay(amount, cur)}. ${spoken} owes nothing now.`, `${spoken} pag\u00f3 ${fmtSay(amount, cur)}. Ya no debe nada.`);
+  return t(`${spoken} paid ${fmtSay(amount, cur)}. ${spoken} still owes ${fmtSay(stillOwed, cur)}.`, `${spoken} pag\u00f3 ${fmtSay(amount, cur)}. Todav\u00eda debe ${fmtSay(stillOwed, cur)}.`);
+}
+let voiceSpeechPrefix = '';
 async function autoSaveReadyEvents(events) {
   const saved = [];
   for (const ev of events) {
@@ -1271,7 +1333,8 @@ async function toggleMic(btn, statusId) {
       try {
         const blob = new Blob(recordedChunks, { type: actualMime });
         setMicStatus(t('Working out what happened\u2026', 'Anotando lo que dijiste\u2026'), null, statusId);
-        const { text: heard, events } = await transcribeAndExtract(blob);
+        const { text: heard, events: heardEvents } = await transcribeAndExtract(blob);
+        let events = Array.isArray(heardEvents) ? heardEvents : [];
         if (!heard.trim()) {
           track('mic_error', { reason: 'no_transcript', duration_ms: recordedMs });
           // Real advice, 30 Aug: researched (not guessed) - "please" is the
@@ -1286,6 +1349,21 @@ async function toggleMic(btn, statusId) {
           return;
         }
         if (looksLikeQuestion(heard) && await answerQuestion(heard)) return;
+        const payments = events.filter(ev => ev && ev.type === 'payment');
+        if (payments.length) {
+          events = events.filter(ev => ev && ev.type !== 'payment');
+          const said = [];
+          for (const p of payments) { try { said.push(await applyVoicePayment(p)); } catch (err) { track('save_error', { where: 'voice_payment', reason: (err && err.name) || 'unknown' }); } }
+          track('voice_payment', { count: payments.length });
+          if (!events.length) {
+            closeSheet();
+            setMicStatus(t(`Heard: \u201c${heard}\u201d \u2014 ${said.join(' ')}`, `Escuch\u00e9: \u201c${heard}\u201d \u2014 ${said.join(' ')}`), 'heard', statusId);
+            await render();
+            say(said.join(' '));
+            return;
+          }
+          voiceSpeechPrefix = said.join(' ');
+        }
         // Which language was actually spoken (16 Sep). A guess from the
         // transcript's own words, counted as en/twi/pidgin - the words
         // themselves never leave the phone for this.
@@ -1805,8 +1883,11 @@ async function render() {
   const nIn = todayEntries.filter(e => e.type === 'sale').length, nOut = todayEntries.filter(e => e.type === 'expense').length;
   const owedPeople = entries.filter(e => e.type === 'debt_in' && (Number(e.amount) || 0) - (Number(e.paid) || 0) > 0).length;
   const setT = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
-  setT('tsIn', fmt(sales)); setT('tsOut', fmt(expenses)); setT('tsOwe', fmt(owedMe));
-  setT('tsInSub', nIn ? t(`${nIn} record${nIn === 1 ? '' : 's'}`, `${nIn} venta${nIn === 1 ? '' : 's'}`) : t('nothing yet today', 'nada todav\u00eda hoy'));
+  const paysToday = entries.filter(e => e.type === 'debt_in' && (!ES || e.cur !== 'VES')).flatMap(e => Array.isArray(e.payments) ? e.payments : []).filter(p => todayKey(p.ts) === today);
+  const repaidToday = paysToday.reduce((s, p) => s + (Number(p.amount) || 0), 0);
+  setT('tsIn', fmt(sales + repaidToday)); setT('tsOut', fmt(expenses)); setT('tsOwe', fmt(owedMe));
+  const nInAll = nIn + paysToday.length;
+  setT('tsInSub', nInAll ? t(`${nInAll} record${nInAll === 1 ? '' : 's'}`, `${nInAll} registro${nInAll === 1 ? '' : 's'}`) : t('nothing yet today', 'nada todav\u00eda hoy'));
   setT('tsOutSub', nOut ? t(`${nOut} record${nOut === 1 ? '' : 's'}`, `${nOut} gasto${nOut === 1 ? '' : 's'}`) : '');
   setT('tsOweSub', owedPeople ? t(`${owedPeople} ${owedPeople === 1 ? 'person' : 'people'}`, `${owedPeople} persona${owedPeople === 1 ? '' : 's'}`) : t('nobody', 'nadie'));
   const cashMomoEl = document.getElementById('tCashMomo');
@@ -1957,7 +2038,8 @@ document.getElementById('history').addEventListener('click', async (e) => {
     const entries = await getAllEntries();
     const entry = entries.find(x => x.id === fullBtn.dataset.id);
     if (!entry) return;
-    await updateEntry(entry.id, { paid: entry.amount });
+    const remainingNow = Math.max(0, (Number(entry.amount) || 0) - (Number(entry.paid) || 0));
+    await updateEntry(entry.id, { paid: entry.amount, payments: (Array.isArray(entry.payments) ? entry.payments : []).concat([{ amount: remainingNow, ts: Date.now(), source: 'tap' }]) });
     track('debt_paid', { full: true });
     await render();
   } else if (payBtn) {
@@ -1968,7 +2050,7 @@ document.getElementById('history').addEventListener('click', async (e) => {
     const entry = entries.find(x => x.id === payBtn.dataset.id);
     if (!entry) return;
     const newPaid = (entry.paid || 0) + amount;
-    await updateEntry(entry.id, { paid: newPaid });
+    await updateEntry(entry.id, { paid: newPaid, payments: (Array.isArray(entry.payments) ? entry.payments : []).concat([{ amount, ts: Date.now(), source: 'tap' }]) });
     track('debt_paid', { full: newPaid >= entry.amount });
     await render();
   }
