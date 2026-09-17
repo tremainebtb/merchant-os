@@ -858,13 +858,16 @@ async function transcribeAudio(audioBytes, audioType, env, lang, country) {
     // extractor expects. English/Twi/Pidgin keeps auto-detect (Twi is not a
     // Whisper language; forcing 'en' hurt Pidgin - see above).
     const whisperInput = { audio: base64Audio };
+    // The prompt reads as the sentence "before" this clip, so it is written
+    // the way a vendor talks: short fragments with the money words we need
+    // Whisper to prefer over look-alikes (cedis not studies, bolos not bonos).
     if (lang === 'es') {
       whisperInput.language = 'es';
       whisperInput.initial_prompt = country === 'CO'
-        ? 'Vendí, compré, me quedó debiendo, le fié, abonó, pesos, mil, lucas, Nequi, transferencia, libra, bulto.'
-        : 'Vendí, compré, me debe, le debo, fiao, dólares, bolívares, bs, Pago Móvil.';
+        ? 'Cuentas de la tienda: vendí cinco camisas de a diez mil pesos, Juan me quedó debiendo veinte lucas, pagué doscientos mil de arriendo, le fié a doña Marta quince mil, un bulto de papa en ochenta mil, me pagaron por Nequi, tres libras de tomate a dos quinientos, dos panes a quinientos, un palo.'
+        : 'Cuentas de la bodega: vendí tres refrescos a dos dólares, María me quedó debiendo veinte verdes, pagué la luz cuarenta bolos, caramelos tres verdes, le fié a Yusmary, me pagó por pago móvil, mil quinientos bolívares, un dolarito de hielo, fiao, abonó diez dólares.';
     } else {
-      whisperInput.initial_prompt = 'Sold, bought, owes me, cedis, momo, Ama, Kofi.';
+      whisperInput.initial_prompt = 'Shop records: pepper 25 cedis, chop money 20 cedis, bought stock 400 cedis, Kofi 200, Ama owes me 120 cedis, sold 4 bags of rice 120 each, transport 15, momo 50, ntoma anum cedis oha, Adwoa dey owe me 50, I sell kenkey and fish twenty cedis.';
     }
     result = await env.AI.run('@cf/openai/whisper-large-v3-turbo', whisperInput);
   } catch (err) {
@@ -971,7 +974,7 @@ async function handleTranscribe(request, env) {
 // 50 is a transcription/parsing error, not a fabrication) - evidence-checking
 // targets fabrication specifically, not every possible error; the review UI is
 // still what catches a wrong-but-grounded number.
-const WORKER_VERSION = 'w53';
+const WORKER_VERSION = 'w54';
 
 // Spanish (Venezuela) twin of EXTRACT_SYSTEM_PROMPT below: same event types,
 // same {value, evidence} rule, same JSON-only answer. Amounts are bare
@@ -1596,6 +1599,32 @@ function englishNumbersToDigits(text) {
   }
   return out.join('');
 }
+// Whisper on a two-second fragment mishears the money words in predictable
+// ways (17 Sep, measured with accented synthetic speech): fix those, only
+// those, before extraction. Names and items are left alone.
+function repairTranscript(text, lang, country) {
+  let t = String(text || '');
+  if (lang === 'es') {
+    t = t.replace(/\b(bonos|bolos|volos|bolo)\b/gi, 'bolos');
+    t = t.replace(/\bver(bes|des|ves)\b/gi, 'verdes');
+    t = t.replace(/\bd[o\u00f3]lare?s?\b/gi, 'd\u00f3lares').replace(/\b(d[o\u00f3]lar|dolar)\b/gi, 'd\u00f3lar');
+    t = t.replace(/\bde\s+alias\b/gi, 'de a').replace(/\bde\s+a\s+lias\b/gi, 'de a');
+    t = t.replace(/\blucas?\b/gi, m => m.toLowerCase());
+    t = t.replace(/\b(quedo|qued\u00f3)\s+de\s+viendo\b/gi, 'qued\u00f3 debiendo');
+    // a trailing "a" / "a." after an amount is the voice's own breath, not a word
+    t = t.replace(/(\d)\s+a\s*\.?\s*$/i, '$1');
+    if (country === 'CO') t = t.replace(/\bpesos?\b/gi, 'pesos');
+  } else {
+    t = t.replace(/\b(studies|sities|sadis|sedis|sidis|cedes|ceedis|seedies|cds|cd|cidis|cities)\b/gi, 'cedis');
+    t = t.replace(/\bjob money\b/gi, 'chop money').replace(/\bchopmoney\b/gi, 'chop money');
+    t = t.replace(/\bmo\s?mo\b/gi, 'momo');
+    // "$1.20 each" is Whisper turning "one twenty" into a price: the digits are the amount
+    t = t.replace(/\$\s?(\d+)\.(\d{2})\b/g, (m, a, b) => String(Number(a + b)));
+    t = t.replace(/\$\s?(\d+)\b/g, '$1 cedis');
+    t = t.replace(/\bGH\s?[C\u20b5]\s?(\d+)/gi, '$1 cedis');
+  }
+  return t;
+}
 function mentionsANumber(text) {
   const t = String(text || '').toLowerCase();
   if (/\d/.test(t)) return true;
@@ -1866,7 +1895,7 @@ async function handleTranscribeAndExtract(request, env) {
   if (transcribed.error) {
     return cors(new Response(JSON.stringify({ text: '', events: [], error: transcribed.error, detail: transcribed.detail }), { status: 502, headers: { 'Content-Type': 'application/json' } }));
   }
-  let text = transcribed.text || '';
+  let text = repairTranscript(transcribed.text || '', lang, country);
   // Whisper answers silence and noise with a stock phrase ("Thank you.",
   // "Bye.", "."). Treat those as nothing heard, so the phone says so instead
   // of "I heard 'Thank you' but could not work out what happened".
