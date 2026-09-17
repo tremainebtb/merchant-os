@@ -971,7 +971,7 @@ async function handleTranscribe(request, env) {
 // 50 is a transcription/parsing error, not a fabrication) - evidence-checking
 // targets fabrication specifically, not every possible error; the review UI is
 // still what catches a wrong-but-grounded number.
-const WORKER_VERSION = 'w47';
+const WORKER_VERSION = 'w48';
 
 // Spanish (Venezuela) twin of EXTRACT_SYSTEM_PROMPT below: same event types,
 // same {value, evidence} rule, same JSON-only answer. Amounts are bare
@@ -985,6 +985,7 @@ const EXTRACT_SYSTEM_PROMPT_ES = `Lees una transcripción de voz, posiblemente d
 REGLA CRÍTICA: cada campo excepto "type" debe ser un objeto {"value": ..., "evidence": "..."}, donde "evidence" es el fragmento EXACTO copiado palabra por palabra de la transcripción en el que se basa el valor (por ejemplo evidence "tres" para qty 3, evidence "300" para total 300, evidence "Carlos" para customer). NUNCA inventes evidence para un número que calculaste tú. Si no puedes señalar palabras reales que respalden un campo, NO incluyas ese campo - no adivines, no uses precios típicos. Los "value" de qty, price y total deben ser números simples. Ignora palabras de ruido que no encajan con ningún producto.
 Responde SOLO con un arreglo JSON crudo, sin prosa, sin marcas de código, sin campos extra. Si no hay nada extraíble, responde [].
 Si alguien le debe al dueño y no se dijo un nombre (por ejemplo "un cliente me debe 20 dólares"), igual devuelve debt_in usando la palabra exacta dicha para la persona, como "cliente".
+La gente habla en fragmentos: "caramelos 3 verdes" es una venta de caramelos por 3 dólares (un número seguido de dólares/verdes/bolos/bs es el PRECIO, nunca la cantidad); "vendí aguacates 8 y mango 12" son DOS ventas; "compré / pagué / gasté" = expense; "abonó / me pagó / pagó lo que debía" = debt_in con ese monto; "Nequi, pago móvil, zelle, transferencia, efectivo" son formas de pago, nunca artículos ni personas; si la frase termina con "eran N" / "fueron N" / "total N", N es el precio y el monto anterior fue un abono parcial.
 Ejemplos, uno por tipo - todos los tipos son igual de probables, NO asumas que es una venta:
 [{"type":"sale","item":{"value":"arroz","evidence":"arroz"},"qty":{"value":5,"evidence":"cinco"},"price":{"value":2,"evidence":"dos dólares"}}]
 [{"type":"sale","item":{"value":"camisas","evidence":"camisas"},"qty":{"value":2,"evidence":"dos"},"total":{"value":30,"evidence":"30"}}]
@@ -1005,6 +1006,9 @@ const EXTRACT_SYSTEM_PROMPT_ES_CO = `Lees una transcripción de voz, posiblement
 REGLA CRÍTICA: cada campo excepto "type" debe ser un objeto {"value": ..., "evidence": "..."}, donde "evidence" es el fragmento EXACTO copiado palabra por palabra de la transcripción en el que se basa el valor. NUNCA inventes evidence para un número que calculaste tú. Si no puedes señalar palabras reales que respalden un campo, NO incluyas ese campo. Los "value" de qty, price y total deben ser números simples. Ignora palabras de ruido.
 Responde SOLO con un arreglo JSON crudo, sin prosa, sin marcas de código, sin campos extra. Si no hay nada extraíble, responde [].
 Si alguien le debe al dueño y no se dijo un nombre, igual devuelve debt_in usando la palabra exacta dicha para la persona, como "cliente" o "la señora".
+La gente habla en fragmentos: "huevos 15000" es una venta de huevos por 15000 (un número seguido de pesos/lucas/mil es el PRECIO, nunca la cantidad); "vendí aguacates 8000 y mango 12000" son DOS ventas; "compré / me traje / pedí / me surtí / pagué / gasté" = expense; "abonó / me pagó / me pagó por Nequi / se puso al día" = debt_in con ese monto; "Nequi, Daviplata, Bancolombia, transferencia, efectivo" son formas de pago, nunca artículos ni personas; "9 mil la libra" = precio por unidad; si la frase termina con "eran N" / "fueron N" / "total N", N es el precio y el monto anterior fue un abono parcial.
+[{"type":"debt_in","customer":{"value":"Yorbelis","evidence":"Yorbelis"},"price":{"value":30000,"evidence":"abonó 30000"}}]
+[{"type":"expense","item":{"value":"panela","evidence":"arroba de panela"},"price":{"value":40000,"evidence":"en 40000"}}]
 Ejemplos, uno por tipo - todos los tipos son igual de probables, NO asumas que es una venta:
 [{"type":"sale","item":{"value":"camisas","evidence":"camisas"},"qty":{"value":5,"evidence":"5"},"price":{"value":10000,"evidence":"de a 10000"}}]
 [{"type":"sale","item":{"value":"camisas","evidence":"camisas"},"qty":{"value":5,"evidence":"5"},"total":{"value":40000,"evidence":"en 40000"}}]
@@ -1022,7 +1026,13 @@ const EXTRACT_SYSTEM_PROMPT = `You read a rough, possibly messy speech-to-text t
 CRITICAL RULE: every field except "type" must be an object of the form {"value": ..., "evidence": "..."}, where "evidence" is the EXACT short substring copied word-for-word from the transcript that this value is based on (e.g. evidence "three" for qty 3, evidence "300" for total 300, evidence "Kwame" for customer). NEVER invent evidence text for a number you calculated yourself (like a divided-out per-unit price) - only use evidence for words that were ACTUALLY spoken. If you cannot point to actual words in the transcript supporting a field, DO NOT include that field at all - do not guess, do not use general knowledge about typical prices. qty, price, and total "value" must be plain numbers. Ignore transcription noise words that don't fit any product (like a stray "cds" or "think" with no context) - do not turn noise into a fabricated item.
 Respond with ONLY a raw JSON array, no prose, no markdown fences, no extra fields beyond what's listed above. If nothing extractable, respond with [].
 If someone owes the owner money and no personal name was said (e.g. "a customer owes me 80 cedis"), still return debt_in and use the exact word that was spoken for the person, such as "customer".
+People talk in fragments, not sentences: "pepper 25" = a sale of pepper for 25 cedis (a single number after an item with no count word is the MONEY, never the quantity); "Kofi 200" = Kofi owes 200; "transport 15" / "chop money 20" / "market toll 2" = expenses; "bought / I buy / pay / paid for / me to (Twi)" = expense; "me ton" (Twi) = I sold; "tua me" = paid me; "go pay tomorrow" / "on credit" / "take ... he go pay" = the customer owes; "I take ... from X on credit" = I owe X; "passengers today 240" = a sale of 240; a number followed by "each" is the per-unit price; "3 tins 45" with no "each" is qty 3 and total 45.
 Examples, one per type - every type below is equally likely, do NOT assume an utterance is a sale:
+[{"type":"sale","item":{"value":"pepper","evidence":"pepper"},"price":{"value":25,"evidence":"25 cds"}}]
+[{"type":"sale","item":{"value":"rice","evidence":"rice"},"qty":{"value":4,"evidence":"4 bags"},"price":{"value":120,"evidence":"120 each"}}]
+[{"type":"expense","item":{"value":"stock","evidence":"bought stock"},"price":{"value":400,"evidence":"400"}}]
+[{"type":"expense","item":{"value":"chop money","evidence":"chop money"},"price":{"value":20,"evidence":"20"}}]
+[{"type":"debt_in","customer":{"value":"Yaw","evidence":"Yaw"},"price":{"value":25,"evidence":"25"},"note":{"value":"oil","evidence":"oil"}}]
 [{"type":"sale","item":{"value":"rice","evidence":"rice"},"qty":{"value":5,"evidence":"five"},"price":{"value":10,"evidence":"ten cedis"}}]
 [{"type":"sale","item":{"value":"bags","evidence":"bags"},"qty":{"value":2,"evidence":"two"},"total":{"value":300,"evidence":"300"}}]
 [{"type":"expense","item":{"value":"transport","evidence":"transport"},"price":{"value":35,"evidence":"35 cedis"}}]
@@ -1166,7 +1176,12 @@ function valueGroundedInTranscript(value, transcriptNorm) {
 // evidence check alone let that through because the word really was said.
 function twiEvidenceValue(evidence) {
   const IGNORE = new Set(['cedis', 'cedi', 'ghs', 'cds', 'cd', 'ma', 'no', 'ye', 'yee', 'ne']);
-  const toks = normalizeForMatch(evidence).split(' ').filter(t => t && !IGNORE.has(t));
+  const all = normalizeForMatch(evidence).split(' ').filter(t => t);
+  // "baako cedis aduonu" is 1 thing at 20, not 21: a currency word between
+  // number words splits the run, and a split run is not one value.
+  let seenNum = false;
+  for (const t of all) { if (IGNORE.has(t) && seenNum) return undefined; if (Object.prototype.hasOwnProperty.call(TWI_NUMBERS, t)) seenNum = true; }
+  const toks = all.filter(t => !IGNORE.has(t));
   if (!toks.length) return undefined;
   let sum = 0;
   for (const t of toks) {
@@ -1284,8 +1299,8 @@ function buildCleanEvents(rawEvents, getField) {
 // "de me ka", "dey owe me" -> they owe her. If the transcript says one and
 // the model said the other, the model is corrected. If it says neither, the
 // model's call stands.
-const OWED_BY_ME = /\b(i|we)\s+(still\s+|also\s+)?owe\b(?!\s+me\b)/;
-const OWED_TO_ME = /\b(owes?\s+me|de\s+me\s+ka|dey\s+owe\s+me|owing\s+me)\b/;
+const OWED_BY_ME = /\b(i|we)\s+(still\s+|also\s+)?owe\b(?!\s+me\b)|\b(i|we)\s+(take|took|collect|buy|bought)\b.*\bon credit\b/;
+const OWED_TO_ME = /\b(owes?\s+me|de\s+me\s+ka|dey\s+owe\s+me|owing\s+me|go pay|will pay|pay me (later|tomorrow|next week)|pay (later|tomorrow|next week)|(take|took|collect|carry)\b.*\bon credit)\b/;
 function debtDirection(transcriptNorm) {
   const byMe = OWED_BY_ME.test(transcriptNorm);
   const toMe = OWED_TO_ME.test(transcriptNorm);
@@ -1418,9 +1433,75 @@ function colombianMoneyToDigits(text) {
   t = t.replace(/\b(\d{1,2})\s+(\d{2,3})\b(?!\s*(?:mil|pesos|lucas|d[o\u00f3]lares))/g, (m, a, b) => (Number(b) < 1000 && Number(a) < 100) ? String(Number(a) * 1000 + Number(b)) : m);
   return t;
 }
+// Spanish pre-pass (17 Sep, from the stress test): digits + mil/lucas,
+// diminutives, and payment-method phrases that the model turned into items.
+function spanishPrep(text, country) {
+  let t = String(text || '');
+  t = t.replace(/\b(\d+(?:[.,]\d+)?)\s*mil\b/gi, (m, n) => String(Math.round(parseFloat(n.replace(',', '.')) * 1000)));
+  if (country === 'CO') t = t.replace(/\b(\d+)\s*(lucas?|barras)\b/gi, (m, n) => String(Number(n) * 1000) + ' pesos');
+  t = t.replace(/\b(un|1)\s+(dolar|d\u00f3lar)(c)?ito\b/gi, '1 d\u00f3lar').replace(/\b(\d+)\s+(dolar|d\u00f3lar)(c)?itos\b/gi, '$1 d\u00f3lares').replace(/\bbolitos?\b/gi, 'bol\u00edvares');
+  t = t.replace(/\b(por|con|en)\s+(nequi|daviplata|bancolombia|pago\s+m[o\u00f3]vil|zelle|transferencia|efectivo|binance|usdt)\b/gi, '');
+  return t;
+}
+const PAY_METHOD_WORDS = /^(nequi|daviplata|bancolombia|pago m[o\u00f3]vil|zelle|transferencia|efectivo|binance|usdt|momo|cash)$/i;
+const PRONOUN_NAMES = new Set(['am', 'e', 'im', 'dem', 'me', 'he', 'she', 'him', 'her', 'them', 'you', 'i', 'we', 'it', 'they', 'el', 'ella', 'ellos', 'le', 'la', 'lo', 'a']);
+const COUNT_WORDS = /\b(bags?|baskets?|tins?|yards?|pieces?|crates?|bunches?|boxes?|cups?|olonka|bowls?|kilos?|kg|libras?|bultos?|arrobas?|cajas?|docenas?|paquetes?|sacos?|cartones?)\b/i;
+const EXPENSE_LEAD = /^\s*(i\s+|we\s+)?(bought|buy|pay|paid|spend|spent|me\s+to|compr[e\u00e9]|pagu[e\u00e9]|gast[e\u00e9]|me\s+traje|ped[i\u00ed])\b/i;
+const EXPENSE_WORDS = /\b(chop money|market toll|toll|fare|trotro|fuel|petrol|diesel|transport|transporte|rent|arriendo|alquiler|airtime|light bill|water bill|electricity|la luz|el agua|pasaje|gasolina)\b/i;
+// Deterministic rules after the model, for the ways people actually talk.
+function fragmentRules(clean, text, lang, country) {
+  const raw = String(text || '');
+  const tt = raw.toLowerCase();
+  const nums = (tt.match(/\d+(?:[.,]\d+)?/g) || []).map(x => Number(x.replace(',', '.')));
+  const eachM = /(\d+(?:[.,]\d+)?)\s*(?:cedis|cds|ghs|sadis|sities|sedis|sidis|d[o\u00f3]lares|pesos|bs|bol[i\u00ed]vares)?\s+(each|cada un[oa]|la libra|el kilo|la unidad)\b/i.exec(tt);
+  const totalM = /\b(eran|fueron|total|en total)\s+(\d+(?:[.,]\d+)?)\s*$/i.exec(tt.trim());
+  return clean.map(e0 => {
+    const e = Object.assign({}, e0);
+    const name = String(e.item || e.customer || e.supplier || '').trim();
+    // payment words are never things or people
+    if (PAY_METHOD_WORDS.test(name)) { delete e.item; delete e.customer; delete e.supplier; }
+    // pronouns are not names
+    if (e.customer && PRONOUN_NAMES.has(String(e.customer).toLowerCase())) e.customer = 'customer';
+    if (e.supplier && PRONOUN_NAMES.has(String(e.supplier).toLowerCase())) e.supplier = 'supplier';
+    // "N each" is the unit price
+    if (eachM && e.qty && (e.type === 'sale' || e.type === 'expense')) e.price = Number(eachM[1].replace(',', '.'));
+    // a lone number after an item is money, not a count
+    if (e.type === 'sale' && e.price === undefined && e.qty !== undefined && nums.length === 1) {
+      const idx = tt.indexOf(String(nums[0]));
+      const before = idx >= 0 ? tt.slice(Math.max(0, idx - 24), idx) : '';
+      const after = idx >= 0 ? tt.slice(idx, idx + 18) : '';
+      if (!COUNT_WORDS.test(before) && !COUNT_WORDS.test(after)) { e.price = e.qty; delete e.qty; }
+    }
+    // expense verbs and expense things
+    if (e.type === 'sale' && (EXPENSE_LEAD.test(raw) || EXPENSE_WORDS.test(tt))) {
+      e.type = 'expense';
+      if (e.price === undefined && e.qty !== undefined) { e.price = e.qty; delete e.qty; }
+    }
+    // "... y el resto por Nequi, eran 15": the total is the amount
+    if (totalM && e.price !== undefined) { const tot = Number(totalM[2].replace(',', '.')); if (tot > e.price) e.price = tot; }
+    return e;
+  }).filter(e => e.item || e.customer || e.supplier);
+}
+// English fallbacks when the model returned nothing
+function expenseFallback(text) {
+  const m = /^\s*(chop money|market toll|toll|fare|trotro fare|fuel|transport|rent|airtime|light bill|water bill)\s+(?:cedis\s+)?(\d{1,7})/i.exec(String(text || ''));
+  if (m) return [{ type: 'expense', item: m[1].toLowerCase(), price: Number(m[2]) }];
+  return [];
+}
+function twiFallback(transcriptNorm) {
+  const sums = twiRunSums(transcriptNorm);
+  if (!sums.length) return [];
+  const IGN = new Set(['cedis', 'cedi', 'ghs', 'cds', 'cd', 'ma', 'no', 'ye', 'yee', 'ne', 'me', 'ton', 'to', 'sales', 'today']);
+  const item = transcriptNorm.split(' ').filter(tok => tok && !IGN.has(tok) && !Object.prototype.hasOwnProperty.call(TWI_NUMBERS, tok)).join(' ').trim();
+  const type = /\bme to\b/.test(transcriptNorm) ? 'expense' : 'sale';
+  const ev = { type, item: item || 'sales', price: sums[0] };
+  if (sums.length > 1 && type === 'sale') ev.qty = sums[sums.length - 1];
+  return [ev];
+}
 function mentionsANumber(text) {
   const t = String(text || '').toLowerCase();
   if (/\d/.test(t)) return true;
+  if (Object.keys(TWI_NUMBERS).some(w => new RegExp('\\b' + w + '\\b').test(t))) return true;
   if (/\b(uno|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|once|doce|quince|veinte|treinta|cuarenta|cincuenta|cien|ciento|quinientos|mil|lucas?|palo|millon|millones)\b/.test(foldAccents(t))) return true;
   return /\b(one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand)\b/.test(t);
 }
@@ -1428,7 +1509,7 @@ function mentionsANumber(text) {
 async function runExtractionModel(text, env, temperature, lang, country) {
   // Spanish gets the 8B model (fp8-fast: cheaper than the plain 8B and far
   // better than 3B on two-event sentences); English keeps the tested 3B path.
-  return env.AI.run(lang === 'es' ? '@cf/meta/llama-3.1-8b-instruct-fp8-fast' : '@cf/meta/llama-3.2-3b-instruct', {
+  return env.AI.run('@cf/meta/llama-3.1-8b-instruct-fp8-fast', {
     messages: [
       { role: 'system', content: lang === 'es' ? (country === 'CO' ? EXTRACT_SYSTEM_PROMPT_ES_CO : EXTRACT_SYSTEM_PROMPT_ES) : EXTRACT_SYSTEM_PROMPT },
       { role: 'user', content: text }
@@ -1464,7 +1545,7 @@ async function extractFromText(text, env, lang, country) {
   // extracted" - the merchant can still fill fields in manually either way.
   let events = [];
   const respField = result && result.response;
-  if (lang === 'es') console.log('extract-es raw', { kind: Array.isArray(respField) ? 'array' : typeof respField, head: (typeof respField === 'string' ? respField : JSON.stringify(respField || '')).slice(0, 160) });
+
   if (Array.isArray(respField)) {
     events = respField;
   } else if (typeof respField === 'string') {
@@ -1503,12 +1584,11 @@ async function extractFromText(text, env, lang, country) {
     }
   }
 
+  clean = fragmentRules(clean, text, lang, country);
   if (clean.length === 0) clean = lang === 'es' ? debtFallbackEs(text) : debtFallback(text);
-  if (lang === 'es') {
-    const esc = x => JSON.stringify(x).replace(/[^\x20-\x7e]/g, c => '\\u' + c.charCodeAt(0).toString(16).padStart(4, '0'));
-    const first = Array.isArray(respField) && respField[0] ? respField[0] : null;
-    console.log('extract-es stages', { rawN: Array.isArray(respField) ? respField.length : -1, cleanN: clean.length, names: esc(clean.map(e => e.item || e.customer || e.supplier || '')), rawName: esc(first && (first.customer || first.item || first.supplier) || ''), tn: esc(normalizeForMatch(text)), textCp: esc(String(text).slice(0, 30)), selfTest: esc(foldAccents('María dólares')), mapHas: esc(Object.keys(ACCENT_MAP).slice(0, 3)) });
-  }
+  if (clean.length === 0 && lang !== 'es') clean = expenseFallback(text);
+  if (clean.length === 0 && lang !== 'es') clean = twiFallback(normalizeForMatch(text));
+  console.log('extract', { lang, country: country || '', rawN: Array.isArray(respField) ? respField.length : -1, cleanN: clean.length });
   if (lang === 'es') {
     const tt = String(text).toLowerCase();
     // A name of one or two letters is a preposition the model grabbed
@@ -1636,8 +1716,8 @@ async function handleExtract(request, env) {
   if (!text) return cors(new Response(JSON.stringify({ error: 'no text received' }), { status: 400 }));
   const lang = (body && body.lang) === 'es' ? 'es' : 'en';
   const country = String((body && body.country) || '').toUpperCase().slice(0, 2);
-  if (lang === 'es') { text = spanishNumbersToDigits(text); if (country === 'CO') text = colombianMoneyToDigits(text); }
-  const result = await extractFromText(text, env, lang, country);
+  if (lang === 'es') { text = spanishNumbersToDigits(text); if (country === 'CO') text = colombianMoneyToDigits(text); text = spanishPrep(text, country); }
+  const result = (lang === 'es' && /^\s*[\u00bf]?\s*(a c[o\u00f3]mo|cu[a\u00e1]nt[oa]s?|qui[e\u00e9]n|qu[e\u00e9])\b/i.test(text) && !/\d/.test(text)) ? { events: [] } : await extractFromText(text, env, lang, country);
   if (result.error) {
     return cors(new Response(JSON.stringify({ error: result.error, detail: result.detail }), { status: 502 }));
   }
@@ -1690,8 +1770,8 @@ async function handleTranscribeAndExtract(request, env) {
   if (!text.trim()) {
     return cors(new Response(JSON.stringify({ text: '', events: [] }), { headers: { 'Content-Type': 'application/json' } }));
   }
-  if (lang === 'es') { text = spanishNumbersToDigits(text); if (country === 'CO') text = colombianMoneyToDigits(text); }
-  const extracted = await extractFromText(text, env, lang, country);
+  if (lang === 'es') { text = spanishNumbersToDigits(text); if (country === 'CO') text = colombianMoneyToDigits(text); text = spanishPrep(text, country); }
+  const extracted = (lang === 'es' && /^\s*[\u00bf]?\s*(a c[o\u00f3]mo|cu[a\u00e1]nt[oa]s?|qui[e\u00e9]n|qu[e\u00e9])\b/i.test(text) && !/\d/.test(text)) ? { events: [] } : await extractFromText(text, env, lang, country);
   return cors(new Response(JSON.stringify({ text, events: extracted.events || [] }), {
     headers: { 'Content-Type': 'application/json' }
   }));
