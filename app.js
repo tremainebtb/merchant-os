@@ -920,7 +920,13 @@ function speakVoiceReview(events) {
     // "Saved" is only ever spoken for an entry that really has a saved id.
     // A complete entry with no id means the save itself failed - say so,
     // never announce a save that did not happen.
-    if (ev._savedId) { lines.push(t(`Saved: ${entry.item}, ${fmtSay(entry.amount, entry.cur)}.`, `Guardado: ${entry.item}, ${fmtSay(entry.amount, entry.cur)}.`)); return; }
+    if (ev._savedId) {
+      if (entry.type === 'debt_in') lines.push(t(`Saved. ${entry.item} owes you ${fmtSay(entry.amount, entry.cur)}.`, `Guardado. ${entry.item} te debe ${fmtSay(entry.amount, entry.cur)}.`));
+      else if (entry.type === 'debt_out') lines.push(t(`Saved. You owe ${entry.item} ${fmtSay(entry.amount, entry.cur)}.`, `Guardado. Le debes ${fmtSay(entry.amount, entry.cur)} a ${entry.item}.`));
+      else if (entry.type === 'expense') lines.push(t(`Saved: ${fmtSay(entry.amount, entry.cur)} spent on ${entry.item}.`, `Guardado: ${fmtSay(entry.amount, entry.cur)} en ${entry.item}.`));
+      else lines.push(t(`Saved: ${entry.item}, ${fmtSay(entry.amount, entry.cur)}.`, `Guardado: ${entry.item}, ${fmtSay(entry.amount, entry.cur)}.`));
+      return;
+    }
     if (!missing) { lines.push(t(`I heard ${entry.item}, ${fmtSay(entry.amount, entry.cur)}, but could not save it - please tap Save below.`, `Escuch\u00e9 ${entry.item}, ${fmtSay(entry.amount, entry.cur)}, pero no pude guardarlo. Toca Guardar abajo.`)); return; }
     if (missing === 'item') lines.push(t('I heard an amount but not what it was for - please type that in below.', 'Escuch\u00e9 un monto pero no de qu\u00e9 era. Escr\u00edbelo abajo, por favor.'));
     else if (missing === 'qty') lines.push(t(`I heard ${entry.item} but not how many - please type it in below.`, `Escuch\u00e9 ${entry.item} pero no cu\u00e1ntos. Escr\u00edbelo abajo, por favor.`));
@@ -1030,6 +1036,8 @@ async function applyVoicePayment(p) {
   return t(`${spoken} paid ${fmtSay(amount, cur)}. ${spoken} still owes ${fmtSay(stillOwed, cur)}.`, `${spoken} pag\u00f3 ${fmtSay(amount, cur)}. Todav\u00eda debe ${fmtSay(stillOwed, cur)}.`);
 }
 let voiceSpeechPrefix = '';
+let seeOpen = false;
+let hasAnyRecord = false;
 async function autoSaveReadyEvents(events) {
   const saved = [];
   for (const ev of events) {
@@ -1805,9 +1813,10 @@ async function render() {
   // Sep). A card of zeros and an empty 'Recent' answered a question she had
   // not asked yet; both appear the moment there is something to show.
   const firstUse = entries.length === 0;
-  document.querySelector('.today').hidden = firstUse;
-  document.querySelector('.hist-label').hidden = firstUse;
-  document.getElementById('history').hidden = firstUse;
+  hasAnyRecord = !firstUse;
+  document.querySelector('.today').hidden = firstUse || !seeOpen;
+  document.querySelector('.hist-label').hidden = firstUse || !seeOpen;
+  document.getElementById('history').hidden = firstUse || !seeOpen;
   // Same rule, two more places (15 Sep): the camera is a second way to do
   // the thing she has not yet done once, and "backed up / lost your phone"
   // is about records that do not exist yet. Nine lines on first use became
@@ -2646,7 +2655,7 @@ function renderInstallBanner() {
   if (!box) return;
   let snoozed = 0;
   try { snoozed = Number(localStorage.getItem('kym_install_later') || 0); } catch (e) { /* optional */ }
-  const hasRecord = !document.querySelector('.today').hidden;
+  const hasRecord = hasAnyRecord;
   box.hidden = !(deferredInstall && hasRecord && !isStandalone() && Date.now() - snoozed > 7 * 86400000);
 }
 document.getElementById('installBtn').addEventListener('click', async () => {
@@ -2727,7 +2736,9 @@ document.getElementById('seeBtn').addEventListener('click', async () => {
   track('see_business');
   const entries = await getAllEntries();
   if (!entries.length) { speakShort(t('Nothing recorded yet. Tap Tell CountMy and say what happened.', 'Todav\u00eda no hay nada anotado. Toca Cu\u00e9ntale a CountMy y di qu\u00e9 pas\u00f3.')); return; }
-  const card = document.querySelector('.today'); card.hidden = false;
+  seeOpen = true;
+  await render();
+  const card = document.querySelector('.today');
   card.scrollIntoView({ behavior: 'smooth', block: 'start' });
 });
 document.querySelectorAll('.ts-tile').forEach(tile => tile.addEventListener('click', () => document.getElementById('seeBtn').click()));

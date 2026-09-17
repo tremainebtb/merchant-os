@@ -56,7 +56,7 @@
      app.js?v=. Lets anyone - a reviewer, a tester in Kumasi, a future session -
      answer "which CountMy am I looking at?" from view-source or the console,
      the same way the Worker answers with "wv". -->
-<meta name="countmy-version" content="v105">
+<meta name="countmy-version" content="v106">
 <!-- Real finding, 28 Aug: the bare "CountMy" title carried no keywords at all
      for what people actually search - a free sales/expense ledger for
      Ghanaian shop owners. The <title> tag is the single strongest on-page
@@ -446,7 +446,13 @@ input[type="number"]{-moz-appearance:textfield}
 .ts-tiles{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
 .ts-tile{border:none;border-radius:14px;padding:12px 10px 10px;text-align:left;display:flex;flex-direction:column;gap:4px;cursor:pointer;font-family:inherit;color:var(--ink);min-width:0}
 .ts-in{background:var(--leaf-soft)}.ts-out{background:var(--flame-soft)}.ts-owe{background:var(--steel-soft)}
-.ts-label{font-size:.78rem;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.03em;line-height:1.15;min-height:2.3em;display:flex;align-items:flex-end}
+.ts-ico{width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--surface);margin-bottom:2px}
+.ts-ico svg{width:16px;height:16px}
+.ts-in .ts-ico{color:var(--leaf-deep)}.ts-out .ts-ico{color:var(--flame-deep)}.ts-owe .ts-ico{color:var(--navy)}
+.sb-ico{width:30px;height:30px;border-radius:9px;display:flex;align-items:center;justify-content:center;margin-bottom:4px}
+.sb-ico svg{width:19px;height:19px}
+#askBtn .sb-ico{background:var(--flame-soft);color:var(--flame-deep)}#seeBtn .sb-ico{background:var(--steel-soft);color:var(--navy)}
+.ts-label{font-size:.78rem;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.03em;line-height:1.15;min-height:1.15em;display:flex;align-items:flex-end}
 .ts-num{font-family:"Manrope",sans-serif;font-weight:800;font-size:1.25rem;line-height:1.1;word-break:break-word}
 .ts-in .ts-num{color:var(--leaf-deep)}.ts-out .ts-num{color:var(--flame-deep)}.ts-owe .ts-num{color:var(--navy)}
 .ts-sub{font-size:.8rem;color:var(--ink-soft);min-height:1em}
@@ -624,9 +630,9 @@ input[type="number"]{-moz-appearance:textfield}
   <div class="today-strip" id="todayStrip" role="group" aria-label="Today">
     <div class="ts-head"><span class="ts-title">Today</span><span class="ts-date" id="tsDate"></span></div>
     <div class="ts-tiles">
-      <button type="button" class="ts-tile ts-in" data-goto="today"><span class="ts-label">Money in</span><span class="ts-num" id="tsIn" data-clarity-mask="True">0 cedis</span><span class="ts-sub" id="tsInSub"></span></button>
-      <button type="button" class="ts-tile ts-out" data-goto="today"><span class="ts-label">Money out</span><span class="ts-num" id="tsOut" data-clarity-mask="True">0 cedis</span><span class="ts-sub" id="tsOutSub"></span></button>
-      <button type="button" class="ts-tile ts-owe" data-goto="history"><span class="ts-label">Owed to you</span><span class="ts-num" id="tsOwe" data-clarity-mask="True">0 cedis</span><span class="ts-sub" id="tsOweSub"></span></button>
+      <button type="button" class="ts-tile ts-in" data-goto="today"><span class="ts-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg></span><span class="ts-label">Money in</span><span class="ts-num" id="tsIn" data-clarity-mask="True">0 cedis</span><span class="ts-sub" id="tsInSub"></span></button>
+      <button type="button" class="ts-tile ts-out" data-goto="today"><span class="ts-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12l7 7 7-7"/></svg></span><span class="ts-label">Money out</span><span class="ts-num" id="tsOut" data-clarity-mask="True">0 cedis</span><span class="ts-sub" id="tsOutSub"></span></button>
+      <button type="button" class="ts-tile ts-owe" data-goto="history"><span class="ts-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.2"/><path d="M3.5 19a5.5 5.5 0 0 1 11 0"/><circle cx="17" cy="9" r="2.5"/><path d="M15.5 14.2a4.5 4.5 0 0 1 5 4.3"/></svg></span><span class="ts-label">Owed to you</span><span class="ts-num" id="tsOwe" data-clarity-mask="True">0 cedis</span><span class="ts-sub" id="tsOweSub"></span></button>
     </div>
   </div>
   <div class="ask-line">What happened in your business today?</div>
@@ -659,8 +665,8 @@ input[type="number"]{-moz-appearance:textfield}
   </div>
   <div id="homeMicStatus" class="home-mic-status" aria-live="polite"></div>
   <div class="second-row">
-    <button type="button" class="second-btn" id="askBtn"><span class="sb-title">Ask CountMy</span><span class="sb-sub">&ldquo;Who owes me?&rdquo; &ldquo;What did I sell?&rdquo;</span></button>
-    <button type="button" class="second-btn" id="seeBtn"><span class="sb-title">See my business</span><span class="sb-sub">Today and all your records</span></button>
+    <button type="button" class="second-btn" id="askBtn"><span class="sb-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3h11A2.5 2.5 0 0 1 20 5.5v8a2.5 2.5 0 0 1-2.5 2.5H10l-5 4v-4H6.5A2.5 2.5 0 0 1 4 13.5v-8Z"/><path d="M9.5 8.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .8-1 1.4M12 14.5h.01"/></svg></span><span class="sb-title">Ask CountMy</span><span class="sb-sub">&ldquo;Who owes me?&rdquo; &ldquo;What did I sell?&rdquo;</span></button>
+    <button type="button" class="second-btn" id="seeBtn"><span class="sb-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16v16H4z"/><path d="M8 9h8M8 13h8M8 17h5"/></svg></span><span class="sb-title">See my business</span><span class="sb-sub">Today and all your records</span></button>
   </div>
   <div class="mic-lang-line">English &middot; Twi &middot; Pidgin</div>
   <div id="voiceReview" class="voice-review">
@@ -1020,7 +1026,7 @@ input[type="number"]{-moz-appearance:textfield}
      string is what forces a fresh script fetch even before any service worker logic
      runs, independent of it. Found live 27 Aug: without this, an already-visited
      browser can keep running old code from plain HTTP cache regardless of SW strategy. -->
-<script src="app.js?v=105"></script>
+<script src="app.js?v=106"></script>
 
 </body>
 </html>
