@@ -974,7 +974,7 @@ async function handleTranscribe(request, env) {
 // 50 is a transcription/parsing error, not a fabrication) - evidence-checking
 // targets fabrication specifically, not every possible error; the review UI is
 // still what catches a wrong-but-grounded number.
-const WORKER_VERSION = 'w54';
+const WORKER_VERSION = 'w55';
 
 // Spanish (Venezuela) twin of EXTRACT_SYSTEM_PROMPT below: same event types,
 // same {value, evidence} rule, same JSON-only answer. Amounts are bare
@@ -1535,6 +1535,12 @@ function fragmentRules(clean, text, lang, country) {
     }
     // "sales today 130" / "sold fuel 200" with nothing numeric returned: the one number is the money
     if (e.type === 'sale' && e.price === undefined && e.qty === undefined && nums.length === 1) e.price = nums[0];
+    // "momo received 50 from Ama": money came in from Ama
+    if (e.type === 'debt_out' && /\breceived\b.*\bfrom\b/.test(tt)) { e.type = 'debt_in'; e.customer = e.supplier; delete e.supplier; }
+    // "3 baskets of tomatoes": the goods are the item, the container is the count
+    if (e.item && COUNT_WORDS.test(e.item)) { const g = new RegExp(String(e.item).toLowerCase() + '\\s+(?:of\\s+)?,?\\s*([a-z\u00e1\u00e9\u00ed\u00f3\u00fa\u00f1]+)').exec(tt); if (g && !COUNT_WORDS.test(g[1]) && !/^\d/.test(g[1])) e.item = g[1]; }
+    // "le fié a Yusmary 2 jabones 3 dólares": what was fiao goes in the note
+    if (lang === 'es' && e.type === 'debt_in' && !e.note) { const n = /\b(\d+)\s+([a-z\u00e1\u00e9\u00ed\u00f3\u00fa\u00f1]+)\s*,?\s*\d+\s*(?:d[o\u00f3]lares|pesos|bs|bol[i\u00ed]vares|verdes|bolos)/i.exec(tt); if (n && !isNaN(Number(n[1]))) e.note = n[1] + ' ' + n[2]; }
     // "Adwoa paid me back 50": money came IN from a customer
     if (e.type === 'debt_out' && /\b(paid|pay|give|gave|dash)\s+me\b/.test(tt) && !/\b(i|we)\s+(paid|pay|owe)\b/.test(tt)) { e.type = 'debt_in'; e.customer = e.supplier; delete e.supplier; }
     // "me pagaron 200 de una arepa" is a sale of an arepa
@@ -1611,12 +1617,21 @@ function repairTranscript(text, lang, country) {
     t = t.replace(/\bde\s+alias\b/gi, 'de a').replace(/\bde\s+a\s+lias\b/gi, 'de a');
     t = t.replace(/\blucas?\b/gi, m => m.toLowerCase());
     t = t.replace(/\b(quedo|qued\u00f3)\s+de\s+viendo\b/gi, 'qued\u00f3 debiendo');
+    t = t.replace(/\b(bi-?es|b\.s\.|bes)\b/gi, 'bs');
+    t = t.replace(/\bme\s+pararon\s+(\d)/gi, 'me pagaron $1');
+    t = t.replace(/\b(daste|gaste|gasté)\s+(\d)/gi, 'gast\u00e9 $2');
     // a trailing "a" / "a." after an amount is the voice's own breath, not a word
     t = t.replace(/(\d)\s+a\s*\.?\s*$/i, '$1');
     if (country === 'CO') t = t.replace(/\bpesos?\b/gi, 'pesos');
   } else {
     t = t.replace(/\b(studies|sities|sadis|sedis|sidis|cedes|ceedis|seedies|cds|cd|cidis|cities)\b/gi, 'cedis');
-    t = t.replace(/\bjob money\b/gi, 'chop money').replace(/\bchopmoney\b/gi, 'chop money');
+    t = t.replace(/\b(job|shop|chap|chob) money\b/gi, 'chop money').replace(/\bchopmoney\b/gi, 'chop money');
+    t = t.replace(/\b(blatt|bot|bord|bout|board)\s?stock\b/gi, 'bought stock');
+    t = t.replace(/\b(uma|umo|momu|mumu)\s+(received|sent|paid)\b/gi, 'momo $2');
+    t = t.replace(/\b(tractual|tro tro|trotro|trot row|troto)\s+(fair|fare|fear)\b/gi, 'trotro fare');
+    t = t.replace(/\bhigo\s+pay\b/gi, 'he go pay').replace(/\bshe go\s+pay\b/gi, 'she go pay');
+    t = t.replace(/\bfree\s+(baskets?|bags?|crates?|tins?|yards?|pieces?|bunches?|boxes?)\b/gi, '3 $1');
+    t = t.replace(/\b(air time|hair time|our time|airtime)\b/gi, 'airtime');
     t = t.replace(/\bmo\s?mo\b/gi, 'momo');
     // "$1.20 each" is Whisper turning "one twenty" into a price: the digits are the amount
     t = t.replace(/\$\s?(\d+)\.(\d{2})\b/g, (m, a, b) => String(Number(a + b)));
@@ -1870,6 +1885,13 @@ async function handleExtract(request, env) {
 // extraction still returns whatever succeeded so the client's existing
 // fallback logic (parseHeardText) has something to work with.
 async function handleTranscribeAndExtract(request, env) {
+  try { return await handleTranscribeAndExtractInner(request, env); }
+  catch (err) {
+    console.log('transcribe THREW', { err: String(err).slice(0, 200), stack: String(err && err.stack || '').slice(0, 600) });
+    return cors(new Response(JSON.stringify({ text: '', events: [], error: 'voice hiccup' }), { status: 502, headers: { 'Content-Type': 'application/json' } }));
+  }
+}
+async function handleTranscribeAndExtractInner(request, env) {
   if (!env.AI) {
     return cors(new Response(JSON.stringify({ error: 'transcription not configured yet' }), { status: 503 }));
   }

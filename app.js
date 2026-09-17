@@ -681,6 +681,9 @@ async function transcribeAndExtract(blob) {
   let res, data;
   try {
     ({ res, data } = await postToApi('/transcribe-and-extract', form));
+    // One quiet retry on a server hiccup (a rare Cloudflare 1101 was seen on
+    // 17 Sep); the person never hears about a failure that heals in 2 s.
+    if (res && res.status >= 500) { track('mic_retry', { http: res.status }); ({ res, data } = await postToApi('/transcribe-and-extract', form)); }
   } catch (err) {
     // 17 Sep: a fetch that never reached the server is a data/connection
     // problem, not "could not hear" - say so, and count it separately.
