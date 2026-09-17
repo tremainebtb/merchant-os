@@ -623,7 +623,9 @@ function wordsToNumber(text) {
 const DISFLUENCY = /\b(um+|uh+|erm+|ehm+|hmm+|like|actually|basically|so|yeah|yep|okay|ok|please|thanks|thank you|hello|hi|today|i think|i mean|you know|kind of|sort of)\b/gi;
 const FILLER = /\b(a|an|the|for|of|on|to|me|i|owe|owes|he|she|they|it|at|each|cedis|cedi|ghs|cds|cd|sold|spent|bought|paid|is|was|and)\b/gi;
 
-const FILLER_ES = /\b(d[o\u00f3]lares?|bol[i\u00edv]vares?|bolos?|bs|pesos?|lucas?|luca|verdes?|plata|de a|cada una|cada uno|vend[i\u00ed]|compr[e\u00e9]|gast[e\u00e9]|pagu[e\u00e9]|me debe|me qued[o\u00f3] debiendo|le fi[e\u00e9] a|le debo a|fiao|fiado)\b/gi;
+// Spanish filler for the typed fields. (?<![\w\u00c0-\u00ff]) instead of \b: JS
+// word boundaries are ASCII-only, so "\ba\b" used to eat the "a" in "mercancía".
+const FILLER_ES = /(?<![\w\u00c0-\u00ff])(d[o\u00f3]lares?|bol[i\u00edv]vares?|bolos?|bs|pesos?|lucas?|luca|verdes?|plata|de a|cada una|cada uno|vend[i\u00ed]|compr[e\u00e9]|gast[e\u00e9]|pagu[e\u00e9]|me debe|me qued[o\u00f3] debiendo|le fi[e\u00e9] a|le debo a|fiao|fiado|de|del|la|el|los|las|un|una|unos|unas|y|con|por|para|en|a|me|le|se|es|hoy)(?![\w\u00c0-\u00ff])/gi;
 // Spanish money shorthand for the typed fields: "20 mil" / "20 lucas" = 20000,
 // "un palo" = 1000000, "medio palo" = 500000 (Colombia).
 function scaleSpanishMoney(text) {
@@ -637,9 +639,8 @@ function parseHeardText(type, raw) {
   const numbers = (text.match(/\d+(\.\d+)?/g) || []).map(Number);
   const cleaned = text
     .replace(/\d+(\.\d+)?/g, ' ')
-    .replace(DISFLUENCY, ' ')
-    .replace(FILLER, ' ')
-    .replace(ES ? FILLER_ES : /$^/g, ' ')
+    .replace(ES ? /$^/g : DISFLUENCY, ' ')
+    .replace(ES ? FILLER_ES : FILLER, ' ')
     .replace(/[.,!?]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
