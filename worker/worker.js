@@ -971,7 +971,7 @@ async function handleTranscribe(request, env) {
 // 50 is a transcription/parsing error, not a fabrication) - evidence-checking
 // targets fabrication specifically, not every possible error; the review UI is
 // still what catches a wrong-but-grounded number.
-const WORKER_VERSION = 'w46';
+const WORKER_VERSION = 'w47';
 
 // Spanish (Venezuela) twin of EXTRACT_SYSTEM_PROMPT below: same event types,
 // same {value, evidence} rule, same JSON-only answer. Amounts are bare
@@ -1507,7 +1507,7 @@ async function extractFromText(text, env, lang, country) {
   if (lang === 'es') {
     const esc = x => JSON.stringify(x).replace(/[^\x20-\x7e]/g, c => '\\u' + c.charCodeAt(0).toString(16).padStart(4, '0'));
     const first = Array.isArray(respField) && respField[0] ? respField[0] : null;
-    console.log('extract-es stages', { rawN: Array.isArray(respField) ? respField.length : -1, cleanN: clean.length, names: esc(clean.map(e => e.item || e.customer || e.supplier || '')), rawName: esc(first && (first.customer || first.item || first.supplier) || ''), tn: esc(normalizeForMatch(text)) });
+    console.log('extract-es stages', { rawN: Array.isArray(respField) ? respField.length : -1, cleanN: clean.length, names: esc(clean.map(e => e.item || e.customer || e.supplier || '')), rawName: esc(first && (first.customer || first.item || first.supplier) || ''), tn: esc(normalizeForMatch(text)), textCp: esc(String(text).slice(0, 30)), selfTest: esc(foldAccents('María dólares')), mapHas: esc(Object.keys(ACCENT_MAP).slice(0, 3)) });
   }
   if (lang === 'es') {
     const tt = String(text).toLowerCase();
