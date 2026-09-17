@@ -39,3 +39,12 @@ simple = { limit = 60, period = 60 }
 name = "WRITE_LIMIT"
 namespace_id = "1002"
 simple = { limit = 120, period = 60 }
+
+# Worker logs in the Cloudflare dashboard (free tier, 200K events/day) - the
+# only way to see why a field request failed. Set here, not in the dashboard,
+# because every deploy from wrangler.toml would otherwise reset it.
+[observability]
+enabled = true
+[observability.logs]
+enabled = true
+invocation_logs = true
