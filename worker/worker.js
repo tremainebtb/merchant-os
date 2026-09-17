@@ -162,6 +162,16 @@ async function ensureTestSchema(env) {
     }
     await env.COUNTMY_DB.prepare('CREATE VIEW IF NOT EXISTS live_' + t + ' AS SELECT * FROM ' + t + ' WHERE COALESCE(is_test, 0) = 0').run();
   }
+  // 17 Sep: crawlers, link previews and ad reviewers (datacentre networks)
+  // each create a device row AND events under that device hash, so they
+  // used to count as "businesses". events.shop_hash equals devices.device_hash
+  // for every row, so the live views can drop them at the source. The view
+  // is recreated (not IF NOT EXISTS) so an existing database picks up the
+  // new definition on the next isolate start.
+  for (const t of ['events', 'entries']) {
+    await env.COUNTMY_DB.prepare('DROP VIEW IF EXISTS live_' + t).run();
+    await env.COUNTMY_DB.prepare('CREATE VIEW live_' + t + ' AS SELECT * FROM ' + t + ' WHERE COALESCE(is_test, 0) = 0 AND shop_hash NOT IN (SELECT device_hash FROM devices WHERE COALESCE(is_dc, 0) = 1)').run();
+  }
   // Real people: not a test device and not a datacentre network (crawlers,
   // link previews, AI reviewers). Those are counted separately, never dropped.
   await env.COUNTMY_DB.prepare('CREATE VIEW IF NOT EXISTS people_devices AS SELECT * FROM devices WHERE COALESCE(is_test, 0) = 0 AND COALESCE(is_dc, 0) = 0').run();
@@ -939,7 +949,7 @@ async function handleTranscribe(request, env) {
 // 50 is a transcription/parsing error, not a fabrication) - evidence-checking
 // targets fabrication specifically, not every possible error; the review UI is
 // still what catches a wrong-but-grounded number.
-const WORKER_VERSION = 'w33';
+const WORKER_VERSION = 'w34';
 
 const EXTRACT_SYSTEM_PROMPT = `You read a rough, possibly messy speech-to-text transcript from a Ghanaian shop owner describing what happened in their shop today, in English, Twi or Pidgin (Twi numbers: baako 1, mmienu 2, mmiensa 3, enan 4, anum 5, du 10, aduonu 20, aduasa 30, aduonum 50, oha 100, apem 1000; "de me ka" = owes me; transcripts may contain mistranscribed words like "cds" for "cedis"). Extract every distinct business event as a JSON array. Each event is one of these types:
 - "sale": the owner sold something. Fields: type, item, qty, and EITHER price (per-unit price in cedis, only if a per-unit price was actually spoken) OR total (the total amount actually spoken, if only a total was said - e.g. "2 bags for 300" has qty 2 and total 300, NOT price 150 - never do the division yourself).

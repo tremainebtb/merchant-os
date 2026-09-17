@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
-<title>CountMy - Owner Dashboard</title>
+<title>CountMy - Owner</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&family=Work+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@600;700&display=swap">
 <style>
 :root{
@@ -12,30 +12,32 @@
   --rule:#E7DDCD; --flame:#D9541A; --flame-deep:#A83F12; --flame-soft:#FBE3D2;
   --leaf:#1B7A43; --leaf-deep:#125C32; --leaf-soft:#E1F2E7;
   --steel:#2A5FA5; --steel-deep:#1E4578; --steel-soft:#E1EAF6;
+  --navy:#1E2F55;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]){
     --paper:#161009; --surface:#1F1810; --ink:#F3EBDF; --ink-soft:#CDBFA9; --muted:#93876F;
     --rule:#372B1D; --flame:#F0713A; --flame-deep:#F79764; --flame-soft:#3A2415;
     --leaf:#4CC585; --leaf-deep:#6FD79E; --leaf-soft:#15301F;
-    --steel:#6FA8E8; --steel-deep:#9CC3F0; --steel-soft:#152238;
+    --steel:#6FA8E8; --steel-deep:#9CC3F0; --steel-soft:#152238; --navy:#9CC3F0;
   }
 }
 :root[data-theme="dark"]{
   --paper:#161009; --surface:#1F1810; --ink:#F3EBDF; --ink-soft:#CDBFA9; --muted:#93876F;
   --rule:#372B1D; --flame:#F0713A; --flame-deep:#F79764; --flame-soft:#3A2415;
   --leaf:#4CC585; --leaf-deep:#6FD79E; --leaf-soft:#15301F;
-  --steel:#6FA8E8; --steel-deep:#9CC3F0; --steel-soft:#152238;
+  --steel:#6FA8E8; --steel-deep:#9CC3F0; --steel-soft:#152238; --navy:#9CC3F0;
 }
 *{box-sizing:border-box}
 body{margin:0;background:var(--paper);color:var(--ink);font-family:"Work Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;line-height:1.4}
-.wrap{max-width:920px;margin:0 auto;padding:20px 16px 60px}
-header{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-bottom:18px;flex-wrap:wrap}
-h1{font-family:"Manrope",sans-serif;font-size:1.3rem;font-weight:800;margin:0;display:flex;align-items:baseline;gap:8px}
-h1 .tagline{font-family:"Work Sans",sans-serif;font-size:.78rem;font-weight:500;color:var(--muted)}
+.wrap{max-width:900px;margin:0 auto;padding:20px 16px 60px}
+header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px;flex-wrap:wrap}
+h1{font-family:"Manrope",sans-serif;font-size:1.35rem;font-weight:800;margin:0}
+h1 b{color:var(--flame)}
+h1 span{font-family:"Work Sans",sans-serif;font-size:.8rem;font-weight:500;color:var(--muted);margin-left:8px}
 .refresh-row{display:flex;align-items:center;gap:10px;font-size:.78rem;color:var(--muted)}
-.refresh-btn{font-family:"Manrope",sans-serif;background:none;border:1px solid var(--rule);color:var(--ink-soft);border-radius:100px;padding:6px 14px;font-size:.78rem;font-weight:700;cursor:pointer}
-.refresh-btn:hover{border-color:var(--steel)}
+.btn{font-family:"Manrope",sans-serif;background:none;border:1px solid var(--rule);color:var(--ink-soft);border-radius:100px;padding:7px 14px;font-size:.8rem;font-weight:700;cursor:pointer}
+.btn:hover{border-color:var(--steel)}
 
 .gate{max-width:360px;margin:80px auto;text-align:center}
 .gate h2{font-family:"Manrope",sans-serif;font-size:1.05rem;margin:0 0 6px}
@@ -44,35 +46,46 @@ h1 .tagline{font-family:"Work Sans",sans-serif;font-size:.78rem;font-weight:500;
 .gate button{width:100%;font-family:"Manrope",sans-serif;background:var(--leaf);color:#fff;border:none;border-radius:10px;padding:12px;font-weight:700;font-size:.95rem;cursor:pointer}
 .gate .err{color:var(--flame-deep);font-size:.8rem;min-height:1.2em;margin-top:8px}
 
-.tabs{display:flex;gap:6px;margin-bottom:16px;flex-wrap:wrap}
+.tabs{display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap}
 .tab{font-family:"Manrope",sans-serif;background:var(--surface);border:1px solid var(--rule);color:var(--ink-soft);border-radius:100px;padding:8px 16px;font-size:.84rem;font-weight:700;cursor:pointer}
 .tab.active{background:var(--ink);color:var(--paper);border-color:var(--ink)}
 
-.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:24px}
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:18px}
 @media (max-width:800px){.kpis{grid-template-columns:1fr 1fr}}
-@media (max-width:480px){.kpis{grid-template-columns:1fr}}
-.kpi{background:var(--surface);border:1px solid var(--rule);border-radius:14px;padding:16px 18px}
-.kpi .label{font-size:.78rem;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px}
-.kpi .num{font-family:"IBM Plex Mono",monospace;font-size:2rem;font-weight:700;font-variant-numeric:tabular-nums;line-height:1}
-.kpi.signups .num{color:var(--leaf-deep)}
-.kpi.active .num{color:var(--steel-deep)}
-.kpi.entries .num{color:var(--flame-deep)}
-.kpi.not-saved .num{color:var(--muted)}
-.kpi .sub{font-size:.76rem;color:var(--muted);margin-top:6px}
+.kpi{background:var(--surface);border:1px solid var(--rule);border-radius:16px;padding:18px 18px 16px}
+.kpi .label{font-family:"Manrope",sans-serif;font-size:.86rem;font-weight:700;margin-bottom:8px}
+.kpi .num{font-family:"IBM Plex Mono",monospace;font-size:2.6rem;font-weight:700;font-variant-numeric:tabular-nums;line-height:1}
+.kpi.k-new .num{color:var(--leaf-deep)}
+.kpi.k-used .num{color:var(--steel-deep)}
+.kpi.k-rec .num{color:var(--flame-deep)}
+.kpi.k-back .num{color:var(--navy)}
+.kpi .sub{font-size:.78rem;color:var(--muted);margin-top:8px;line-height:1.35}
 
-.panel{background:var(--surface);border:1px solid var(--rule);border-radius:14px;padding:16px 18px 10px;margin-bottom:18px}
-.panel h3{font-family:"Manrope",sans-serif;font-size:.92rem;margin:0 0 2px}
-.panel .note{font-size:.76rem;color:var(--muted);margin:0 0 12px}
-.tw{overflow-x:auto}.src-table{border-collapse:collapse;width:100%;font-size:.9rem;margin-bottom:8px}.src-table th,.src-table td{text-align:left;padding:7px 8px;border-bottom:1px solid var(--rule)}.src-table th{font-size:.74rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}.src-table td:nth-child(n+2){font-variant-numeric:tabular-nums}
+.panel{background:var(--surface);border:1px solid var(--rule);border-radius:16px;padding:16px 18px 12px;margin-bottom:16px}
+.panel h3{font-family:"Manrope",sans-serif;font-size:1rem;margin:0 0 4px}
+.panel .note{font-size:.8rem;color:var(--muted);margin:0 0 12px}
+.verdict{font-size:.95rem;font-weight:600;margin:0 0 12px;padding:10px 12px;border-radius:10px;background:var(--flame-soft);color:var(--ink)}
+.tw{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:.92rem;margin-bottom:6px}
+th,td{text-align:left;padding:9px 8px;border-bottom:1px solid var(--rule)}
+th{font-size:.74rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:600}
+td:nth-child(n+2),th:nth-child(n+2){text-align:right;font-variant-numeric:tabular-nums}
+td .pct{color:var(--muted);font-size:.8rem;margin-left:4px}
+td.best{font-weight:700}
 .legend{display:flex;gap:16px;font-size:.78rem;color:var(--ink-soft);margin-bottom:8px}
 .legend span{display:inline-flex;align-items:center;gap:6px}
 .legend i{width:10px;height:10px;border-radius:3px;display:inline-block}
 svg text{font-family:"Work Sans",sans-serif;fill:var(--muted)}
-.empty-note{color:var(--muted);font-size:.84rem;padding:20px 0;text-align:center}
+.empty-note{color:var(--muted);font-size:.86rem;padding:18px 0;text-align:center}
+.mini{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.mini div{border:1px solid var(--rule);border-radius:12px;padding:10px 12px}
+.mini .n{font-family:"IBM Plex Mono",monospace;font-size:1.4rem;font-weight:700}
+.mini .l{font-size:.78rem;color:var(--muted)}
 
-footer{font-size:.76rem;color:var(--muted);margin-top:20px;border-top:1px solid var(--rule);padding-top:14px}
-footer p{margin:0 0 6px}
-
+details.tools{margin-top:8px}
+details.tools summary{cursor:pointer;font-family:"Manrope",sans-serif;font-weight:700;font-size:.95rem;padding:12px 0;list-style:none;display:flex;align-items:center;gap:8px}
+details.tools summary::before{content:"\25B8";color:var(--muted)}
+details.tools[open] summary::before{content:"\25BE"}
 .recover-row{display:flex;gap:8px;margin-bottom:8px}
 .recover-row input,.recover-row select{flex:1;padding:10px 12px;border:1px solid var(--rule);border-radius:8px;font-size:.9rem;background:var(--paper);color:var(--ink)}
 .browse-shop{border:1px solid var(--rule);border-radius:10px;padding:10px 12px;margin-bottom:10px}
@@ -88,123 +101,102 @@ footer p{margin:0 0 6px}
 .recover-entry .re-top{display:flex;justify-content:space-between;gap:10px;font-weight:700}
 .recover-entry .re-meta{color:var(--muted);font-size:.76rem;margin-top:2px}
 .recover-copy-btn{width:100%;margin-top:10px}
+footer{font-size:.76rem;color:var(--muted);margin-top:24px;border-top:1px solid var(--rule);padding-top:12px;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+footer a{color:var(--muted)}
 </style>
 </head>
 <body>
 <div class="wrap">
 
 <div id="gate" class="gate">
-  <h2>Owner Dashboard</h2>
-  <p>Enter the admin key to view signups and usage.</p>
+  <h2>Owner dashboard</h2>
+  <p>Enter the admin key.</p>
   <input id="keyInput" type="password" placeholder="Admin key" autocomplete="off">
-  <button id="unlockBtn">View dashboard</button>
+  <button id="unlockBtn">Open</button>
   <div class="err" id="gateErr"></div>
 </div>
 
 <div id="dash" style="display:none">
   <header>
-    <h1>CountMy <span class="tagline">Owner Dashboard</span></h1>
+    <h1>Count<b>My</b><span>owner</span></h1>
     <div class="refresh-row">
       <span id="refreshedAt"></span>
-      <button class="refresh-btn" id="refreshBtn">Refresh</button>
+      <button class="btn" id="refreshBtn">Refresh</button>
     </div>
   </header>
 
   <div class="tabs" id="tabs">
     <button class="tab" data-period="day">Today</button>
-    <button class="tab" data-period="week">This week</button>
+    <button class="tab active" data-period="week">This week</button>
     <button class="tab" data-period="month">This month</button>
-    <button class="tab" data-period="year">This year</button>
-    <button class="tab active" data-period="all">All time</button>
+    <button class="tab" data-period="all">Since launch</button>
   </div>
 
   <div class="kpis">
-    <div class="kpi signups"><div class="label">New businesses</div><div class="num" id="kSignups">-</div><div class="sub" id="kSignupsSub"></div></div>
-    <div class="kpi active"><div class="label">Active businesses</div><div class="num" id="kActive">-</div><div class="sub" id="kActiveSub"></div></div>
-    <div class="kpi entries"><div class="label">Ledger entries saved</div><div class="num" id="kEntries">-</div><div class="sub" id="kEntriesSub"></div></div>
-    <div class="kpi not-saved"><div class="label">Started, not saved</div><div class="num" id="kNotSaved">-</div><div class="sub" id="kNotSavedSub"></div></div>
+    <div class="kpi k-used"><div class="label">People who used it</div><div class="num" id="kActive">-</div><div class="sub" id="kActiveSub"></div></div>
+    <div class="kpi k-new"><div class="label">New people</div><div class="num" id="kSignups">-</div><div class="sub" id="kSignupsSub"></div></div>
+    <div class="kpi k-rec"><div class="label">Records saved</div><div class="num" id="kEntries">-</div><div class="sub" id="kEntriesSub"></div></div>
+    <div class="kpi k-back"><div class="label">Came back</div><div class="num" id="kBack">-</div><div class="sub" id="kBackSub"></div></div>
   </div>
 
   <div class="panel">
-    <h3>Spread loop</h3>
-    <p class="note">The numbers the 90-day window (16 Sep to 15 Dec 2026) is judged on. Returning = a device seen on two or more different days.</p>
-    <div class="kpis">
-      <div class="kpi active"><div class="label">Came back (7 days)</div><div class="num" id="kRet7">-</div><div class="sub">devices seen on 2+ days, latest this week</div></div>
-      <div class="kpi active"><div class="label">Came back (30 days)</div><div class="num" id="kRet30">-</div><div class="sub">same, latest this month</div></div>
-      <div class="kpi signups"><div class="label">Shop pages</div><div class="num" id="kShops">-</div><div class="sub" id="kShopsSub"></div></div>
-      <div class="kpi entries"><div class="label">Shop pages shared</div><div class="num" id="kShared">-</div><div class="sub" id="kSharedSub"></div></div>
-      <div class="kpi entries"><div class="label">Shop page views</div><div class="num" id="kShopViews">-</div><div class="sub">customers opening a page</div></div>
-      <div class="kpi active"><div class="label">Asked a question</div><div class="num" id="kAsked">-</div><div class="sub">devices that asked "who owes me?" etc. and got an answer</div></div>
-    </div>
+    <h3>Where people come from</h3>
+    <p class="note">Real phones only. Crawlers, ad reviewers and your own test devices are never counted.</p>
+    <p class="verdict" id="verdict"></p>
+    <div class="tw"><table><thead><tr><th>Source</th><th>People</th><th>In Ghana</th><th>Made a record</th></tr></thead><tbody id="srcBody"><tr><td colspan="4" class="empty-note">Nobody yet.</td></tr></tbody></table></div>
   </div>
 
   <div class="panel">
-    <h3>First-screen funnel, by build</h3>
-    <p class="note" id="dcNote"></p>
-    <p class="note" id="timingNote"></p>
-    <p class="note">Each device is counted under the build it first opened. Opened -> tapped the orange button -> made a record -> asked a question. Compare rows to judge a first-screen change; "tapped" starts at v85.</p>
-    <div class="tw"><table class="src-table"><thead><tr><th>Build</th><th>Opened</th><th>On a phone</th><th>In Ghana</th><th>Tapped</th><th>Made a record</th><th>Asked</th><th>On home screen</th></tr></thead><tbody id="funnelBody"><tr><td colspan="8" class="empty-note">No data yet.</td></tr></tbody></table></div>
-  </div>
-
-  <div class="panel">
-    <h3>Memory activation</h3>
-    <p class="note">Of the devices that made a record, how many then asked CountMy a question. Half of devices hear "you can also ask me" once after their first save (prompted); half never do (organic). The organic number is the one that says whether people discover it themselves.</p>
-    <div class="tw"><table class="src-table"><thead><tr><th>Cohort</th><th>Devices</th><th>In Ghana</th><th>Made a record</th><th>Asked a question</th><th>Memory activation</th></tr></thead><tbody id="cohortBody"><tr><td colspan="6" class="empty-note">No data yet.</td></tr></tbody></table></div>
-  </div>
-
-  <div class="panel">
-    <h3>Where people came from</h3>
-    <p class="note" id="testNote"></p>
-    <p class="note">One row per device, decided on its first visit: the link's utm_source (and campaign after the slash), a partner code, the site that sent them, or direct. "In Ghana" is the country Cloudflare saw the phone in. "Made a record" = that device has saved at least one entry.</p>
-    <div class="tw"><table class="src-table"><thead><tr><th>Source</th><th>Devices</th><th>In Ghana</th><th>This week</th><th>Made a record</th></tr></thead><tbody id="srcBody"><tr><td colspan="5" class="empty-note">No data yet.</td></tr></tbody></table></div>
-  </div>
-
-  <div class="panel">
-    <h3>Businesses over time</h3>
-    <p class="note">Daily counts, last 120 days. New = first-ever use that day. Active = used the app at all that day.</p>
+    <h3>Day by day</h3>
     <div class="legend">
-      <span><i style="background:var(--leaf)"></i>New businesses</span>
-      <span><i style="background:var(--steel)"></i>Active businesses</span>
+      <span><i style="background:var(--leaf)"></i>New people</span>
+      <span><i style="background:var(--steel)"></i>People who used it</span>
+      <span><i style="background:var(--flame)"></i>Records saved</span>
     </div>
-    <div id="chartBusinesses"></div>
+    <div id="chartDaily"></div>
   </div>
 
   <div class="panel">
-    <h3>Ledger entries saved</h3>
-    <p class="note">Sales, expenses, and debts logged per day - voice and manual combined.</p>
-    <div id="chartEntries"></div>
+    <h3>Business pages</h3>
+    <div class="mini">
+      <div><div class="n" id="kShops">-</div><div class="l">pages made</div></div>
+      <div><div class="n" id="kShared">-</div><div class="l">people who shared theirs</div></div>
+      <div><div class="n" id="kShopViews">-</div><div class="l">times a page was opened</div></div>
+    </div>
   </div>
 
-  <div class="panel">
-    <h3>Recover a shop's records</h3>
-    <p class="note">Every entry is backed up automatically the moment it's saved - if a phone is lost, broken, or an entry is deleted by mistake, look it up here by the exact Shop ID and resend it. If you don't know the Shop ID (most people never set one), use "Browse recent backups" below instead.</p>
-    <div class="recover-row">
-      <input id="recoverShopInput" type="text" placeholder="Shop ID, e.g. mama ama provisions" autocomplete="off">
-      <button class="refresh-btn" id="recoverBtn">Look up</button>
+  <details class="tools">
+    <summary>Find someone's records (if a phone is lost or broken)</summary>
+    <div class="panel">
+      <h3>By Shop ID</h3>
+      <p class="note">Only works if they set a Shop ID. Most people never do - use "Browse" below instead.</p>
+      <div class="recover-row">
+        <input id="recoverShopInput" type="text" placeholder="Shop ID, e.g. mama ama provisions" autocomplete="off">
+        <button class="btn" id="recoverBtn">Look up</button>
+      </div>
+      <div id="recoverErr" class="gate-err-inline"></div>
+      <div id="recoverResults"></div>
     </div>
-    <div id="recoverErr" class="gate-err-inline"></div>
-    <div id="recoverResults"></div>
-  </div>
-
-  <div class="panel">
-    <h3>Browse recent backups (no Shop ID needed)</h3>
-    <p class="note">Lists every shop active in the chosen window, with a peek at its last few entries - real item names, notes, and amounts - so you can recognize which one is your mum's, an aunt's, or anyone else's by what's actually in it, without knowing their Shop ID. This is a sensitive view: it's the one place real entry content is shown without already knowing whose it is, which is exactly why it's behind this admin key and nowhere in the app itself.</p>
-    <div class="recover-row">
-      <select id="browseDays">
-        <option value="7">Last 7 days</option>
-        <option value="30" selected>Last 30 days</option>
-        <option value="90">Last 90 days</option>
-        <option value="365">Last year</option>
-      </select>
-      <button class="refresh-btn" id="browseBtn">Browse</button>
+    <div class="panel">
+      <h3>Browse recent backups</h3>
+      <p class="note">Every business active in the window, with its last few entries, so you can recognise whose it is. Real content - keep it private.</p>
+      <div class="recover-row">
+        <select id="browseDays">
+          <option value="7">Last 7 days</option>
+          <option value="30" selected>Last 30 days</option>
+          <option value="90">Last 90 days</option>
+          <option value="365">Last year</option>
+        </select>
+        <button class="btn" id="browseBtn">Browse</button>
+      </div>
+      <div id="browseErr" class="gate-err-inline"></div>
+      <div id="browseResults"></div>
     </div>
-    <div id="browseErr" class="gate-err-inline"></div>
-    <div id="browseResults"></div>
-  </div>
+  </details>
 
   <footer>
-    <p><strong>How to read this:</strong> "Today / week / month / year" are rolling windows (last 24h / 7d / 30d / 365d), not calendar boundaries - shop owners span timezones, so a fixed calendar day would misattribute activity for most of them.</p>
-    <p>A "business" here is a hashed Shop ID, never the ID itself - the counts above never reveal a shop name, item, price, or customer name. The two recovery panels below are the deliberate exception: they store and can show real entry content so it can be restored, gated behind this admin key only.</p>
+    <span>"Today / this week / this month" = the last 24 h / 7 days / 30 days.</span>
+    <a href="admin-lab.html">Research view</a>
   </footer>
 </div>
 
@@ -214,21 +206,13 @@ footer p{margin:0 0 6px}
 const API_BASE = 'https://countmy-api.boatengbobby.workers.dev';
 const KEY_STORAGE = 'countmy_admin_key';
 let statsData = null;
-let currentPeriod = 'all';
+let currentPeriod = 'week';
 
-const PERIOD_LABEL = {
-  day: 'in the last 24 hours',
-  week: 'in the last 7 days',
-  month: 'in the last 30 days',
-  year: 'in the last 365 days',
-  all: 'all time'
-};
+const PERIOD_LABEL = { day: 'in the last 24 hours', week: 'in the last 7 days', month: 'in the last 30 days', all: 'since launch, 16 Sep 2026' };
 
 function fmtInt(n) { return (n || 0).toLocaleString('en-US'); }
-
-function showGateError(msg) {
-  document.getElementById('gateErr').textContent = msg;
-}
+function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+function showGateError(msg) { document.getElementById('gateErr').textContent = msg; }
 
 async function loadStats(key) {
   const res = await fetch(`${API_BASE}/admin/stats?key=${encodeURIComponent(key)}`);
@@ -237,107 +221,82 @@ async function loadStats(key) {
   return res.json();
 }
 
-function renderKpis() {
-  const fun = statsData.funnel || [];
-  const dc = statsData.datacentre || [];
-  const dcTotal = dc.reduce((s, r) => s + r.devices, 0);
-  const langs = (statsData.languages || []).map(r => r.lang + ' ' + fmtInt(r.devices)).join(', ');
-  const T2 = statsData.timing || {};
-  const secs = ms => ms == null ? '-' : (ms < 60000 ? Math.round(ms / 1000) + ' s' : Math.round(ms / 60000) + ' min');
-  const spoken = (statsData.spoken || []).map(r => r.lang + ' ' + fmtInt(r.entries) + ' (' + fmtInt(r.devices) + ' devices)').join(', ');
-  document.getElementById('timingNote').textContent = 'Real people, from opening to the first tap: median ' + secs(T2.tapMedianMs) + ' (' + fmtInt(T2.tapN) + ' devices); to the first record: median ' + secs(T2.recordMedianMs) + ' (' + fmtInt(T2.recordN) + '). Voice entries by spoken language: ' + (spoken || 'none yet') + '.';
-  document.getElementById('dcNote').textContent = 'Not counted below: ' + fmtInt(dcTotal) + ' visits from datacentre networks (crawlers, link previews, AI reviewers)' + (dc.length ? ' - ' + dc.map(r => r.org + ' ' + fmtInt(r.devices)).join(', ') : '') + '. Phone languages of real people: ' + (langs || 'none yet') + '.';
-  const pct = (n, d) => d ? ' (' + Math.round(100 * n / d) + '%)' : '';
-  document.getElementById('funnelBody').innerHTML = fun.length
-    ? fun.map(r => `<tr><td>${String(r.ver).replace(/</g, '&lt;')}</td><td>${fmtInt(r.devices)}</td><td>${fmtInt(r.mobile)}</td><td>${fmtInt(r.gh)}</td><td>${fmtInt(r.tapped)}${pct(r.tapped, r.devices)}</td><td>${fmtInt(r.recorded)}${pct(r.recorded, r.devices)}</td><td>${fmtInt(r.asked)}${pct(r.asked, r.recorded)}</td><td>${fmtInt(r.installed)}${pct(r.installed, r.recorded)}</td></tr>`).join('')
-    : '<tr><td colspan="8" class="empty-note">No data yet.</td></tr>';
-  const coh = statsData.cohorts || [];
-  const cohName = n => n === 1 ? 'Prompted (heard "you can also ask me")' : n === 0 ? 'Organic (no prompt)' : 'Before cohorts existed';
-  document.getElementById('cohortBody').innerHTML = coh.length
-    ? coh.map(r => `<tr><td>${cohName(r.nudge)}</td><td>${fmtInt(r.devices)}</td><td>${fmtInt(r.gh)}</td><td>${fmtInt(r.activated)}</td><td>${fmtInt(r.asked)}</td><td>${r.activated ? Math.round(100 * r.asked / r.activated) + '%' : '-'}</td></tr>`).join('')
-    : '<tr><td colspan="6" class="empty-note">No data yet.</td></tr>';
-  const srcRows = statsData.sources || [];
-  const T = statsData.test || {};
-  document.getElementById('testNote').textContent = 'Excluded from every number on this page (flagged with ?test=1): ' + fmtInt(T.devices) + ' test devices, ' + fmtInt(T.events) + ' events, ' + fmtInt(T.entries) + ' entries, ' + fmtInt(T.shops) + ' shop pages.';
-  document.getElementById('srcBody').innerHTML = srcRows.length
-    ? srcRows.map(r => `<tr><td>${String(r.source).replace(/</g, '&lt;')}</td><td>${fmtInt(r.devices)}</td><td>${fmtInt(r.gh)}</td><td>${fmtInt(r.week)}</td><td>${fmtInt(r.activated)}</td></tr>`).join('')
-    : '<tr><td colspan="5" class="empty-note">No data yet.</td></tr>';
-  const L = statsData.loop || {};
-  document.getElementById('kRet7').textContent = fmtInt(L.returning7);
-  document.getElementById('kRet30').textContent = fmtInt(L.returning30);
-  document.getElementById('kShops').textContent = fmtInt(L.shops);
-  document.getElementById('kShopsSub').textContent = fmtInt(L.shops7) + ' made this week';
-  document.getElementById('kShared').textContent = fmtInt(L.sharedEver);
-  document.getElementById('kSharedSub').textContent = fmtInt(L.shared7) + ' shared this week';
-  document.getElementById('kShopViews').textContent = fmtInt(L.shopViews);
-  document.getElementById('kAsked').textContent = fmtInt(L.asked);
-  const p = (statsData.periods && statsData.periods[currentPeriod]) || { signups: 0, active: 0, entries: 0, notSaved: 0 };
-  document.getElementById('kSignups').textContent = fmtInt(p.signups);
-  document.getElementById('kActive').textContent = fmtInt(p.active);
-  document.getElementById('kEntries').textContent = fmtInt(p.entries);
-  document.getElementById('kNotSaved').textContent = fmtInt(p.notSaved);
-  const label = PERIOD_LABEL[currentPeriod];
-  document.getElementById('kSignupsSub').textContent = label;
-  document.getElementById('kActiveSub').textContent = label;
-  document.getElementById('kEntriesSub').textContent = label;
-  document.getElementById('kNotSavedSub').textContent = label + ' - discarded or cancelled with something typed';
+// Plain-English names for the raw source strings the app records.
+function sourceName(src) {
+  const s = String(src || 'direct');
+  if (s === 'facebook/launch_b') return 'Facebook ad - traffic';
+  if (s === 'facebook/launch_b_leads') return 'Facebook ad - records';
+  if (s === 'facebook') return 'Facebook (no campaign tag)';
+  if (s === 'direct') return 'Typed the address / unknown';
+  const [head, tail] = s.split('/');
+  const names = { whatsapp: 'WhatsApp', instagram: 'Instagram', tiktok: 'TikTok', twitter: 'X / Twitter', google: 'Google search', partner: 'Partner', radio: 'Radio', sms: 'SMS' };
+  const base = names[head] || head.charAt(0).toUpperCase() + head.slice(1);
+  return tail ? base + ' - ' + tail : base;
 }
 
-// Small dependency-free SVG line/bar renderer - the app has no build step and
-// no chart library anywhere else, so this stays consistent with that rather
-// than pulling in a CDN chart lib for two simple time series.
-function renderLineChart(el, series, colors) {
-  const dates = Object.keys(series[0].data).sort();
-  if (!dates.length) { el.innerHTML = '<div class="empty-note">No data yet.</div>'; return; }
-  const W = 860, H = 200, padL = 34, padR = 10, padT = 10, padB = 24;
+function renderKpis() {
+  const p = (statsData.periods && statsData.periods[currentPeriod]) || { signups: 0, active: 0, entries: 0 };
+  const L = statsData.loop || {};
+  const label = PERIOD_LABEL[currentPeriod];
+  document.getElementById('kActive').textContent = fmtInt(p.active);
+  document.getElementById('kSignups').textContent = fmtInt(p.signups);
+  document.getElementById('kEntries').textContent = fmtInt(p.entries);
+  document.getElementById('kActiveSub').textContent = 'opened the app ' + label;
+  document.getElementById('kSignupsSub').textContent = 'first time ever, ' + label;
+  document.getElementById('kEntriesSub').textContent = 'sales, costs and debts, ' + label;
+  const back = (currentPeriod === 'day' || currentPeriod === 'week') ? L.returning7 : L.returning30;
+  document.getElementById('kBack').textContent = fmtInt(back);
+  document.getElementById('kBackSub').textContent = 'used it on 2 or more different days, latest in the last ' + ((currentPeriod === 'day' || currentPeriod === 'week') ? '7' : '30') + ' days';
+
+  const rows = (statsData.sources || []).slice().sort((a, b) => b.devices - a.devices);
+  const pct = (n, d) => d ? `<span class="pct">${Math.round(100 * n / d)}%</span>` : '';
+  const bestRec = rows.reduce((m, r) => (r.activated > (m ? m.activated : 0) ? r : m), null);
+  document.getElementById('srcBody').innerHTML = rows.length
+    ? rows.map(r => `<tr><td>${esc(sourceName(r.source))}</td><td>${fmtInt(r.devices)}</td><td>${fmtInt(r.gh)}${pct(r.gh, r.devices)}</td><td class="${bestRec && r === bestRec && r.activated ? 'best' : ''}">${fmtInt(r.activated)}${pct(r.activated, r.devices)}</td></tr>`).join('')
+    : '<tr><td colspan="4" class="empty-note">Nobody yet.</td></tr>';
+  const ads = rows.filter(r => /^facebook\//.test(r.source));
+  const adPeople = ads.reduce((s, r) => s + r.devices, 0), adRec = ads.reduce((s, r) => s + r.activated, 0);
+  const totalPeople = rows.reduce((s, r) => s + r.devices, 0), totalRec = rows.reduce((s, r) => s + r.activated, 0);
+  let v = `${fmtInt(totalPeople)} real people so far, ${fmtInt(totalRec)} made a record.`;
+  if (adPeople) v += ` From the Facebook ads: ${fmtInt(adPeople)} people, ${fmtInt(adRec)} made a record.`;
+  if (bestRec && bestRec.activated) v += ` Best source for records: ${sourceName(bestRec.source)}.`;
+  document.getElementById('verdict').textContent = v;
+
+  document.getElementById('kShops').textContent = fmtInt(L.shops);
+  document.getElementById('kShared').textContent = fmtInt(L.sharedEver);
+  document.getElementById('kShopViews').textContent = fmtInt(L.shopViews);
+}
+
+// Small dependency-free SVG line chart, last 30 days, three series.
+function renderChart() {
+  const d = statsData.daily || { signups: {}, active: {}, entries: {} };
+  const DAY = 86400000, days = 30, today = Math.floor(Date.now() / DAY);
+  const dates = [];
+  for (let i = days - 1; i >= 0; i--) dates.push(new Date((today - i) * DAY).toISOString().slice(0, 10));
+  const series = [
+    { data: d.signups, color: 'var(--leaf)' },
+    { data: d.active, color: 'var(--steel)' },
+    { data: d.entries, color: 'var(--flame)' }
+  ];
+  const el = document.getElementById('chartDaily');
+  const any = series.some(s => dates.some(x => (s.data || {})[x]));
+  if (!any) { el.innerHTML = '<div class="empty-note">Nothing in the last 30 days yet.</div>'; return; }
+  const W = 860, H = 220, padL = 34, padR = 10, padT = 12, padB = 26;
   const innerW = W - padL - padR, innerH = H - padT - padB;
   let maxV = 1;
-  series.forEach(s => dates.forEach(d => { maxV = Math.max(maxV, s.data[d] || 0); }));
-  const x = (i) => padL + (dates.length === 1 ? innerW / 2 : (i / (dates.length - 1)) * innerW);
-  const y = (v) => padT + innerH - (v / maxV) * innerH;
-
+  series.forEach(s => dates.forEach(x => { maxV = Math.max(maxV, (s.data || {})[x] || 0); }));
+  const X = i => padL + (i / (dates.length - 1)) * innerW;
+  const Y = v => padT + innerH - (v / maxV) * innerH;
   let svg = `<svg viewBox="0 0 ${W} ${H}" width="100%" style="display:block">`;
-  // gridlines
-  for (let g = 0; g <= 2; g++) {
-    const gy = padT + (innerH / 2) * g;
-    svg += `<line x1="${padL}" y1="${gy}" x2="${W - padR}" y2="${gy}" stroke="var(--rule)" stroke-width="1"/>`;
-  }
-  svg += `<text x="4" y="${padT + 4}" font-size="10">${fmtInt(maxV)}</text>`;
-  svg += `<text x="4" y="${padT + innerH + 4}" font-size="10">0</text>`;
-
-  series.forEach((s, si) => {
-    const pts = dates.map((d, i) => [x(i), y(s.data[d] || 0)]);
-    const path = pts.map((p, i) => (i === 0 ? 'M' : 'L') + p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' ');
-    svg += `<path d="${path}" fill="none" stroke="${colors[si]}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>`;
-    pts.forEach((p, i) => {
-      if (s.data[dates[i]]) {
-        svg += `<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="3" fill="${colors[si]}"><title>${dates[i]}: ${s.data[dates[i]]}</title></circle>`;
-      }
-    });
+  for (let g = 0; g <= 2; g++) { const gy = padT + (innerH / 2) * g; svg += `<line x1="${padL}" y1="${gy}" x2="${W - padR}" y2="${gy}" stroke="var(--rule)"/>`; }
+  svg += `<text x="4" y="${padT + 4}" font-size="10">${fmtInt(maxV)}</text><text x="4" y="${padT + innerH + 4}" font-size="10">0</text>`;
+  series.forEach(s => {
+    const pts = dates.map((x, i) => [X(i), Y((s.data || {})[x] || 0)]);
+    svg += `<path d="${pts.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' ')}" fill="none" stroke="${s.color}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>`;
+    pts.forEach((p, i) => { const v = (s.data || {})[dates[i]]; if (v) svg += `<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="3.5" fill="${s.color}"><title>${dates[i]}: ${v}</title></circle>`; });
   });
-
-  const step = Math.max(1, Math.floor(dates.length / 6));
-  dates.forEach((d, i) => {
-    if (i % step === 0 || i === dates.length - 1) {
-      svg += `<text x="${x(i).toFixed(1)}" y="${H - 6}" font-size="9" text-anchor="middle">${d.slice(5)}</text>`;
-    }
-  });
-  svg += '</svg>';
-  el.innerHTML = svg;
-}
-
-function renderCharts() {
-  const d = statsData.daily;
-  renderLineChart(
-    document.getElementById('chartBusinesses'),
-    [{ data: d.signups }, { data: d.active }],
-    ['var(--leaf)', 'var(--steel)']
-  );
-  renderLineChart(
-    document.getElementById('chartEntries'),
-    [{ data: d.entries }],
-    ['var(--flame)']
-  );
+  dates.forEach((x, i) => { if (i % 5 === 0 || i === dates.length - 1) svg += `<text x="${X(i).toFixed(1)}" y="${H - 8}" font-size="10" text-anchor="middle">${x.slice(8)}/${x.slice(5, 7)}</text>`; });
+  el.innerHTML = svg + '</svg>';
 }
 
 function setPeriod(period) {
@@ -350,23 +309,17 @@ async function boot(key) {
   try {
     statsData = await loadStats(key);
   } catch (err) {
-    if (err.message === 'unauthorized') {
-      localStorage.removeItem(KEY_STORAGE);
-      document.getElementById('gate').style.display = '';
-      document.getElementById('dash').style.display = 'none';
-      showGateError('Wrong key.');
-      return;
-    }
+    localStorage.removeItem(KEY_STORAGE);
     document.getElementById('gate').style.display = '';
     document.getElementById('dash').style.display = 'none';
-    showGateError('Could not reach the server - check your connection and try again.');
+    showGateError(err.message === 'unauthorized' ? 'Wrong key.' : 'Could not reach the server - check your connection and try again.');
     return;
   }
   document.getElementById('gate').style.display = 'none';
   document.getElementById('dash').style.display = '';
   document.getElementById('refreshedAt').textContent = 'Updated ' + new Date(statsData.generatedAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
   renderKpis();
-  renderCharts();
+  renderChart();
 }
 
 document.getElementById('unlockBtn').addEventListener('click', () => {
@@ -375,26 +328,19 @@ document.getElementById('unlockBtn').addEventListener('click', () => {
   localStorage.setItem(KEY_STORAGE, key);
   boot(key);
 });
-document.getElementById('keyInput').addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') document.getElementById('unlockBtn').click();
-});
-document.getElementById('refreshBtn').addEventListener('click', () => {
-  const key = localStorage.getItem(KEY_STORAGE);
-  if (key) boot(key);
-});
+document.getElementById('keyInput').addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('unlockBtn').click(); });
+document.getElementById('refreshBtn').addEventListener('click', () => { const key = localStorage.getItem(KEY_STORAGE); if (key) boot(key); });
 document.querySelectorAll('.tab').forEach(t => t.addEventListener('click', () => setPeriod(t.dataset.period)));
 
-const TYPE_LABEL = { sale: 'Sale', expense: 'Expense', debt_in: 'Customer owed', debt_out: 'Owed to supplier' };
-
+// ---- Recovery tools (unchanged behaviour) ----
+const TYPE_LABEL = { sale: 'Sale', expense: 'Expense', debt_in: 'Customer owes', debt_out: 'Owed to supplier' };
 function fmtCedis(n) { return fmtInt(Math.round(Number(n) || 0)) + ' cedis'; }
-
 function entryLine(e) {
   const label = TYPE_LABEL[e.type] || e.type;
   const when = new Date(e.ts).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
   const qty = e.type === 'sale' && e.qty ? `${e.qty} x ` : '';
   return `${label}: ${qty}${e.item || ''}${e.note ? ' - ' + e.note : ''} - ${fmtCedis(e.amount)} (${when})${e.deleted ? ' [deleted on phone]' : ''}`;
 }
-
 async function lookupShop(params, key) {
   const errEl = document.getElementById('recoverErr');
   const resEl = document.getElementById('recoverResults');
@@ -402,9 +348,7 @@ async function lookupShop(params, key) {
   resEl.innerHTML = 'Looking up...';
   resEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
   try {
-    const qs = params.shopHash
-      ? `shopHash=${encodeURIComponent(params.shopHash)}`
-      : `shop=${encodeURIComponent(params.shop)}`;
+    const qs = params.shopHash ? `shopHash=${encodeURIComponent(params.shopHash)}` : `shop=${encodeURIComponent(params.shop)}`;
     const res = await fetch(`${API_BASE}/admin/entries?key=${encodeURIComponent(key)}&${qs}`);
     if (res.status === 401) { errEl.textContent = 'Wrong key.'; resEl.innerHTML = ''; return; }
     if (!res.ok) { errEl.textContent = 'Could not reach the server - try again.'; resEl.innerHTML = ''; return; }
@@ -413,11 +357,10 @@ async function lookupShop(params, key) {
     if (!entries.length) { resEl.innerHTML = '<div class="empty-note">Nothing backed up yet for that shop.</div>'; return; }
     resEl.innerHTML = entries.map(e => `
       <div class="recover-entry${e.deleted ? ' is-deleted' : ''}${e.status === 'not_saved' ? ' is-not-saved' : ''}">
-        <div class="re-top"><span>${(TYPE_LABEL[e.type] || e.type)}${e.deleted ? ' (deleted on phone)' : ''}${e.status === 'not_saved' ? ' (not saved - abandoned)' : ''}</span><span>${fmtCedis(e.amount)}</span></div>
-        <div>${e.item || ''}${e.note ? ' - ' + e.note : ''}</div>
+        <div class="re-top"><span>${esc(TYPE_LABEL[e.type] || e.type)}${e.deleted ? ' (deleted on phone)' : ''}${e.status === 'not_saved' ? ' (not saved - abandoned)' : ''}</span><span>${fmtCedis(e.amount)}</span></div>
+        <div>${esc(e.item || '')}${e.note ? ' - ' + esc(e.note) : ''}</div>
         <div class="re-meta">${new Date(e.ts).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</div>
-      </div>
-    `).join('') + `<button class="refresh-btn recover-copy-btn" id="recoverCopyBtn">Copy all as text (paste into WhatsApp)</button>`;
+      </div>`).join('') + `<button class="btn recover-copy-btn" id="recoverCopyBtn">Copy all as text (paste into WhatsApp)</button>`;
     document.getElementById('recoverCopyBtn').addEventListener('click', () => {
       const text = entries.filter(e => e.status !== 'not_saved').map(entryLine).join('\n');
       navigator.clipboard.writeText(text).then(() => {
@@ -430,17 +373,13 @@ async function lookupShop(params, key) {
     resEl.innerHTML = '';
   }
 }
-
 document.getElementById('recoverBtn').addEventListener('click', () => {
   const shop = document.getElementById('recoverShopInput').value.trim();
   const key = localStorage.getItem(KEY_STORAGE);
   if (!shop || !key) return;
   lookupShop({ shop }, key);
 });
-document.getElementById('recoverShopInput').addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') document.getElementById('recoverBtn').click();
-});
-
+document.getElementById('recoverShopInput').addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('recoverBtn').click(); });
 async function browseRecent(days, key) {
   const errEl = document.getElementById('browseErr');
   const resEl = document.getElementById('browseResults');
@@ -453,38 +392,27 @@ async function browseRecent(days, key) {
     const data = await res.json();
     const shops = data.shops || [];
     if (!shops.length) { resEl.innerHTML = '<div class="empty-note">No backups in that window.</div>'; return; }
-    resEl.innerHTML = shops.map((s, i) => `
+    resEl.innerHTML = shops.map(s => `
       <div class="browse-shop">
         <div class="browse-shop-head">
           <span>${s.total} entr${s.total === 1 ? 'y' : 'ies'} - last active ${new Date(s.lastSeen).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
-          <code>${s.shopHash.slice(0, 10)}</code>
+          <code>${esc(s.shopHash.slice(0, 10))}</code>
         </div>
-        ${s.preview.map(p => `<div class="browse-preview-line">${(TYPE_LABEL[p.type] || p.type)}: ${p.item || ''}${p.note ? ' - ' + p.note : ''} - ${fmtCedis(p.amount)}${p.deleted ? ' (deleted on phone)' : ''}${p.status === 'not_saved' ? ' (not saved - abandoned)' : ''}</div>`).join('')}
-        <button class="refresh-btn browse-use-btn" data-hash="${s.shopHash}">See all entries for this one</button>
-      </div>
-    `).join('');
-    resEl.querySelectorAll('.browse-use-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        lookupShop({ shopHash: btn.dataset.hash }, localStorage.getItem(KEY_STORAGE));
-      });
-    });
+        ${s.preview.map(p => `<div class="browse-preview-line">${esc(TYPE_LABEL[p.type] || p.type)}: ${esc(p.item || '')}${p.note ? ' - ' + esc(p.note) : ''} - ${fmtCedis(p.amount)}${p.deleted ? ' (deleted on phone)' : ''}${p.status === 'not_saved' ? ' (not saved - abandoned)' : ''}</div>`).join('')}
+        <button class="btn browse-use-btn" data-hash="${esc(s.shopHash)}">See all entries for this one</button>
+      </div>`).join('');
+    resEl.querySelectorAll('.browse-use-btn').forEach(btn => btn.addEventListener('click', () => lookupShop({ shopHash: btn.dataset.hash }, localStorage.getItem(KEY_STORAGE))));
   } catch (err) {
     errEl.textContent = 'Could not reach the server - try again.';
     resEl.innerHTML = '';
   }
 }
-
 document.getElementById('browseBtn').addEventListener('click', () => {
-  const days = document.getElementById('browseDays').value;
   const key = localStorage.getItem(KEY_STORAGE);
-  if (!key) return;
-  browseRecent(days, key);
+  if (key) browseRecent(document.getElementById('browseDays').value, key);
 });
 
-(function init() {
-  const saved = localStorage.getItem(KEY_STORAGE);
-  if (saved) boot(saved);
-})();
+(function init() { const saved = localStorage.getItem(KEY_STORAGE); if (saved) boot(saved); })();
 </script>
 </body>
 </html>

@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>CountMy - Research view</title>
+<style>
+:root{--paper:#F8F3EC;--surface:#fff;--ink:#221A12;--muted:#8C8172;--rule:#E7DDCD;--flame:#D9541A}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--paper:#161009;--surface:#1F1810;--ink:#F3EBDF;--muted:#93876F;--rule:#372B1D;--flame:#F0713A}}
+:root[data-theme="dark"]{--paper:#161009;--surface:#1F1810;--ink:#F3EBDF;--muted:#93876F;--rule:#372B1D;--flame:#F0713A}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;line-height:1.4;font-size:14px}
+.wrap{max-width:960px;margin:0 auto;padding:20px 16px 60px}
+h1{font-size:1.1rem;margin:0 0 4px}
+.lead{color:var(--muted);font-size:.85rem;margin:0 0 16px}
+.lead a{color:var(--flame)}
+.panel{background:var(--surface);border:1px solid var(--rule);border-radius:12px;padding:14px 16px 8px;margin-bottom:14px}
+h3{font-size:.95rem;margin:0 0 4px}
+.note{font-size:.78rem;color:var(--muted);margin:0 0 10px}
+.tw{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:.86rem;margin-bottom:6px}
+th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--rule)}
+th{font-size:.72rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+td:nth-child(n+2){font-variant-numeric:tabular-nums}
+pre{font-size:.75rem;white-space:pre-wrap;word-break:break-all;background:var(--paper);border:1px solid var(--rule);border-radius:8px;padding:10px;max-height:400px;overflow:auto}
+.empty{color:var(--muted);padding:12px 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>CountMy - Research view</h1>
+<p class="lead">Working numbers used to judge experiments. Not meant to be read at a glance - the <a href="admin.html">owner dashboard</a> is. Uses the key saved by the owner dashboard; open that first if this page is empty.</p>
+<div id="out"><p class="empty">Loading...</p></div>
+</div>
+<script>
+const API_BASE = 'https://countmy-api.boatengbobby.workers.dev';
+const key = localStorage.getItem('countmy_admin_key');
+const fmt = n => (n || 0).toLocaleString('en-US');
+const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const pct = (n, d) => d ? ' (' + Math.round(100 * n / d) + '%)' : '';
+const secs = ms => ms == null ? '-' : (ms < 60000 ? Math.round(ms / 1000) + ' s' : Math.round(ms / 60000) + ' min');
+function table(head, rows, empty) {
+  if (!rows.length) return `<p class="empty">${empty || 'No data yet.'}</p>`;
+  return `<div class="tw"><table><thead><tr>${head.map(h => `<th>${h}</th>`).join('')}</tr></thead><tbody>${rows.map(r => `<tr>${r.map(c => `<td>${c}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+}
+async function main() {
+  const out = document.getElementById('out');
+  if (!key) { out.innerHTML = '<p class="empty">No key saved. Open the owner dashboard first.</p>'; return; }
+  const res = await fetch(`${API_BASE}/admin/stats?key=${encodeURIComponent(key)}`);
+  if (!res.ok) { out.innerHTML = `<p class="empty">Could not load (${res.status}).</p>`; return; }
+  const S = await res.json();
+  const T = S.timing || {}, L = S.loop || {}, P = S.periods || {}, X = S.test || {};
+  const cohName = n => n === 1 ? 'Prompted (heard "you can also ask me")' : n === 0 ? 'Organic (no prompt)' : 'Before cohorts existed';
+  const dc = S.datacentre || [];
+  let h = '';
+  h += `<div class="panel"><h3>Period totals (raw)</h3>${table(['Period', 'New', 'Active', 'Entries saved', 'Started, not saved'], Object.keys(P).map(k => [k, fmt(P[k].signups), fmt(P[k].active), fmt(P[k].entries), fmt(P[k].notSaved)]))}</div>`;
+  h += `<div class="panel"><h3>Spread loop</h3><p class="note">Returning = device seen on 2+ different days, latest inside the window.</p>${table(['Metric', 'Value'], [['Returning, 7 d', fmt(L.returning7)], ['Returning, 30 d', fmt(L.returning30)], ['Asked a question (devices, ever)', fmt(L.asked)], ['Shop pages', fmt(L.shops) + ' (' + fmt(L.shops7) + ' this week)'], ['Shared a shop page (devices)', fmt(L.sharedEver) + ' (' + fmt(L.shared7) + ' this week)'], ['Shop page views', fmt(L.shopViews)]])}</div>`;
+  h += `<div class="panel"><h3>First-screen funnel, by build</h3><p class="note">Each device counted under the build it first opened. Opened -> tapped the orange button -> made a record -> asked -> on home screen. "Tapped" starts at v85. Real phones from opening to first tap: median ${secs(T.tapMedianMs)} (${fmt(T.tapN)} devices); to first record: median ${secs(T.recordMedianMs)} (${fmt(T.recordN)}).</p>${table(['Build', 'Opened', 'On a phone', 'In Ghana', 'Tapped', 'Made a record', 'Asked', 'On home screen'], (S.funnel || []).map(r => [esc(r.ver), fmt(r.devices), fmt(r.mobile), fmt(r.gh), fmt(r.tapped) + pct(r.tapped, r.devices), fmt(r.recorded) + pct(r.recorded, r.devices), fmt(r.asked) + pct(r.asked, r.recorded), fmt(r.installed) + pct(r.installed, r.recorded)]))}</div>`;
+  h += `<div class="panel"><h3>Memory activation, by nudge cohort</h3><p class="note">Of the devices that made a record, how many then asked a question. Half hear "you can also ask me" once after the first save (prompted), half never do (organic). Organic is the number that says whether people discover it themselves.</p>${table(['Cohort', 'Devices', 'In Ghana', 'Made a record', 'Asked', 'Activation'], (S.cohorts || []).map(r => [cohName(r.nudge), fmt(r.devices), fmt(r.gh), fmt(r.activated), fmt(r.asked), r.activated ? Math.round(100 * r.asked / r.activated) + '%' : '-']))}</div>`;
+  h += `<div class="panel"><h3>Sources (raw strings)</h3>${table(['Source', 'Devices', 'In Ghana', 'On a phone', 'This week', 'Made a record'], (S.sources || []).map(r => [esc(r.source), fmt(r.devices), fmt(r.gh), fmt(r.mobile), fmt(r.week), fmt(r.activated)]))}</div>`;
+  h += `<div class="panel"><h3>Excluded traffic</h3><p class="note">Datacentre networks (crawlers, link previews, ad reviewers) are dropped from every live view. Test devices (?test=1) likewise.</p>${table(['Network', 'Devices', 'In Ghana'], dc.map(r => [esc(r.org || '(unknown)'), fmt(r.devices), fmt(r.gh)]), 'No datacentre visits recorded since the last clean-up.')}<p class="note">Test rows currently in the database: ${fmt(X.devices)} devices, ${fmt(X.events)} events, ${fmt(X.entries)} entries, ${fmt(X.shops)} shop pages.</p></div>`;
+  h += `<div class="panel"><h3>Languages</h3><p class="note">Phone language of real people, and the language guessed from each voice entry (counts only, never the words).</p>${table(['Phone language', 'Devices'], (S.languages || []).map(r => [esc(r.lang), fmt(r.devices)]))}${table(['Spoken', 'Entries', 'Devices'], (S.spoken || []).map(r => [esc(r.lang), fmt(r.entries), fmt(r.devices)]), 'No voice entries yet.')}</div>`;
+  h += `<div class="panel"><h3>Raw payload</h3><pre>${esc(JSON.stringify(S, null, 1))}</pre></div>`;
+  out.innerHTML = h;
+}
+main().catch(e => { document.getElementById('out').innerHTML = '<p class="empty">Failed: ' + esc(e.message) + '</p>'; });
+</script>
+</body>
+</html>
