@@ -969,7 +969,7 @@ async function handleTranscribe(request, env) {
 // 50 is a transcription/parsing error, not a fabrication) - evidence-checking
 // targets fabrication specifically, not every possible error; the review UI is
 // still what catches a wrong-but-grounded number.
-const WORKER_VERSION = 'w41';
+const WORKER_VERSION = 'w42';
 
 // Spanish (Venezuela) twin of EXTRACT_SYSTEM_PROMPT below: same event types,
 // same {value, evidence} rule, same JSON-only answer. Amounts are bare
@@ -1382,7 +1382,9 @@ function mentionsANumber(text) {
 }
 
 async function runExtractionModel(text, env, temperature, lang) {
-  return env.AI.run('@cf/meta/llama-3.2-3b-instruct', {
+  // Spanish gets the 8B model (fp8-fast: cheaper than the plain 8B and far
+  // better than 3B on two-event sentences); English keeps the tested 3B path.
+  return env.AI.run(lang === 'es' ? '@cf/meta/llama-3.1-8b-instruct-fp8-fast' : '@cf/meta/llama-3.2-3b-instruct', {
     messages: [
       { role: 'system', content: lang === 'es' ? EXTRACT_SYSTEM_PROMPT_ES : EXTRACT_SYSTEM_PROMPT },
       { role: 'user', content: text }
@@ -1458,13 +1460,26 @@ async function extractFromText(text, env, lang) {
 
   if (clean.length === 0) clean = lang === 'es' ? debtFallbackEs(text) : debtFallback(text);
   if (lang === 'es') {
-    // Venezuela prices in dollars and pays in bolívares; a debt is kept in
-    // the currency it was spoken in. Default USD unless bolívares/bolos/Bs
-    // were said and dollars were not (mixed sentences default to USD).
     const tt = String(text).toLowerCase();
-    const saysBs = /bol[ií]var|\bbolos?\b|\bbs\b/.test(tt), saysUsd = /d[oó]lar|\bverdes?\b|\$/.test(tt);
-    const cur = saysBs && !saysUsd ? 'VES' : 'USD';
-    clean = clean.map(e => Object.assign({}, e, { currency: cur }));
+    // A name of one or two letters is a preposition the model grabbed
+    // ("fié a María" -> customer "a"), never a person.
+    clean = clean.filter(e => (e.item || e.customer || e.supplier || '').trim().length > 2);
+    // One number in the sentence and an event without an amount: that number
+    // is the amount ("Pedro me quedó debiendo 2000 bolos").
+    const nums = (tt.match(/\d+(?:[.,]\d+)?/g) || []);
+    if (nums.length === 1) clean = clean.map(e => (e.price === undefined && e.type !== 'sale') ? Object.assign({}, e, { price: Number(nums[0].replace(',', '.')) }) : e);
+    // Currency per event: the money word nearest AFTER the event's amount
+    // decides; if none, the sentence-wide word; default dollars (Venezuela
+    // prices in dollars and pays in bolívares).
+    const isBs = /bol[ií]var|\bbolos?\b|\bbs\b/, isUsd = /d[oó]lar|\bverdes?\b|\$/;
+    const curAt = pos => { const after = tt.slice(pos, pos + 40); return isBs.test(after) ? 'VES' : isUsd.test(after) ? 'USD' : null; };
+    const global = isBs.test(tt) && !isUsd.test(tt) ? 'VES' : 'USD';
+    clean = clean.map(e => {
+      let cur = null;
+      const amts = e.type === 'sale' && e.qty && e.price ? [String(e.price * e.qty), String(e.price)] : [String(e.price || '')];
+      for (const x of amts) { const i = x ? tt.indexOf(x) : -1; if (i >= 0) { cur = curAt(i + x.length); if (cur) break; } }
+      return Object.assign({}, e, { currency: cur || global });
+    });
   }
   return { events: clean };
 }
