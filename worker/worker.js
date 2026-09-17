@@ -974,7 +974,7 @@ async function handleTranscribe(request, env) {
 // 50 is a transcription/parsing error, not a fabrication) - evidence-checking
 // targets fabrication specifically, not every possible error; the review UI is
 // still what catches a wrong-but-grounded number.
-const WORKER_VERSION = 'w56';
+const WORKER_VERSION = 'w57';
 
 // Spanish (Venezuela) twin of EXTRACT_SYSTEM_PROMPT below: same event types,
 // same {value, evidence} rule, same JSON-only answer. Amounts are bare
@@ -1929,7 +1929,7 @@ async function handleTranscribeAndExtractInner(request, env) {
   if (lang === 'es') { text = spanishPrep(text, country); text = spanishNumbersToDigits(text); if (country === 'CO') text = colombianMoneyToDigits(text); text = spanishPrep(text, country); }
   else text = englishNumbersToDigits(text);
   const extracted = (lang === 'es' && /^\s*[\u00bf]?\s*(a c[o\u00f3]mo|cu[a\u00e1]nt[oa]s?|qui[e\u00e9]n|qu[e\u00e9])\b/i.test(text) && !/\d/.test(text)) ? { events: [] } : await extractFromText(text, env, lang, country);
-  return cors(new Response(JSON.stringify({ text, events: extracted.events || [] }), {
+  return cors(new Response(JSON.stringify({ text, events: extracted.events || [], wv: WORKER_VERSION, rep: text !== String(transcribed.text || '') }), {
     headers: { 'Content-Type': 'application/json' }
   }));
 }
