@@ -969,7 +969,7 @@ async function handleTranscribe(request, env) {
 // 50 is a transcription/parsing error, not a fabrication) - evidence-checking
 // targets fabrication specifically, not every possible error; the review UI is
 // still what catches a wrong-but-grounded number.
-const WORKER_VERSION = 'w40';
+const WORKER_VERSION = 'w41';
 
 // Spanish (Venezuela) twin of EXTRACT_SYSTEM_PROMPT below: same event types,
 // same {value, evidence} rule, same JSON-only answer. Amounts are bare
@@ -1350,8 +1350,10 @@ function spanishNumbersToDigits(text) {
     const f = fold(w).replace(/[.,;:!?]+$/, '');
     const isNum = t => t in ES_UNITS || t in ES_TENS || t in ES_HUNDREDS || t === 'mil';
     if (!isNum(f) || f === 'una' || f === 'uno') { out.push(w); i++; continue; }
-    // consume a run of number words (with "y" joining tens and units)
-    let total = 0, cur = 0, j = i, any = false, lastMil = false;
+    // consume a run of number words (with "y" joining tens and units);
+    // `last` is the index just after the final number word, so the spaces
+    // that follow the run are kept ("20 dólares", not "20dólares").
+    let total = 0, cur = 0, j = i, any = false, last = i;
     while (j < words.length) {
       const wj = words[j];
       if (/^\s+$/.test(wj) || wj === '') { j++; continue; }
@@ -1360,16 +1362,15 @@ function spanishNumbersToDigits(text) {
       if (fj in ES_HUNDREDS) { cur += ES_HUNDREDS[fj]; any = true; }
       else if (fj in ES_TENS) { cur += ES_TENS[fj]; any = true; }
       else if (fj in ES_UNITS && fj !== 'una' && (fj !== 'uno' || any)) { cur += ES_UNITS[fj]; any = true; }
-      else if (fj === 'mil') { total += (cur || 1) * 1000; cur = 0; any = true; lastMil = true; }
+      else if (fj === 'mil') { total += (cur || 1) * 1000; cur = 0; any = true; }
       else break;
-      j++;
-      if (lastMil && fj !== 'mil') lastMil = false;
+      j++; last = j;
     }
     if (!any) { out.push(w); i++; continue; }
     total += cur;
-    const trailing = (words[j - 1] || '').match(/[.,;:!?]+$/);
+    const trailing = (words[last - 1] || '').match(/[.,;:!?]+$/);
     out.push(String(total) + (trailing ? trailing[0] : ''));
-    i = j;
+    i = last;
   }
   return out.join('');
 }

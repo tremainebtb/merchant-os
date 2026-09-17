@@ -39,6 +39,123 @@ function speakClearly(utter) {
   return utter;
 }
 
+// ---------------------------------------------------------------------------
+// Language (17 Sep): English for Ghana, Spanish for Venezuela. Chosen once
+// from ?lang=, then remembered; otherwise the phone's own language decides.
+// t(en, es) is the whole translation layer - every user-facing sentence
+// passes through it, so the code reads as English with Spanish beside it.
+// ---------------------------------------------------------------------------
+function detectLang() {
+  try {
+    const q = new URLSearchParams(location.search).get('lang');
+    if (q === 'es' || q === 'en') { localStorage.setItem('kym_lang', q); return q; }
+    const saved = localStorage.getItem('kym_lang');
+    if (saved === 'es' || saved === 'en') return saved;
+    return /^es\b/i.test(navigator.language || '') ? 'es' : 'en';
+  } catch (e) { return 'en'; }
+}
+const LANG = detectLang();
+const ES = LANG === 'es';
+document.documentElement.lang = ES ? 'es' : 'en';
+const t = (en, es) => (ES ? es : en);
+// Venezuela keeps two currencies: dollars are the reference, bolívares the
+// day-to-day cash. An entry carries cur 'USD' | 'VES' (voice sets it from the
+// words spoken; typed entries are dollars). Ghana entries have no cur.
+function fmt(n, cur) {
+  const v = Number(n) || 0;
+  if (!ES) return v.toLocaleString('en-GH', { minimumFractionDigits: 0, maximumFractionDigits: 2 }) + ' cedis';
+  const s = v.toLocaleString('es-VE', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+  return cur === 'VES' ? 'Bs. ' + s : '$' + s;
+}
+function fmtSay(n, cur) {
+  const v = Number(n) || 0;
+  if (!ES) return fmt(v);
+  return v.toLocaleString('es-VE', { minimumFractionDigits: 0, maximumFractionDigits: 2 }) + (cur === 'VES' ? ' bol\u00edvares' : ' d\u00f3lares');
+}
+
+// ---------------------------------------------------------------------------
+// Spoken replies (17 Sep). Bobby's verdict on the phone's built-in voice was
+// blunt and right. say() fetches a short clip from the Worker (/say - a real
+// voice, Spanish included), keeps it in the Cache API so fixed phrases cost
+// once, and plays it through one AudioContext unlocked by any tap (the only
+// way iOS lets audio play a second after the tap). If the server is capped,
+// offline, or slow to fail, the phone's own voice speaks the same words -
+// the words never go missing, only the quality changes.
+// ---------------------------------------------------------------------------
+let ttsCtx = null, ttsCurrent = null, ttsFailedAt = 0;
+const ttsMem = new Map();
+function ttsUnlock() {
+  try {
+    if (!ttsCtx) ttsCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (ttsCtx.state === 'suspended') ttsCtx.resume();
+  } catch (e) { ttsCtx = null; }
+}
+document.addEventListener('pointerup', ttsUnlock, { passive: true });
+document.addEventListener('touchend', ttsUnlock, { passive: true });
+function ttsKey(text) { return '/say?l=' + LANG + '&t=' + encodeURIComponent(String(text).trim().slice(0, 220)); }
+async function ttsFetch(key) {
+  let cache = null;
+  try { cache = await caches.open('kym-tts-v1'); const hit = await cache.match(key); if (hit) return hit; } catch (e) { cache = null; }
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), 6000);
+  try {
+    const res = await fetch(API_BASE + key, { signal: ac.signal });
+    if (res.ok && cache) { try { await cache.put(key, res.clone()); } catch (e) { /* cache is a bonus */ } }
+    return res;
+  } finally { clearTimeout(timer); }
+}
+function ttsPrefetch(text) { try { ttsFetch(ttsKey(text)).catch(() => {}); } catch (e) { /* optional */ } }
+function phoneSpeak(text, onend) {
+  if (!('speechSynthesis' in window)) { if (onend) onend(); return; }
+  try {
+    const u = speakClearly(new SpeechSynthesisUtterance(text));
+    u.rate = 0.85;
+    u.lang = ES ? 'es-VE' : 'en-GB';
+    if (ES) { const v = speechSynthesis.getVoices().find(x => /^es/i.test(x.lang || '')); if (v) u.voice = v; }
+    let done = false; const fin = () => { if (!done) { done = true; if (onend) onend(); } };
+    u.onend = fin; u.onerror = fin;
+    speechSynthesis.cancel();
+    speechSynthesis.speak(u);
+    setTimeout(fin, 15000);
+  } catch (e) { if (onend) onend(); }
+}
+function say(text, opts) {
+  text = String(text || '').trim();
+  const onstart = opts && opts.onstart, onend = opts && opts.onend;
+  if (!text) return Promise.resolve();
+  const fallback = () => new Promise(resolve => { if (onstart) onstart(); phoneSpeak(text, () => { if (onend) onend(); resolve(); }); });
+  return (async () => {
+    try {
+      if (!ttsCtx) ttsUnlock();
+      if (!ttsCtx || (Date.now() - ttsFailedAt) < 60000) throw new Error('phone');
+      const key = ttsKey(text);
+      let buf = ttsMem.get(key);
+      if (!buf) {
+        const res = await ttsFetch(key);
+        if (!res || !res.ok) throw new Error('tts ' + (res && res.status));
+        buf = await ttsCtx.decodeAudioData(await res.arrayBuffer());
+        ttsMem.set(key, buf);
+      }
+      if (ttsCtx.state === 'suspended') await ttsCtx.resume();
+      try { if ('speechSynthesis' in window) speechSynthesis.cancel(); } catch (e) { /* ok */ }
+      if (ttsCurrent) { try { ttsCurrent.stop(); } catch (e) { /* ok */ } }
+      const src = ttsCtx.createBufferSource();
+      src.buffer = buf; src.connect(ttsCtx.destination);
+      ttsCurrent = src;
+      return await new Promise(resolve => {
+        src.onended = () => { if (ttsCurrent === src) ttsCurrent = null; if (onend) onend(); resolve(); };
+        if (onstart) onstart();
+        src.start();
+      });
+    } catch (err) {
+      if (!/phone/.test(String(err))) ttsFailedAt = Date.now();
+      return fallback();
+    }
+  })();
+}
+// Fixed phrases, fetched once so the first tap never waits on the network.
+setTimeout(() => { ttsPrefetch(t('Speak now.', 'Habla ahora.')); ttsPrefetch(t('Saved.', 'Guardado.')); }, 2500);
+
 const DB_NAME = 'merchantos';
 const STORE = 'entries';
 let db;
@@ -164,11 +281,6 @@ function getAllEntries() {
     req.onsuccess = () => resolve(req.result.sort((a, b) => b.ts - a.ts));
     req.onerror = () => reject(req.error);
   });
-}
-
-function fmt(n) {
-  const v = Number(n) || 0;
-  return v.toLocaleString('en-GH', { minimumFractionDigits: 0, maximumFractionDigits: 2 }) + ' cedis';
 }
 
 const FIELD_CONFIG = {
@@ -325,11 +437,11 @@ function showOpenInChrome(reason) {
     if (btn && btn.parentNode) btn.parentNode.insertBefore(box, btn.nextSibling); else return;
   }
   const lead = reason === 'failed'
-    ? 'Facebook\u2019s browser cannot use the microphone.'
-    : 'You are inside Facebook\u2019s browser \u2014 the microphone may not work here.';
+    ? t('Facebook\u2019s browser cannot use the microphone.', 'El navegador de Facebook no puede usar el micr\u00f3fono.')
+    : t('You are inside Facebook\u2019s browser \u2014 the microphone may not work here.', 'Est\u00e1s dentro del navegador de Facebook: puede que el micr\u00f3fono no funcione aqu\u00ed.');
   box.innerHTML = isAndroid()
-    ? `<p>${lead}</p><a class="iab-open" href="${chromeIntentUrl()}">Open in Chrome</a><p class="iab-sub">Same page, and your voice will work.</p>`
-    : `<p>${lead}</p><p class="iab-sub">Tap the three dots <b>\u22ef</b> at the top, then <b>Open in Safari</b> (or Chrome). Or type it below.</p>`;
+    ? `<p>${lead}</p><a class="iab-open" href="${chromeIntentUrl()}">${t('Open in Chrome', 'Abrir en Chrome')}</a><p class="iab-sub">${t('Same page, and your voice will work.', 'La misma p\u00e1gina, y tu voz funcionar\u00e1.')}</p>`
+    : `<p>${lead}</p><p class="iab-sub">${t('Tap the three dots <b>\u22ef</b> at the top, then <b>Open in Safari</b> (or Chrome). Or type it below.', 'Toca los tres puntos <b>\u22ef</b> arriba y luego <b>Abrir en Safari</b> (o Chrome). O escr\u00edbelo abajo.')}</p>`;
   box.hidden = false;
 }
 function showTypedChoices() {
@@ -482,6 +594,7 @@ async function transcribeAndExtract(blob) {
   const ext = blob.type.indexOf('mp4') !== -1 ? 'mp4' : (blob.type.indexOf('ogg') !== -1 ? 'ogg' : 'webm');
   const form = new FormData();
   form.append('audio', blob, `voice.${ext}`);
+  form.append('lang', LANG);
   let res, data;
   try {
     ({ res, data } = await postToApi('/transcribe-and-extract', form));
@@ -568,7 +681,26 @@ async function shrinkPhoto(file) {
   return blob;
 }
 
-const TYPE_LABEL = { sale: 'Sale', expense: 'Expense', debt_in: 'Customer owes me', debt_out: 'I owe supplier' };
+const TYPE_LABEL = ES
+  ? { sale: 'Venta', expense: 'Gasto', debt_in: 'Cliente me debe', debt_out: 'Le debo al proveedor' }
+  : { sale: 'Sale', expense: 'Expense', debt_in: 'Customer owes me', debt_out: 'I owe supplier' };
+if (ES) {
+  // Spanish labels for the typed sheet. Same keys, same maths; only words.
+  const L = {
+    sale: { title: 'Agregar venta', item: '\u00bfQu\u00e9 vendiste?', qty: '\u00bfCu\u00e1ntos?', price: 'Precio de cada uno ($)', method: '\u00bfC\u00f3mo te pagaron?', cash: 'Efectivo', momo: 'Pago m\u00f3vil' },
+    expense: { title: 'Agregar gasto', item: '\u00bfEn qu\u00e9 gastaste?', price: 'Monto ($)', kind: '\u00bfQu\u00e9 tipo de gasto?', business: 'Gasto del negocio', stock: 'Mercanc\u00eda para vender', home: 'Para la casa' },
+    debt_in: { title: 'Cliente me debe', item: 'Nombre del cliente', price: 'Cu\u00e1nto te debe ($)', note: 'Por qu\u00e9 (opcional)' },
+    debt_out: { title: 'Le debo al proveedor', item: 'Nombre del proveedor', price: 'Cu\u00e1nto le debes ($)', note: 'Por qu\u00e9 (opcional)' }
+  };
+  for (const ty of Object.keys(L)) {
+    const cfg = FIELD_CONFIG[ty]; if (!cfg) continue;
+    cfg.title = L[ty].title;
+    (cfg.fields || []).forEach(f => {
+      if (L[ty][f.key]) f.label = L[ty][f.key];
+      (f.options || []).forEach(o => { if (L[ty][o.value]) o.label = L[ty][o.value]; });
+    });
+  }
+}
 
 // Turns one extracted event into the same shape addEntry() expects, computing
 // the amount ourselves from the (already type-checked, by the Worker) qty/price -
@@ -596,6 +728,7 @@ function eventToEntry(ev) {
   const price = ev.price || '';
   const amount = type === 'sale' ? (Number(qty) || 0) * (Number(price) || 0) : (Number(price) || 0);
   const entry = { type, item, note: ev.note || '', qty, price, amount };
+  if (ES) entry.cur = ev.currency === 'VES' ? 'VES' : 'USD';
   if (type === 'expense') {
     const kind = spendKindFromText(item + ' ' + (ev.note || ''));
     if (kind) entry.kind = kind;
@@ -645,10 +778,10 @@ function fieldMarkup(value, idx, key, type, extraAttrs) {
   const has = value !== undefined && value !== '' && value !== null;
   const cls = has ? 'ai-detected' : 'needs-input';
   const caption = has
-    ? (pendingVoiceSource === 'photo' ? 'Read from your photo - check it' : 'I heard this - check it')
-    : "Didn't catch this - tap to enter";
+    ? (pendingVoiceSource === 'photo' ? t('Read from your photo - check it', 'Le\u00eddo de tu foto: rev\u00edsalo') : t('I heard this - check it', 'Esto escuch\u00e9: rev\u00edsalo'))
+    : t("Didn't catch this - tap to enter", 'Esto no lo entend\u00ed: toca para escribirlo');
   return `<div class="field ${cls}">
-      <input type="${type}" ${extraAttrs || ''} data-idx="${idx}" data-key="${key}" value="${has ? String(value).replace(/"/g, '&quot;') : ''}" placeholder="${has ? '' : 'tap to enter'}" data-clarity-mask="True">
+      <input type="${type}" ${extraAttrs || ''} data-idx="${idx}" data-key="${key}" value="${has ? String(value).replace(/"/g, '&quot;') : ''}" placeholder="${has ? '' : t('tap to enter', 'toca para escribir')}" data-clarity-mask="True">
       <div class="field-caption">${caption}</div>
     </div>`;
 }
@@ -687,14 +820,13 @@ function voiceMissing(ev) {
 function voiceOutcomeStatus(heard, events) {
   const saved = events.filter(ev => ev._savedId).length;
   const pending = events.length - saved;
-  const tail = saved && pending ? `saved ${saved}, please check the rest below.`
-    : saved ? 'saved, check it below.'
-    : 'not saved yet - please finish it below.';
-  return `Heard: \u201c${heard}\u201d \u2014 ${tail}`;
+  const tail = saved && pending ? t(`saved ${saved}, please check the rest below.`, `guard\u00e9 ${saved}, revisa el resto abajo.`)
+    : saved ? t('saved, check it below.', 'guardado, rev\u00edsalo abajo.')
+    : t('not saved yet - please finish it below.', 'todav\u00eda no guardado. Compl\u00e9talo abajo.');
+  return t(`Heard: \u201c${heard}\u201d \u2014 ${tail}`, `Escuch\u00e9: \u201c${heard}\u201d \u2014 ${tail}`);
 }
 
 function speakVoiceReview(events) {
-  if (!('speechSynthesis' in window)) return;
   const lines = [];
   events.forEach(ev => {
     const entry = eventToEntry(ev);
@@ -702,16 +834,16 @@ function speakVoiceReview(events) {
     // "Saved" is only ever spoken for an entry that really has a saved id.
     // A complete entry with no id means the save itself failed - say so,
     // never announce a save that did not happen.
-    if (ev._savedId) { lines.push(`Saved: ${entry.item}, ${fmt(entry.amount)}.`); return; }
-    if (!missing) { lines.push(`I heard ${entry.item}, ${fmt(entry.amount)}, but could not save it - please tap Save below.`); return; }
-    if (missing === 'item') lines.push('I heard an amount but not what it was for - please type that in below.');
-    else if (missing === 'qty') lines.push(`I heard ${entry.item} but not how many - please type it in below.`);
-    else lines.push(`I heard ${entry.item} but not the price - please tap it in below.`);
+    if (ev._savedId) { lines.push(t(`Saved: ${entry.item}, ${fmtSay(entry.amount, entry.cur)}.`, `Guardado: ${entry.item}, ${fmtSay(entry.amount, entry.cur)}.`)); return; }
+    if (!missing) { lines.push(t(`I heard ${entry.item}, ${fmtSay(entry.amount, entry.cur)}, but could not save it - please tap Save below.`, `Escuch\u00e9 ${entry.item}, ${fmtSay(entry.amount, entry.cur)}, pero no pude guardarlo. Toca Guardar abajo.`)); return; }
+    if (missing === 'item') lines.push(t('I heard an amount but not what it was for - please type that in below.', 'Escuch\u00e9 un monto pero no de qu\u00e9 era. Escr\u00edbelo abajo, por favor.'));
+    else if (missing === 'qty') lines.push(t(`I heard ${entry.item} but not how many - please type it in below.`, `Escuch\u00e9 ${entry.item} pero no cu\u00e1ntos. Escr\u00edbelo abajo, por favor.`));
+    else lines.push(t(`I heard ${entry.item} but not the price - please tap it in below.`, `Escuch\u00e9 ${entry.item} pero no el precio. Escr\u00edbelo abajo, por favor.`));
   });
   const saved = events.filter(ev => ev._savedId);
   if (!lines.length) return;
   let closer = saved.length
-    ? 'If any of this is wrong, tap Undo under it.'
+    ? t('If any of this is wrong, tap Undo under it.', 'Si algo est\u00e1 mal, toca Deshacer debajo.')
     : '';
   // The "aha" hypothesis (16 Sep): the moment that matters is not recording,
   // it is asking and being answered. Spoken once, after the very first saved
@@ -719,14 +851,11 @@ function speakVoiceReview(events) {
   // counted (ping 'ask'), so the hypothesis is measured, not assumed.
   try {
     if (saved.length && nudgeCohort() === 1 && !localStorage.getItem('kym_ask_nudged')) {
-      closer += ' You can also ask me: how much did I sell today? Or: who owes me?';
+      closer += t(' You can also ask me: how much did I sell today? Or: who owes me?', ' Tambi\u00e9n puedes preguntarme: \u00bfcu\u00e1nto vend\u00ed hoy? O: \u00bfqui\u00e9n me debe?');
       localStorage.setItem('kym_ask_nudged', '1');
     }
   } catch (e) { /* optional */ }
-  const utter = speakClearly(new SpeechSynthesisUtterance(`${lines.join(' ')} ${closer}`.trim()));
-  utter.rate = 0.8;
-  speechSynthesis.cancel();
-  speechSynthesis.speak(utter);
+  say(`${lines.join(' ')} ${closer}`.trim());
 }
 
 // Spoken version of the photo review. Unlike speakVoiceReview above this
@@ -966,7 +1095,7 @@ function stopMicLevelMeter() {
 async function toggleMic(btn, statusId) {
   if (!micSupported()) {
     if (inAppBrowser()) showOpenInChrome('failed');
-    micFail(window.isSecureContext === false ? 'Please open https://countmy.app for voice to work.' : 'Voice isn\u2019t available on this phone/browser \u2014 please type instead.', 'mic_nomic', statusId);
+    micFail(window.isSecureContext === false ? t('Please open https://countmy.app for voice to work.', 'Abre https://countmy.app para que funcione la voz.') : t('Voice isn\u2019t available on this phone/browser \u2014 please type instead.', 'La voz no est\u00e1 disponible en este tel\u00e9fono o navegador. Mejor escr\u00edbelo.'), 'mic_nomic', statusId);
     return;
   }
   if (mediaRecorder && mediaRecorder.state === 'recording') {
@@ -990,7 +1119,8 @@ async function toggleMic(btn, statusId) {
     const supportedMime = mimeCandidates.find(m => window.MediaRecorder.isTypeSupported && window.MediaRecorder.isTypeSupported(m));
     mediaRecorder = supportedMime ? new MediaRecorder(stream, { mimeType: supportedMime }) : new MediaRecorder(stream);
     const actualMime = mediaRecorder.mimeType || supportedMime || 'audio/webm';
-    const recordingStartedAt = Date.now();
+    let recordingStartedAt = Date.now();
+    mediaRecorder.onstart = () => { recordingStartedAt = Date.now(); };
     mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) recordedChunks.push(e.data); };
     // Auto-stop (17 Sep): nobody reads "tap again when you're done", and a
     // recording that never ends is the exact "it can't hear me". Stop 1.8 s
@@ -1012,7 +1142,7 @@ async function toggleMic(btn, statusId) {
       const lbl = btn.querySelector('.home-mic-label'); if (lbl && lbl.dataset.idle) lbl.textContent = lbl.dataset.idle;
       btn.classList.remove('recording');
       pendingVoiceSource = 'voice';
-      setMicStatus('Listening to what you said\u2026', null, statusId);
+      setMicStatus(t('Listening to what you said\u2026', 'Escuchando lo que dijiste\u2026'), null, statusId);
       // If nothing was actually captured (mic muted at the OS level, a
       // permission edge case, or the recording stopped instantly) the old
       // code sent an empty file to be transcribed and got back nothing,
@@ -1022,7 +1152,7 @@ async function toggleMic(btn, statusId) {
       if (!recordedChunks.length || recordedChunks.reduce((s, c) => s + c.size, 0) === 0) {
         track('mic_error', { reason: 'empty_recording' });
         if (inAppBrowser()) showOpenInChrome('failed');
-        micFail('No sound was recorded \u2014 please check your phone isn\u2019t muted, then try again.', 'mic_empty', statusId);
+        micFail(t('No sound was recorded \u2014 please check your phone isn\u2019t muted, then try again.', 'No se grab\u00f3 ning\u00fan sonido. Revisa que el tel\u00e9fono no est\u00e9 en silencio e int\u00e9ntalo otra vez.'), 'mic_empty', statusId);
         return;
       }
       // The meter never moved: the phone gave us a stream with no voice in it
@@ -1031,7 +1161,7 @@ async function toggleMic(btn, statusId) {
       if (meterWasLive && heardPeak < 10) {
         track('mic_error', { reason: 'silent_take' });
         if (inAppBrowser()) showOpenInChrome('failed');
-        micFail('I could not hear you. Please hold the phone close to your mouth and try again, or type it below.', 'mic_silent', statusId);
+        micFail(t('I could not hear you. Please hold the phone close to your mouth and try again, or type it below.', 'No te escuch\u00e9. Acerca el tel\u00e9fono a la boca e int\u00e9ntalo otra vez, o escr\u00edbelo abajo.'), 'mic_silent', statusId);
         return;
       }
       // Real reported symptom, 28 Aug: recordings that DO have bytes (so the
@@ -1044,7 +1174,7 @@ async function toggleMic(btn, statusId) {
       const recordedMs = Date.now() - recordingStartedAt;
       try {
         const blob = new Blob(recordedChunks, { type: actualMime });
-        setMicStatus('Working out what happened\u2026', null, statusId);
+        setMicStatus(t('Working out what happened\u2026', 'Entendiendo qu\u00e9 pas\u00f3\u2026'), null, statusId);
         const { text: heard, events } = await transcribeAndExtract(blob);
         if (!heard.trim()) {
           track('mic_error', { reason: 'no_transcript', duration_ms: recordedMs });
@@ -1054,8 +1184,8 @@ async function toggleMic(btn, statusId) {
           // English. Added to every instruction that asks the owner to do
           // something, not to plain statements of fact.
           const msg = recordedMs < 1200
-            ? 'Too quick \u2014 please tap, then say what happened.'
-            : 'I did not catch that \u2014 please hold the phone closer and say it again, or type it below.';
+            ? t('Too quick \u2014 please tap, then say what happened.', 'Muy r\u00e1pido. Toca y luego di qu\u00e9 pas\u00f3.')
+            : t('I did not catch that \u2014 please hold the phone closer and say it again, or type it below.', 'No entend\u00ed. Acerca el tel\u00e9fono y dilo otra vez, o escr\u00edbelo abajo.');
           micFail(msg, 'mic_silent', statusId);
           return;
         }
@@ -1116,21 +1246,24 @@ async function toggleMic(btn, statusId) {
             speakVoiceReview(pendingVoiceEvents);
             await render();
           } else {
-            micFail(`I heard \u201c${heard}\u201d but could not work out what happened. Please say it again with the amount in cedis, or type it below.`, null, statusId);
+            micFail(t(`I heard \u201c${heard}\u201d but could not work out what happened. Please say it again with the amount in cedis, or type it below.`, `Escuch\u00e9 \u201c${heard}\u201d pero no entend\u00ed qu\u00e9 pas\u00f3. Dilo otra vez con el monto en d\u00f3lares, o escr\u00edbelo abajo.`), null, statusId);
           }
         }
       } catch (err) {
         track('mic_error', { reason: err.cls || 'transcribe_failed', http: err.http || 0, ms: recordedMs, bytes: recordedChunks.reduce((s, c) => s + c.size, 0) });
-        micFail(err.message || 'Could not hear that \u2014 please try again, or type it below.', err.cls || 'mic_server', statusId);
+        micFail(err.message || t('Could not hear that \u2014 please try again, or type it below.', 'No pude escuchar eso. Int\u00e9ntalo otra vez, o escr\u00edbelo abajo.'), err.cls || 'mic_server', statusId);
       }
     };
-    mediaRecorder.start();
+    // Say "Speak now" BEFORE the recorder starts (it would otherwise record
+    // itself), then listen. The clip is prefetched, so this is ~0.7 s.
     btn.classList.add('recording');
     const lbl = btn.querySelector('.home-mic-label');
-    if (lbl) { if (!lbl.dataset.idle) lbl.dataset.idle = lbl.textContent; lbl.textContent = 'Speak now\u2026'; }
+    if (lbl) { if (!lbl.dataset.idle) lbl.dataset.idle = lbl.textContent; lbl.textContent = t('Speak now\u2026', 'Habla ahora\u2026'); }
+    setMicStatus(t('Speak now. It stops by itself when you finish.', 'Habla ahora. Se detiene solo cuando terminas.'), null, statusId);
+    await Promise.race([say(t('Speak now.', 'Habla ahora.')), new Promise(r => setTimeout(r, 1800))]);
     try { if (navigator.vibrate) navigator.vibrate(40); } catch (e) { /* optional */ }
+    mediaRecorder.start();
     track('mic_start');
-    setMicStatus('Speak now. It stops by itself when you finish.', null, statusId);
   } catch (err) {
     // Real Clarity finding, 28 Aug: a real user hit this and got stuck - the
     // old message ("check phone permission") assumes someone can read it AND
@@ -1140,12 +1273,12 @@ async function toggleMic(btn, statusId) {
     // someone who can't read it in the first place.
     const iab = inAppBrowser();
     const msg = iab
-      ? (isAndroid() ? 'Facebook\u2019s browser cannot use the microphone. Please tap Open in Chrome, or type it below.' : 'Facebook\u2019s browser cannot use the microphone. Please open this page in Safari, or type it below.')
+      ? (isAndroid() ? t('Facebook\u2019s browser cannot use the microphone. Please tap Open in Chrome, or type it below.', 'El navegador de Facebook no puede usar el micr\u00f3fono. Toca Abrir en Chrome, o escr\u00edbelo abajo.') : t('Facebook\u2019s browser cannot use the microphone. Please open this page in Safari, or type it below.', 'El navegador de Facebook no puede usar el micr\u00f3fono. Abre esta p\u00e1gina en Safari, o escr\u00edbelo abajo.'))
       : err.name === 'NotAllowedError'
-      ? 'This phone said no to the microphone. Please go to your phone\u2019s Settings, find your browser, and turn the microphone on. Or type it below.'
+      ? t('This phone said no to the microphone. Please go to your phone\u2019s Settings, find your browser, and turn the microphone on. Or type it below.', 'El tel\u00e9fono no dio permiso al micr\u00f3fono. Ve a Ajustes, busca tu navegador y activa el micr\u00f3fono. O escr\u00edbelo abajo.')
       : err.name === 'NotFoundError'
-      ? 'This phone has no microphone available. Please type it below.'
-      : 'Could not reach the microphone \u2014 please type it below.';
+      ? t('This phone has no microphone available. Please type it below.', 'Este tel\u00e9fono no tiene micr\u00f3fono disponible. Escr\u00edbelo abajo.')
+      : t('Could not reach the microphone \u2014 please type it below.', 'No pude usar el micr\u00f3fono. Escr\u00edbelo abajo.');
     if (iab) showOpenInChrome('failed');
     micFail(msg, err.name === 'NotAllowedError' ? 'mic_denied' : err.name === 'NotFoundError' ? 'mic_nomic' : 'mic_busy', statusId);
     track('mic_error', { reason: err.name || 'getusermedia_failed', iab: iab ? 1 : 0 });
@@ -1464,7 +1597,7 @@ function renderAdmin() {
 // either way, not like something is missing.
 function greeting() {
   const hour = new Date().getHours();
-  const part = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+  const part = hour < 12 ? t('Good morning', 'Buenos d\u00edas') : hour < 17 ? t('Good afternoon', 'Buenas tardes') : t('Good evening', 'Buenas noches');
   const shop = getShopId();
   return shop ? `${part}, ${shop}` : part;
 }
@@ -1472,7 +1605,10 @@ function greeting() {
 async function render() {
   const entries = await getAllEntries();
   const today = todayKey(Date.now());
-  const todayEntries = entries.filter(e => e.day === today);
+  const todayAll = entries.filter(e => e.day === today);
+  // Venezuela: dollars are the day's totals; bolívar entries get their own line.
+  const todayEntries = ES ? todayAll.filter(e => e.cur !== 'VES') : todayAll;
+  const bsToday = ES ? todayAll.filter(e => e.cur === 'VES') : [];
   renderAdmin();
   document.getElementById('todayGreeting').textContent = greeting();
   // First screen for a first-timer is the name, the button and one line (15
@@ -1541,7 +1677,7 @@ async function render() {
   // entries now carry a `paid` amount (cumulative, updated via
   // recordDebtPayment below); remaining = amount - paid is the real source
   // of truth everywhere a debt's outstanding balance is shown.
-  const owedMe = entries.filter(e => e.type === 'debt_in').reduce((s, e) => s + Math.max(0, e.amount - (e.paid || 0)), 0);
+  const owedMe = entries.filter(e => e.type === 'debt_in' && e.cur !== 'VES').reduce((s, e) => s + Math.max(0, e.amount - (e.paid || 0)), 0);
   const balance = sales - expenses;
   // Real gap, found 1 Sep from a real accounting critique: "Money left over"
   // never subtracted stock purchases, so buying 2,000 cedis of stock on a
@@ -1554,7 +1690,11 @@ async function render() {
 
   document.getElementById('tSales').textContent = fmt(sales);
   const cashMomoEl = document.getElementById('tCashMomo');
-  cashMomoEl.textContent = sales > 0 ? `Cash ${fmt(cashSales)} - MoMo ${fmt(momoSales)}` : '';
+  cashMomoEl.textContent = sales > 0 ? t(`Cash ${fmt(cashSales)} - MoMo ${fmt(momoSales)}`, `Efectivo ${fmt(cashSales)} - Pago m\u00f3vil ${fmt(momoSales)}`) : '';
+  if (bsToday.length) {
+    const bsSum = ty => bsToday.filter(e => e.type === ty).reduce((s, e) => s + (Number(e.amount) || 0), 0);
+    cashMomoEl.textContent = (cashMomoEl.textContent ? cashMomoEl.textContent + ' \u00b7 ' : '') + `En bol\u00edvares hoy: ventas ${fmt(bsSum('sale'), 'VES')}, gastos ${fmt(bsSum('expense'), 'VES')}, fiao ${fmt(bsSum('debt_in'), 'VES')}`;
+  }
   document.getElementById('tExpenses').textContent = fmt(expenses);
   document.getElementById('tStock').textContent = fmt(stockBought);
   document.getElementById('tOwedMe').textContent = fmt(owedMe);
@@ -1596,7 +1736,7 @@ async function render() {
 
   const histEl = document.getElementById('history');
   if (!entries.length) {
-    histEl.innerHTML = '<div class="empty">Nothing recorded yet. Tap the orange button to add your first sale.</div>';
+    histEl.innerHTML = `<div class="empty">${t('Nothing recorded yet. Tap the orange button to add your first sale.', 'Nada registrado todav\u00eda. Toca el bot\u00f3n naranja para tu primera venta.')}</div>`;
     return;
   }
   // The 7-day lockout is gone (5 Sep). Two independent evidence reviews and
@@ -1617,7 +1757,7 @@ async function render() {
     const cfg = FIELD_CONFIG[e.type];
     const sign = cfg.amountSign > 0 ? '+' : '\u2212';
     const cls = cfg.amountSign > 0 ? 'pos' : 'neg';
-    const when = new Date(e.ts).toLocaleString('en-GH', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
+    const when = new Date(e.ts).toLocaleString(ES ? 'es-VE' : 'en-GH', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
     // Real gap, closed 28 Aug: there was no way to ever record a real
     // repayment against a debt - "Kofi paid GH50 today, Kofi still owes
     // GH70" (a concrete example both AI reviews independently gave) was
@@ -1629,9 +1769,9 @@ async function render() {
     const displayAmount = cfg.isDebt ? remaining : e.amount;
     const daysOwed = cfg.isDebt ? Math.floor((Date.now() - e.ts) / (24 * 60 * 60 * 1000)) : 0;
     const agingLine = cfg.isDebt && !isSettled && daysOwed >= 1
-      ? `<small class="debt-aging">Owed for ${daysOwed} day${daysOwed === 1 ? '' : 's'}</small>` : '';
+      ? `<small class="debt-aging">${t(`Owed for ${daysOwed} day${daysOwed === 1 ? '' : 's'}`, `Debe desde hace ${daysOwed} d\u00eda${daysOwed === 1 ? '' : 's'}`)}</small>` : '';
     const remind = e.type === 'debt_in' && !isSettled
-      ? `<a class="remind-btn" target="_blank" rel="noopener" href="https://wa.me/?text=${encodeURIComponent(`Hello ${e.item}, your balance is ${fmt(remaining)}${e.note ? ' for ' + e.note : ''}. Please send by MoMo when you can. Thank you.${reminderHook()}`)}">Remind on WhatsApp</a>`
+      ? `<a class="remind-btn" target="_blank" rel="noopener" href="https://wa.me/?text=${encodeURIComponent(reminderMessage(e.item, remaining, e.note, e.cur))}">${t('Remind on WhatsApp', 'Recordar por WhatsApp')}</a>`
       : '';
     // "Small small" (bit by bit) is real, sourced, everyday Ghanaian
     // English used across all ages for gradual/partial payment - unlike
@@ -1640,19 +1780,19 @@ async function render() {
     // match for what this specific control does.
     const paymentRow = cfg.isDebt && !isSettled ? `
       <div class="debt-pay-row">
-        <button type="button" class="debt-full-btn" data-id="${e.id}">Paid in full</button>
-        <button type="button" class="debt-partial-toggle" data-id="${e.id}">Paid small small</button>
+        <button type="button" class="debt-full-btn" data-id="${e.id}">${t('Paid in full', 'Pag\u00f3 todo')}</button>
+        <button type="button" class="debt-partial-toggle" data-id="${e.id}">${t('Paid small small', 'Abon\u00f3 una parte')}</button>
       </div>
       <div class="debt-pay-input-row" data-id="${e.id}" hidden>
-        <input type="number" inputmode="decimal" class="debt-pay-input" data-id="${e.id}" placeholder="Amount paid" data-clarity-mask="True">
-        <button type="button" class="debt-pay-btn" data-id="${e.id}">Save</button>
+        <input type="number" inputmode="decimal" class="debt-pay-input" data-id="${e.id}" placeholder="${t('Amount paid', 'Monto pagado')}" data-clarity-mask="True">
+        <button type="button" class="debt-pay-btn" data-id="${e.id}">${t('Save', 'Guardar')}</button>
       </div>` : '';
-    const settledTag = cfg.isDebt && isSettled ? '<span class="debt-settled-tag">\u2713 Paid in full</span>' : '';
+    const settledTag = cfg.isDebt && isSettled ? `<span class="debt-settled-tag">\u2713 ${t('Paid in full', 'Pag\u00f3 todo')}</span>` : '';
     return `<div class="hist-item${cfg.isDebt ? ' is-debt' : ''}" data-edit-id="${e.id}">
       <div class="desc" data-clarity-mask="True">${cfg.desc(e)}${settledTag}<small>${when}</small>${agingLine}${remind}${paymentRow}</div>
-      <div class="amt ${cls}" data-clarity-mask="True">${sign}${fmt(displayAmount)}</div>
+      <div class="amt ${cls}" data-clarity-mask="True">${sign}${fmt(displayAmount, e.cur)}</div>
     </div>`;
-  }).join('') + (hiddenCount > 0 ? `<button type="button" class="show-all-btn" id="showAllBtn">Show all ${entries.length} records</button>` : '');
+  }).join('') + (hiddenCount > 0 ? `<button type="button" class="show-all-btn" id="showAllBtn">${t(`Show all ${entries.length} records`, `Ver los ${entries.length} registros`)}</button>` : '');
 }
 
 // Real gap, closed 28 Aug: recording a repayment against a debt was simply
@@ -1721,8 +1861,7 @@ document.getElementById('history').addEventListener('click', async (e) => {
 // a Twi/Pidgin voice would need real translation + testing with real shop owners
 // first, not an invented script.
 function speakToday() {
-  if (!('speechSynthesis' in window)) return;
-  const t = window._kymToday || { sales: 0, expenses: 0, stockBought: 0, owedMe: 0, balance: 0, cashInHand: 0, salesDiff: 0 };
+  const T = window._kymToday || { sales: 0, expenses: 0, stockBought: 0, owedMe: 0, balance: 0, cashInHand: 0, salesDiff: 0 };
   // Matches the on-screen labels word for word \u2014 hearing something different from
   // what's on the screen is confusing, not helpful. Short, plain sentences, slow
   // pace \u2014 this is read aloud, not read silently.
@@ -1734,21 +1873,16 @@ function speakToday() {
   // yesterday"), which is exactly the inconsistency the comment above
   // already warned against. Now genuinely the same three short phrases as
   // what's on screen, every time.
-  const stockLine = t.stockBought > 0 ? `Stock bought: ${fmt(t.stockBought)}. ` : '';
-  const homeLine = t.takenHome > 0 ? `Money you took home: ${fmt(t.takenHome)}. ` : '';
-  const cashLine = (t.stockBought > 0 || t.takenHome > 0) ? `Cash you have now: ${fmt(t.cashInHand)}. ` : '';
-  const vsLine = t.salesDiff > 0 ? `Up ${fmt(t.salesDiff)} from yesterday. `
-    : t.salesDiff < 0 ? `Down ${fmt(-t.salesDiff)} from yesterday. `
-    : `Same as yesterday. `;
-  const text = `Today. Sales: ${fmt(t.sales)}. Expenses: ${fmt(t.expenses)}. ${stockLine}${homeLine}`
-    + `Customers owe you: ${fmt(t.owedMe)}. Money left over: ${fmt(t.balance)}. ${cashLine}${vsLine}`;
-  const utter = speakClearly(new SpeechSynthesisUtterance(text));
-  utter.rate = 0.8;
+  const stockLine = T.stockBought > 0 ? t(`Stock bought: ${fmtSay(T.stockBought)}. `, `Mercanc\u00eda comprada: ${fmtSay(T.stockBought)}. `) : '';
+  const homeLine = T.takenHome > 0 ? t(`Money you took home: ${fmtSay(T.takenHome)}. `, `Plata que te llevaste a casa: ${fmtSay(T.takenHome)}. `) : '';
+  const cashLine = (T.stockBought > 0 || T.takenHome > 0) ? t(`Cash you have now: ${fmtSay(T.cashInHand)}. `, `Efectivo que tienes ahora: ${fmtSay(T.cashInHand)}. `) : '';
+  const vsLine = T.salesDiff > 0 ? t(`Up ${fmtSay(T.salesDiff)} from yesterday. `, `${fmtSay(T.salesDiff)} m\u00e1s que ayer. `)
+    : T.salesDiff < 0 ? t(`Down ${fmtSay(-T.salesDiff)} from yesterday. `, `${fmtSay(-T.salesDiff)} menos que ayer. `)
+    : t('Same as yesterday. ', 'Igual que ayer. ');
+  const text = t(`Today. Sales: ${fmtSay(T.sales)}. Expenses: ${fmtSay(T.expenses)}. `, `Hoy. Ventas: ${fmtSay(T.sales)}. Gastos: ${fmtSay(T.expenses)}. `) + stockLine + homeLine
+    + t(`Customers owe you: ${fmtSay(T.owedMe)}. Money left over: ${fmtSay(T.balance)}. `, `Clientes te deben: ${fmtSay(T.owedMe)}. Lo que te queda: ${fmtSay(T.balance)}. `) + cashLine + vsLine;
   const btn = document.getElementById('hearBtn');
-  utter.onstart = () => btn.classList.add('speaking');
-  utter.onend = () => btn.classList.remove('speaking');
-  speechSynthesis.cancel();
-  speechSynthesis.speak(utter);
+  say(text, { onstart: () => btn.classList.add('speaking'), onend: () => btn.classList.remove('speaking') });
 }
 
 // PIN/lock removed entirely (28 Aug) - it contradicted the app's own trust promise
@@ -1774,11 +1908,17 @@ function speakToday() {
 // alone (Lightspeed, 2019). Every reminder a trader sends to a customer now
 // carries the door in. Kept to one plain line under the real message.
 function reminderHook() {
-  return ' - Sent with CountMy, the free money notebook for anyone in business: countmy.app/?utm_source=whatsapp&utm_medium=reminder&utm_campaign=debt';
+  return t(' - Sent with CountMy, the free money notebook for anyone in business: countmy.app/?utm_source=whatsapp&utm_medium=reminder&utm_campaign=debt',
+    ' - Enviado con CountMy, el cuaderno de cuentas gratis para cualquier negocio: countmy.app/?lang=es&utm_source=whatsapp&utm_medium=reminder&utm_campaign=debt');
+}
+function reminderMessage(name, amount, note, cur) {
+  return t(`Hello ${name}, your balance is ${fmt(amount, cur)}${note ? ' for ' + note : ''}. Please send by MoMo when you can. Thank you.${reminderHook()}`,
+    `Hola ${name}, tu saldo pendiente es ${fmt(amount, cur)}${note ? ' por ' + note : ''}. Cuando puedas me lo env\u00edas, por favor. \u00a1Gracias!${reminderHook()}`);
 }
 
 function shareFooter(campaign) {
-  return '\n\nI keep my business money with CountMy. It is free: https://countmy.app/?utm_source=whatsapp&utm_medium=share&utm_campaign=' + campaign;
+  return t('\n\nI keep my business money with CountMy. It is free: https://countmy.app/?utm_source=whatsapp&utm_medium=share&utm_campaign=' + campaign,
+    '\n\nLlevo las cuentas de mi negocio con CountMy. Es gratis: https://countmy.app/?lang=es&utm_source=whatsapp&utm_medium=share&utm_campaign=' + campaign);
 }
 
 // Backup state, shown to the user 4 Sep. The single most repeated reason
@@ -1838,12 +1978,11 @@ function showDebtReminder(entry) {
   if (!box || !entry || entry.type !== 'debt_in') return;
   clearOtherPrompts('debtReminder');
   const owed = Math.max(0, (Number(entry.amount) || 0) - (Number(entry.paid) || 0));
-  const name = entry.item || 'Your customer';
-  document.getElementById('debtReminderText').textContent = `${name} owes you ${fmt(owed)}.`;
+  const name = entry.item || t('Your customer', 'Tu cliente');
+  document.getElementById('debtReminderText').textContent = t(`${name} owes you ${fmt(owed, entry.cur)}.`, `${name} te debe ${fmt(owed, entry.cur)}.`);
   const link = document.getElementById('debtReminderSend');
-  const msg = `Hello ${name}, your balance is ${fmt(owed)}${entry.note ? ' for ' + entry.note : ''}. Please send by MoMo when you can. Thank you.${reminderHook()}`;
-  link.href = 'https://wa.me/?text=' + encodeURIComponent(msg);
-  link.textContent = `Remind ${name} on WhatsApp`;
+  link.href = 'https://wa.me/?text=' + encodeURIComponent(reminderMessage(name, owed, entry.note, entry.cur));
+  link.textContent = t(`Remind ${name} on WhatsApp`, `Recordarle a ${name} por WhatsApp`);
   box.hidden = false;
   // Spoken read-back stays: for someone who cannot read the card, hearing
   // the name and amount is the only check that the phone heard "Ama, 120"
@@ -1853,7 +1992,7 @@ function showDebtReminder(entry) {
   // NOT spoken any more (5 Sep) is the question about reminding her: said
   // aloud with the customer standing there, it announces that the trader is
   // being prompted to chase her, and it verifies nothing. The button asks.
-  speakShort(`${name} owes you ${fmt(owed)}.`);
+  speakShort(t(`${name} owes you ${fmtSay(owed, entry.cur)}.`, `${name} te debe ${fmtSay(owed, entry.cur)}.`));
   clearTimeout(debtReminderTimer);
   // Never permanent - it is a prompt about one debt, not a part of the page.
   debtReminderTimer = setTimeout(() => { box.hidden = true; }, 25000);
@@ -1871,11 +2010,11 @@ function showEntryMilestone(total) {
   const left = FIRST_ENTRIES_TARGET - total;
   let msg;
   if (total >= FIRST_ENTRIES_TARGET) {
-    msg = `That is ${total}. CountMy knows your business now - come back tomorrow and it will tell you if you did better.`;
+    msg = t(`That is ${total}. CountMy knows your business now - come back tomorrow and it will tell you if you did better.`, `Ya van ${total}. CountMy ya conoce tu negocio: vuelve ma\u00f1ana y te dir\u00e1 si te fue mejor.`);
   } else if (left === 1) {
-    msg = `That is ${total}. One more and CountMy can tell you if today was better than yesterday.`;
+    msg = t(`That is ${total}. One more and CountMy can tell you if today was better than yesterday.`, `Ya van ${total}. Una m\u00e1s y CountMy podr\u00e1 decirte si hoy fue mejor que ayer.`);
   } else {
-    msg = `That is ${total}. ${left} more and CountMy can tell you if today was better than yesterday.`;
+    msg = t(`That is ${total}. ${left} more and CountMy can tell you if today was better than yesterday.`, `Ya van ${total}. ${left} m\u00e1s y CountMy podr\u00e1 decirte si hoy fue mejor que ayer.`);
   }
   clearOtherPrompts('milestone');
   box.textContent = msg;
@@ -1901,11 +2040,16 @@ function guessSpokenLang(text) {
   return 'en';
 }
 function looksLikeQuestion(text) {
-  const t = text.toLowerCase();
-  if (/\d/.test(t) || /\bcedis?\b|\bghs\b|\bcds?\b/.test(t)) return false;
-  return /\b(who|how much|how many|what|did i|do i|have i|show me|tell me)\b/.test(t) && /\b(owe|owes|owing|sold|sell|sales|spend|spent|expenses?|make|made|profit|left|balance|cash|today|week|yesterday|debt|debts)\b/.test(t);
+  const q = text.toLowerCase();
+  if (ES) {
+    if (/\d/.test(q) || /d[o\u00f3]lar|bol[i\u00ed]var|bolos|\bbs\b/.test(q)) return false;
+    return /qui[e\u00e9]n|cu[a\u00e1]nt[oa]s?|qu[e\u00e9]\b|dime|mu[e\u00e9]strame/.test(q) && /deb[eo]n?|fiao|fiado|vend[i\u00ed]|ventas?|gast[e\u00e9]|gastos?|gan[e\u00e9]|ganancia|queda|plata|efectivo|hoy|semana|ayer|deuda/.test(q);
+  }
+  if (/\d/.test(q) || /\bcedis?\b|\bghs\b|\bcds?\b/.test(q)) return false;
+  return /\b(who|how much|how many|what|did i|do i|have i|show me|tell me)\b/.test(q) && /\b(owe|owes|owing|sold|sell|sales|spend|spent|expenses?|make|made|profit|left|balance|cash|today|week|yesterday|debt|debts)\b/.test(q);
 }
 async function answerQuestion(text) {
+  if (ES) return answerQuestionEs(text);
   const t = text.toLowerCase();
   const entries = await getAllEntries();
   const today = todayKey(Date.now());
@@ -1953,15 +2097,56 @@ async function answerQuestion(text) {
   return true;
 }
 
+// Spanish twin of answerQuestion: same intents, same data, dollars only
+// (bolívar debts are shown on the card, not summed with dollars).
+async function answerQuestionEs(text) {
+  const q = text.toLowerCase();
+  const entries = (await getAllEntries()).filter(e => e.cur !== 'VES');
+  const today = todayKey(Date.now());
+  const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+  const open = e => Math.max(0, (Number(e.amount) || 0) - (Number(e.paid) || 0));
+  const sum = list => list.reduce((s, e) => s + (Number(e.amount) || 0), 0);
+  const inWeek = e => e.ts >= weekAgo;
+  const isToday = e => e.day === today;
+  const week = /semana/.test(q);
+  let intent, answer;
+  if (/le\s+debo|debo\s+(a|al|yo)|qu[e\u00e9]\s+debo|cu[a\u00e1]nto\s+debo/.test(q)) {
+    intent = 'what_i_owe';
+    const list = entries.filter(e => e.type === 'debt_out' && open(e) > 0);
+    answer = list.length
+      ? list.slice(0, 6).map(e => `Le debes ${fmtSay(open(e))} a ${e.item}`).join('. ') + `. Total ${fmtSay(list.reduce((s, e) => s + open(e), 0))}.`
+      : 'No le debes nada a nadie ahora mismo.';
+  } else if (/deb[eo]n?|fiao|fiado|deuda/.test(q)) {
+    intent = 'who_owes_me';
+    const list = entries.filter(e => e.type === 'debt_in' && open(e) > 0);
+    answer = list.length
+      ? list.slice(0, 6).map(e => `${e.item} te debe ${fmtSay(open(e))}`).join('. ') + `. Total ${fmtSay(list.reduce((s, e) => s + open(e), 0))}.`
+      : 'Nadie te debe nada ahora mismo.';
+  } else if (/gast/.test(q)) {
+    intent = week ? 'spent_week' : 'spent_today';
+    const list = entries.filter(e => e.type === 'expense' && (week ? inWeek(e) : isToday(e)));
+    answer = `Gastaste ${fmtSay(sum(list))} ${week ? 'esta semana' : 'hoy'}${list.length ? ', en ' + list.length + (list.length === 1 ? ' cosa' : ' cosas') : ''}.`;
+  } else if (/gan|ganancia|queda|plata|efectivo/.test(q)) {
+    intent = 'profit_today';
+    const s = sum(entries.filter(e => e.type === 'sale' && isToday(e)));
+    const x = sum(entries.filter(e => e.type === 'expense' && isToday(e) && e.kind !== 'stock' && e.kind !== 'home'));
+    answer = `Hoy vendiste ${fmtSay(s)} y gastaste ${fmtSay(x)}. Te queda: ${fmtSay(s - x)}.`;
+  } else if (/vend|venta/.test(q)) {
+    intent = week ? 'sold_week' : 'sold_today';
+    const list = entries.filter(e => e.type === 'sale' && (week ? inWeek(e) : isToday(e)));
+    answer = `Vendiste ${fmtSay(sum(list))} ${week ? 'esta semana' : 'hoy'}${list.length ? ', ' + list.length + (list.length === 1 ? ' venta' : ' ventas') : ''}.`;
+  } else {
+    return false;
+  }
+  track('voice_ask', { intent });
+  ping('ask');
+  setMicStatus(answer, 'heard');
+  speakShort(answer);
+  return true;
+}
 
 function speakShort(text) {
-  if (!('speechSynthesis' in window)) return;
-  try {
-    const utter = speakClearly(new SpeechSynthesisUtterance(text));
-    utter.rate = 0.85;
-    speechSynthesis.cancel();
-    speechSynthesis.speak(utter);
-  } catch (e) { /* speech is a bonus, never a requirement */ }
+  try { say(text); } catch (e) { /* speech is a bonus, never a requirement */ }
 }
 
 // One place every save path ends up, so the typed sheet, a voice card and a
@@ -1997,18 +2182,18 @@ async function exportBackup() {
   // the real WhatsApp app anyway (wa.me is built to do exactly that), so
   // the practical result is identical to opening a new tab.
   const entries = await getAllEntries();
-  if (!entries.length) { alert('Nothing to back up yet.'); return; }
-  const typeLabel = { sale: 'Sale', expense: 'Expense', debt_in: 'Owed to me', debt_out: 'I owe' };
+  if (!entries.length) { alert(t('Nothing to back up yet.', 'Todav\u00eda no hay nada que respaldar.')); return; }
+  const typeLabel = ES ? { sale: 'Venta', expense: 'Gasto', debt_in: 'Me deben', debt_out: 'Debo' } : { sale: 'Sale', expense: 'Expense', debt_in: 'Owed to me', debt_out: 'I owe' };
   const ordered = entries.slice().reverse(); // oldest first, reads like a diary
   const MAX_LINES = 200; // keeps the WhatsApp message and its URL a sane length
   const shown = ordered.length > MAX_LINES ? ordered.slice(-MAX_LINES) : ordered;
   const lines = shown.map(e => {
     const cfg = FIELD_CONFIG[e.type];
-    const when = new Date(e.ts).toLocaleDateString('en-GH', { day: 'numeric', month: 'short' });
-    return `${when} - ${typeLabel[e.type]}: ${cfg.desc(e)} - ${fmt(e.amount)}`;
+    const when = new Date(e.ts).toLocaleDateString(ES ? 'es-VE' : 'en-GH', { day: 'numeric', month: 'short' });
+    return `${when} - ${typeLabel[e.type]}: ${cfg.desc(e)} - ${fmt(e.amount, e.cur)}`;
   });
-  const shopName = getShopId() || 'My business';
-  const truncNote = shown.length < ordered.length ? ` (most recent ${MAX_LINES})` : '';
+  const shopName = getShopId() || t('My business', 'Mi negocio');
+  const truncNote = shown.length < ordered.length ? t(` (most recent ${MAX_LINES})`, ` (\u00faltimos ${MAX_LINES})`) : '';
   // Real, dated reason this one line exists: since 1 July 2025 the GRA's
   // Modified Taxation Scheme asks an informal trader for a yearly sales
   // figure (a simplified annual return, and a turnover estimate at sign-up
@@ -2022,8 +2207,8 @@ async function exportBackup() {
   const yearSales = entries
     .filter(e => e.type === 'sale' && e.ts >= yearAgo)
     .reduce((s, e) => s + (Number(e.amount) || 0), 0);
-  const yearLine = `Total sales in the last 12 months: ${fmt(yearSales)}\n`;
-  const text = `${shopName} records${truncNote}:\n\n${yearLine}\n${lines.join('\n')}${shareFooter('backup')}`;
+  const yearLine = t(`Total sales in the last 12 months: ${fmt(yearSales)}\n`, `Ventas totales en los \u00faltimos 12 meses: ${fmt(yearSales)}\n`);
+  const text = t(`${shopName} records${truncNote}:\n\n${yearLine}\n${lines.join('\n')}${shareFooter('backup')}`, `Registros de ${shopName}${truncNote}:\n\n${yearLine}\n${lines.join('\n')}${shareFooter('backup')}`);
   location.href = 'https://wa.me/?text=' + encodeURIComponent(text);
 }
 
@@ -2047,14 +2232,14 @@ function exportTodaySummary() {
     const today = todayKey(Date.now());
     const todayEntries = entries.filter(e => e.day === today).slice().reverse();
     // Never fail silently - a tap must always visibly do something.
-    if (!todayEntries.length) { alert('Nothing recorded today yet.'); return; }
-    const typeLabel = { sale: 'Sale', expense: 'Expense', debt_in: 'Owed to me', debt_out: 'I owe' };
+    if (!todayEntries.length) { alert(t('Nothing recorded today yet.', 'Todav\u00eda no hay nada registrado hoy.')); return; }
+    const typeLabel = ES ? { sale: 'Venta', expense: 'Gasto', debt_in: 'Me deben', debt_out: 'Debo' } : { sale: 'Sale', expense: 'Expense', debt_in: 'Owed to me', debt_out: 'I owe' };
     const lines = todayEntries.map(e => {
       const cfg = FIELD_CONFIG[e.type];
-      return `${typeLabel[e.type]}: ${cfg.desc(e)} - ${fmt(e.amount)}`;
+      return `${typeLabel[e.type]}: ${cfg.desc(e)} - ${fmt(e.amount, e.cur)}`;
     });
-    const shopName = getShopId() || 'My business';
-    const text = `${shopName} - today's summary:\n\n${lines.join('\n')}${shareFooter('eod')}`;
+    const shopName = getShopId() || t('My business', 'Mi negocio');
+    const text = t(`${shopName} - today's summary:\n\n${lines.join('\n')}${shareFooter('eod')}`, `${shopName} - resumen de hoy:\n\n${lines.join('\n')}${shareFooter('eod')}`);
     location.href = 'https://wa.me/?text=' + encodeURIComponent(text);
   });
 }
@@ -2098,7 +2283,7 @@ function maybeShowEodPrompt() {
         localStorage.setItem('kym_eod_prompted', today);
         nudge.hidden = false;
         track('evening_nudge');
-        speakShort('What did you sell today? Tap the orange button and say it.');
+        speakShort(t('What did you sell today? Tap the orange button and say it.', '\u00bfQu\u00e9 vendiste hoy? Toca el bot\u00f3n naranja y dilo.'));
       }
       return;
     }
@@ -2134,7 +2319,7 @@ document.getElementById('deleteEntryBtn').addEventListener('click', async () => 
   await render();
 });
 document.getElementById('hearBtn').addEventListener('click', speakToday);
-if (!('speechSynthesis' in window)) document.getElementById('hearBtn').style.display = 'none';
+// Hear-it works everywhere now (server voice, phone voice as fallback).
 // ---------------------------------------------------------------------------
 // Shop page (16 Sep). See the Worker's handleShopUpsert for why this exists.
 // Everything here is plain: a short form, one request, a share button that
@@ -2326,6 +2511,58 @@ document.getElementById('homeMicBtn').addEventListener('click', () => {
   ping('tap'); // funnel step between 'opened' and 'recorded' (16 Sep)
   toggleMic(document.getElementById('homeMicBtn'), 'homeMicStatus');
 });
+if (ES) {
+  // Static page text, Spanish. Leaf elements whose whole text matches an
+  // English line are swapped; everything else is untouched.
+  const S = {
+    'Your free money notebook. You talk, it remembers.': 'Tu cuaderno de cuentas gratis. T\u00fa hablas, \u00e9l recuerda.',
+    'What happened in your business today?': '\u00bfQu\u00e9 pas\u00f3 hoy en tu negocio?',
+    'Tell CountMy': 'Cu\u00e9ntale a CountMy',
+    'Say it in English, Twi or Pidgin. You can also ask: \u201cwho owes me?\u201d': 'Dilo en espa\u00f1ol. Tambi\u00e9n puedes preguntar: \u201c\u00bfqui\u00e9n me debe?\u201d',
+    '\u201cAma owes me 120.\u201d': '\u201cMar\u00eda me debe 20.\u201d',
+    'Saved: Ama, 120 cedis.': 'Guardado: Mar\u00eda, 20 d\u00f3lares.',
+    '\u201cWho owes me?\u201d': '\u201c\u00bfQui\u00e9n me debe?\u201d',
+    'Ama owes you 120 cedis.': 'Mar\u00eda te debe 20 d\u00f3lares.',
+    'See how it works': 'Ver c\u00f3mo funciona',
+    'Type it instead': 'Mejor escr\u00edbelo',
+    '+ Sale': '+ Venta', '+ Expense': '+ Gasto', 'Customer owes me': 'Cliente me debe', 'I owe supplier': 'Le debo al proveedor',
+    'Snap your book or receipt': 'Foto de tu cuaderno o recibo',
+    'Get a free page for your business': 'P\u00e1gina gratis para tu negocio',
+    'Cancel': 'Cancelar', 'Save': 'Guardar', 'Delete this entry': 'Borrar esta entrada', 'Add': 'Agregar',
+    'What I heard': 'Lo que escuch\u00e9',
+    'Today': 'Hoy', '\ud83d\udd0a Hear it': '\ud83d\udd0a Esc\u00fachalo',
+    'Sales': 'Ventas', 'Expenses': 'Gastos', 'Stock bought': 'Mercanc\u00eda comprada', 'Money I took home': 'Plata para la casa',
+    'Customers owe me': 'Clientes me deben', 'Money left over': 'Lo que me queda', 'Cash I have now': 'Efectivo que tengo ahora',
+    'Recent': 'Reciente',
+    'Send today\u2019s records to WhatsApp?': '\u00bfEnviar lo de hoy a WhatsApp?', "Send today's records to WhatsApp?": '\u00bfEnviar lo de hoy a WhatsApp?',
+    'Send': 'Enviar', 'Not now': 'Ahora no', 'Remind on WhatsApp': 'Recordar por WhatsApp',
+    'What did you sell today?': '\u00bfQu\u00e9 vendiste hoy?', 'Say it now': 'Dilo ahora',
+    'Put CountMy on your phone, so you can find it tomorrow.': 'Pon CountMy en tu tel\u00e9fono para encontrarlo ma\u00f1ana.',
+    'Put it on my phone': 'Ponerlo en mi tel\u00e9fono',
+    'Not backed up yet': 'Sin respaldo todav\u00eda', 'Send my records to my own WhatsApp': 'Enviar mis registros a mi WhatsApp',
+    'Lost your phone? How to get your records back': '\u00bfPerdiste el tel\u00e9fono? C\u00f3mo recuperar tus registros',
+    'Is CountMy safe?': '\u00bfEs seguro CountMy?', 'Message us on WhatsApp': 'Escr\u00edbenos por WhatsApp',
+    'No connection \u2014 still recording, saved on your phone. Please tap to check again.': 'Sin conexi\u00f3n: sigue anotando, se guarda en tu tel\u00e9fono. Toca para revisar otra vez.',
+    'Share my page': 'Compartir mi p\u00e1gina', 'Edit': 'Editar', 'Make my page': 'Crear mi p\u00e1gina'
+  };
+  try {
+    document.querySelectorAll('body *').forEach(el => {
+      if (el.children.length) return;
+      const raw = el.textContent; const k = raw.trim();
+      if (S[k] !== undefined) el.textContent = raw.replace(k, S[k]);
+    });
+    const tl = document.getElementById('trustLine');
+    if (tl) tl.innerHTML = 'Gratis. Sin registro. Nunca toca tu dinero. No pide clave, c\u00e9dula ni pago m\u00f3vil. <a href="safety.html">\u00bfEs seguro?</a>';
+    const mic = document.getElementById('homeMicBtn'); if (mic) mic.setAttribute('aria-label', 'Cu\u00e9ntale a CountMy qu\u00e9 pas\u00f3');
+    document.querySelectorAll('[data-speak]').forEach(el => {
+      const m = { 'Sales': 'Ventas', 'Expenses': 'Gastos', 'Stock bought': 'Mercanc\u00eda comprada', 'Money you took home': 'Plata para la casa', 'Customers owe you': 'Clientes te deben', 'Money left over': 'Lo que te queda', 'Cash you have now': 'Efectivo que tienes ahora' };
+      const v = el.getAttribute('data-speak'); if (m[v]) el.setAttribute('data-speak', m[v]);
+    });
+    // MoMo support pill is Ghana-only.
+    const pill = document.getElementById('planPill'); if (pill) pill.style.display = 'none';
+    document.title = 'CountMy - Cuaderno de cuentas gratis por voz para tu negocio';
+  } catch (e) { /* never block the app */ }
+}
 if (inAppBrowser()) {
   // Ad traffic lands here. Offer the way out before the first tap fails.
   try { showOpenInChrome('warn'); ping('iab'); track('iab_open'); } catch (e) { /* never block */ }
@@ -2359,12 +2596,7 @@ async function handleSnap(file) {
   const btn = document.getElementById('snapBtn');
   const say = (msg, cls) => {
     setMicStatus(msg, cls, 'snapStatus');
-    if (cls === 'err' && 'speechSynthesis' in window) {
-      const utter = speakClearly(new SpeechSynthesisUtterance(msg));
-      utter.rate = 0.8;
-      speechSynthesis.cancel();
-      speechSynthesis.speak(utter);
-    }
+    if (cls === 'err') speakShort(msg);
   };
   if (snapBusy) return;
   // Some Android builds fire 'change' with no file when the camera is
@@ -2444,25 +2676,15 @@ if (snapBtn && snapInput) {
 // of real visits.
 const demoBtn = document.getElementById('demoBtn');
 if (demoBtn) {
-  if (!('speechSynthesis' in window)) {
-    demoBtn.style.display = 'none';
-  } else {
-    demoBtn.addEventListener('click', () => {
-      track('demo_play');
-      demoBtn.disabled = true;
-      const micBtn = document.getElementById('homeMicBtn');
-      micBtn.classList.add('demo-pulse');
-      const utter = new SpeechSynthesisUtterance(
-        'Watch this button. Tap it, then say what happened. Like this. I sold two shirts, ten cedis each. Now you try.'
-      );
-      speakClearly(utter);
-      const stop = () => { micBtn.classList.remove('demo-pulse'); demoBtn.disabled = false; };
-      utter.onend = stop;
-      utter.onerror = stop;
-      speechSynthesis.cancel();
-      speechSynthesis.speak(utter);
-    });
-  }
+  demoBtn.addEventListener('click', () => {
+    track('demo_play');
+    demoBtn.disabled = true;
+    const micBtn = document.getElementById('homeMicBtn');
+    micBtn.classList.add('demo-pulse');
+    const stop = () => { micBtn.classList.remove('demo-pulse'); demoBtn.disabled = false; };
+    say(t('Watch this button. Tap it, then say what happened. Like this. I sold two shirts, ten cedis each. Now you try.',
+          'Mira este bot\u00f3n. T\u00f3calo y di qu\u00e9 pas\u00f3. As\u00ed: vend\u00ed dos camisas a diez d\u00f3lares. Ahora prueba t\u00fa.'), { onend: stop }).catch(stop);
+  });
 }
 document.getElementById('shopIdInput').addEventListener('change', async (e) => {
   setShopId(e.target.value);
@@ -2499,12 +2721,7 @@ document.querySelectorAll('.today-row.tappable').forEach(row => {
     const label = row.getAttribute('data-speak');
     const valueEl = row.querySelector('span[data-clarity-mask]');
     const value = valueEl ? valueEl.textContent : '';
-    if ('speechSynthesis' in window) {
-      const utter = speakClearly(new SpeechSynthesisUtterance(`${label}: ${value}.`));
-      utter.rate = 0.8;
-      speechSynthesis.cancel();
-      speechSynthesis.speak(utter);
-    }
+    speakShort(`${label}: ${value}.`);
     const histEl = document.getElementById('history');
     histEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
     histEl.classList.remove('history-flash');
