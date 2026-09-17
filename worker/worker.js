@@ -971,7 +971,7 @@ async function handleTranscribe(request, env) {
 // 50 is a transcription/parsing error, not a fabrication) - evidence-checking
 // targets fabrication specifically, not every possible error; the review UI is
 // still what catches a wrong-but-grounded number.
-const WORKER_VERSION = 'w51';
+const WORKER_VERSION = 'w52';
 
 // Spanish (Venezuela) twin of EXTRACT_SYSTEM_PROMPT below: same event types,
 // same {value, evidence} rule, same JSON-only answer. Amounts are bare
@@ -1459,7 +1459,7 @@ function fragmentRules(clean, text, lang, country) {
   const totalM = /\b(eran|fueron|total|en total)\s+(\d+(?:[.,]\d+)?)\s*$/i.exec(tt.trim());
   const CUR_WORD = '(?:cedis|cds|ghs|sadis|sities|d[o\u00f3]lares|verdes|bolos|bs|bol[i\u00edv]vares|pesos|lucas?)';
   const moneyAmts = [...tt.matchAll(new RegExp('(\\d+(?:[.,]\\d+)?)\\s*' + CUR_WORD + '\\b', 'g'))].map(m => Number(m[1].replace(',', '.')));
-  const FILLER_NAMES = /^(fiao|fiado|el resto|resto|cr[e\u00e9]dito|credit|cliente|customer)$/i;
+  const FILLER_NAMES = /^(fiao|fiado|el resto|resto|cr[e\u00e9]dito|credit)$/i; // customer/cliente are the intended placeholders
   const salePrices = new Set(clean.filter(e => e.type === 'sale' && e.price !== undefined).map(e => e.price));
   return clean.map(e0 => {
     const e = Object.assign({}, e0);
