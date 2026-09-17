@@ -56,7 +56,7 @@
      app.js?v=. Lets anyone - a reviewer, a tester in Kumasi, a future session -
      answer "which CountMy am I looking at?" from view-source or the console,
      the same way the Worker answers with "wv". -->
-<meta name="countmy-version" content="v107">
+<meta name="countmy-version" content="v108">
 <!-- Real finding, 28 Aug: the bare "CountMy" title carried no keywords at all
      for what people actually search - a free sales/expense ledger for
      Ghanaian shop owners. The <title> tag is the single strongest on-page
@@ -453,7 +453,8 @@ input[type="number"]{-moz-appearance:textfield}
 .sb-ico svg{width:19px;height:19px}
 #askBtn .sb-ico{background:var(--flame-soft);color:var(--flame-deep)}#seeBtn .sb-ico{background:var(--steel-soft);color:var(--navy)}
 .ts-label{font-size:.78rem;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.03em;line-height:1.15;min-height:2.3em;display:flex;align-items:flex-end}
-.ts-num{font-family:"Manrope",sans-serif;font-weight:800;font-size:1.22rem;line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-variant-numeric:tabular-nums}
+.ts-num{font-family:"Manrope",sans-serif;font-weight:800;font-size:1.25rem;line-height:1.1;white-space:nowrap;font-variant-numeric:tabular-nums}
+.ts-num.long{font-size:1.02rem}.ts-num.xlong{font-size:.88rem}
 .ts-in .ts-num{color:var(--leaf-deep)}.ts-out .ts-num{color:var(--flame-deep)}.ts-owe .ts-num{color:var(--navy)}
 .ts-sub{font-size:.8rem;color:var(--ink-soft);min-height:1em}
 @media (max-width:360px){.ts-tiles{grid-template-columns:1fr 1fr}.ts-owe{grid-column:1 / -1}}
@@ -1026,7 +1027,7 @@ input[type="number"]{-moz-appearance:textfield}
      string is what forces a fresh script fetch even before any service worker logic
      runs, independent of it. Found live 27 Aug: without this, an already-visited
      browser can keep running old code from plain HTTP cache regardless of SW strategy. -->
-<script src="app.js?v=107"></script>
+<script src="app.js?v=108"></script>
 
 </body>
 </html>
