@@ -189,7 +189,9 @@ async function handlePing(request, env) {
   const eventType = String((body && body.event) || '');
   if (!shop) return cors(new Response(JSON.stringify({ error: 'missing shop id' }), { status: 400 }));
   // share_shop / shop_created added 16 Sep for the spread-loop numbers.
-  if (!['open', 'save', 'share_shop', 'shop_created', 'ask', 'tap', 'install', 'voice_en', 'voice_twi', 'voice_pidgin'].includes(eventType)) {
+  // mic_* and iab (17 Sep): one name per voice-failure class, never content.
+  if (!['open', 'save', 'share_shop', 'shop_created', 'ask', 'tap', 'install', 'voice_en', 'voice_twi', 'voice_pidgin',
+    'iab', 'mic_denied', 'mic_nomic', 'mic_busy', 'mic_empty', 'mic_silent', 'mic_timeout', 'mic_server'].includes(eventType)) {
     return cors(new Response(JSON.stringify({ error: 'invalid event' }), { status: 400 }));
   }
   const shopHash = (await sha256Hex(shop)).slice(0, 32);
@@ -913,7 +915,7 @@ async function handleTranscribe(request, env) {
   }
   const incomingForm = await request.formData();
   const audio = incomingForm.get('audio');
-  if (!audio) return cors(new Response(JSON.stringify({ error: 'no audio received' }), { status: 400 }));
+  if (!audio) return cors(new Response(JSON.stringify({ error: 'no audio received' }), { status: 400, headers: { 'Content-Type': 'application/json' } }));
   const audioBytes = new Uint8Array(await audio.arrayBuffer());
   const result = await transcribeAudio(audioBytes, audio.type, env);
   if (result.error) {
@@ -949,7 +951,7 @@ async function handleTranscribe(request, env) {
 // 50 is a transcription/parsing error, not a fabrication) - evidence-checking
 // targets fabrication specifically, not every possible error; the review UI is
 // still what catches a wrong-but-grounded number.
-const WORKER_VERSION = 'w35';
+const WORKER_VERSION = 'w36';
 
 const EXTRACT_SYSTEM_PROMPT = `You read a rough, possibly messy speech-to-text transcript from a Ghanaian shop owner describing what happened in their shop today, in English, Twi or Pidgin (Twi numbers: baako 1, mmienu 2, mmiensa 3, enan 4, anum 5, du 10, aduonu 20, aduasa 30, aduonum 50, oha 100, apem 1000; "de me ka" = owes me; transcripts may contain mistranscribed words like "cds" for "cedis"). Extract every distinct business event as a JSON array. Each event is one of these types:
 - "sale": the owner sold something. Fields: type, item, qty, and EITHER price (per-unit price in cedis, only if a per-unit price was actually spoken) OR total (the total amount actually spoken, if only a total was said - e.g. "2 bags for 300" has qty 2 and total 300, NOT price 150 - never do the division yourself).
@@ -1401,14 +1403,18 @@ async function handleTranscribeAndExtract(request, env) {
   }
   const incomingForm = await request.formData();
   const audio = incomingForm.get('audio');
-  if (!audio) return cors(new Response(JSON.stringify({ error: 'no audio received' }), { status: 400 }));
+  if (!audio) return cors(new Response(JSON.stringify({ error: 'no audio received' }), { status: 400, headers: { 'Content-Type': 'application/json' } }));
   const audioBytes = new Uint8Array(await audio.arrayBuffer());
 
   const transcribed = await transcribeAudio(audioBytes, audio.type, env);
   if (transcribed.error) {
-    return cors(new Response(JSON.stringify({ text: '', events: [], error: transcribed.error, detail: transcribed.detail }), { status: 502 }));
+    return cors(new Response(JSON.stringify({ text: '', events: [], error: transcribed.error, detail: transcribed.detail }), { status: 502, headers: { 'Content-Type': 'application/json' } }));
   }
-  const text = transcribed.text || '';
+  let text = transcribed.text || '';
+  // Whisper answers silence and noise with a stock phrase ("Thank you.",
+  // "Bye.", "."). Treat those as nothing heard, so the phone says so instead
+  // of "I heard 'Thank you' but could not work out what happened".
+  if (/^[\s.!?,]*$|^(thank you|thanks|thank you very much|bye|you|okay|ok|hello|hi|mm+|hmm+|uh+)[.!?]?$/i.test(text.trim())) text = '';
   if (!text.trim()) {
     return cors(new Response(JSON.stringify({ text: '', events: [] }), { headers: { 'Content-Type': 'application/json' } }));
   }
@@ -1654,7 +1660,7 @@ export default {
       }
       return cors(new Response('Not found', { status: 404 }));
     } catch (err) {
-      return cors(new Response(JSON.stringify({ error: 'server error', detail: String(err) }), { status: 500 }));
+      return cors(new Response(JSON.stringify({ error: 'server error', detail: String(err) }), { status: 500, headers: { 'Content-Type': 'application/json' } }));
     }
   }
 };

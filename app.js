@@ -301,6 +301,53 @@ function micSupported() {
   return !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.MediaRecorder);
 }
 
+// 17 Sep, from Clarity + five real users saying "it can't hear me": every ad
+// click lands inside Facebook's or Instagram's own in-app browser, which
+// refuses the microphone with no prompt at all. The app used to answer
+// "go to your phone's Settings" - impossible in there. Now: say what it is,
+// offer Chrome (Android intent link keeps the same page and ad tracking),
+// and put the typed choices right there.
+function inAppBrowser() {
+  return /FBAN|FBAV|FB_IAB|Instagram|Messenger\/|Line\/|MicroMessenger/i.test(navigator.userAgent || '');
+}
+function isAndroid() { return /Android/i.test(navigator.userAgent || ''); }
+function chromeIntentUrl() {
+  const bare = location.href.replace(/^https?:\/\//, '');
+  return 'intent://' + bare + '#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=' + encodeURIComponent(location.href) + ';end';
+}
+function showOpenInChrome(reason) {
+  let box = document.getElementById('iabBanner');
+  if (!box) {
+    box = document.createElement('div');
+    box.id = 'iabBanner';
+    box.className = 'iab-banner';
+    const btn = document.getElementById('homeMicBtn');
+    if (btn && btn.parentNode) btn.parentNode.insertBefore(box, btn.nextSibling); else return;
+  }
+  const lead = reason === 'failed'
+    ? 'Facebook\u2019s browser cannot use the microphone.'
+    : 'You are inside Facebook\u2019s browser \u2014 the microphone may not work here.';
+  box.innerHTML = isAndroid()
+    ? `<p>${lead}</p><a class="iab-open" href="${chromeIntentUrl()}">Open in Chrome</a><p class="iab-sub">Same page, and your voice will work.</p>`
+    : `<p>${lead}</p><p class="iab-sub">Tap the three dots <b>\u22ef</b> at the top, then <b>Open in Safari</b> (or Chrome). Or type it below.</p>`;
+  box.hidden = false;
+}
+function showTypedChoices() {
+  try {
+    const box = document.getElementById('typeChoices'); const tt = document.getElementById('typeToggle');
+    if (box) box.hidden = false; if (tt) tt.hidden = true;
+  } catch (e) { /* never block */ }
+}
+// Every voice failure ends here: said out loud (the audience does not read),
+// written under the button, counted on the owner dashboard by class only
+// (never the words), and the typed choices opened so the page still works.
+function micFail(msg, pingName, statusId) {
+  setMicStatus(msg, 'err', statusId);
+  speakShort(msg);
+  if (pingName) ping(pingName);
+  showTypedChoices();
+}
+
 function setMicStatus(text, cls, statusId) {
   const el = document.getElementById(statusId || 'homeMicStatus');
   el.textContent = text;
@@ -323,7 +370,11 @@ async function postToApi(path, form) {
   try {
     const res = await fetch(`${API_BASE}${path}`, { method: 'POST', body: form, signal: ac.signal });
     const ctype = res.headers.get('content-type') || '';
-    if (ctype.indexOf('json') === -1) throw new Error('No connection \u2014 please try again, or type it.');
+    if (ctype.indexOf('json') === -1) {
+      const e = new Error(res.status >= 500 ? 'Voice is resting right now \u2014 please type it, just below.' : 'No connection \u2014 please try again, or type it.');
+      e.status = res.status;
+      throw e;
+    }
     const data = await res.json().catch(() => ({}));
     return { res, data };
   } finally {
@@ -336,6 +387,7 @@ async function postToApi(path, form) {
 function plainApiError(err, res, data, fallback) {
   if (err && err.name === 'AbortError') return 'Taking too long \u2014 please check your connection and try again.';
   if (res && res.status === 429) return 'Too many tries right now \u2014 please wait a minute and try again.';
+  if (res && res.status >= 500) return 'Voice is resting right now \u2014 please type it, just below.';
   if (res && res.status === 413) return 'That photo is too big \u2014 please take it again.';
   if (err && /connection/i.test(err.message || '')) return err.message;
   return fallback;
@@ -857,7 +909,14 @@ document.getElementById('voiceReviewCloseBtn').addEventListener('click', () => {
 // provably before this app (OS mic permission/mute), not in it.
 let micLevelCtx = null;
 let micLevelRaf = null;
+// Loudness bookkeeping for the recorder (17 Sep): peak level of the take,
+// when speech first crossed the threshold, and the last loud moment - used
+// to stop automatically after the person goes quiet, and to refuse to
+// upload a take that never had any voice in it.
+const MIC_LOUD = 22;
+let micPeak = 0, micSpeechAt = 0, micLastLoudAt = 0, micMeterLive = false;
 function startMicLevelMeter(stream) {
+  micPeak = 0; micSpeechAt = 0; micLastLoudAt = 0; micMeterLive = false;
   const meter = document.getElementById('micLevelMeter');
   if (!meter || typeof AudioContext === 'undefined' && typeof webkitAudioContext === 'undefined') return;
   try {
@@ -872,6 +931,9 @@ function startMicLevelMeter(stream) {
     const tick = () => {
       analyser.getByteFrequencyData(data);
       const avg = data.reduce((s, v) => s + v, 0) / data.length;
+      micMeterLive = true;
+      if (avg > micPeak) micPeak = avg;
+      if (avg >= MIC_LOUD) { micLastLoudAt = Date.now(); if (!micSpeechAt) micSpeechAt = micLastLoudAt; }
       bars.forEach((bar, i) => {
         const jitter = 0.7 + (i % 3) * 0.15;
         const h = Math.max(6, Math.min(22, avg * jitter * 0.7));
@@ -894,7 +956,8 @@ function stopMicLevelMeter() {
 
 async function toggleMic(btn, statusId) {
   if (!micSupported()) {
-    setMicStatus(window.isSecureContext === false ? 'Please open https://countmy.app for voice to work.' : 'Voice isn\u2019t available on this phone/browser \u2014 please type instead.', 'err', statusId);
+    if (inAppBrowser()) showOpenInChrome('failed');
+    micFail(window.isSecureContext === false ? 'Please open https://countmy.app for voice to work.' : 'Voice isn\u2019t available on this phone/browser \u2014 please type instead.', 'mic_nomic', statusId);
     return;
   }
   if (mediaRecorder && mediaRecorder.state === 'recording') {
@@ -920,9 +983,24 @@ async function toggleMic(btn, statusId) {
     const actualMime = mediaRecorder.mimeType || supportedMime || 'audio/webm';
     const recordingStartedAt = Date.now();
     mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) recordedChunks.push(e.data); };
+    // Auto-stop (17 Sep): nobody reads "tap again when you're done", and a
+    // recording that never ends is the exact "it can't hear me". Stop 1.8 s
+    // after the person goes quiet (once they have spoken), or at 12 s flat.
+    const MAX_MS = 12000, QUIET_MS = 1800;
+    const autoStop = setInterval(() => {
+      if (!mediaRecorder || mediaRecorder.state !== 'recording') { clearInterval(autoStop); return; }
+      const t = Date.now();
+      if (t - recordingStartedAt >= MAX_MS || (micSpeechAt && t - micSpeechAt >= 700 && t - micLastLoudAt >= QUIET_MS)) {
+        clearInterval(autoStop);
+        try { mediaRecorder.stop(); } catch (e) { /* already stopped */ }
+      }
+    }, 150);
     mediaRecorder.onstop = async () => {
+      clearInterval(autoStop);
+      const heardPeak = micPeak, meterWasLive = micMeterLive;
       stream.getTracks().forEach(t => t.stop());
       stopMicLevelMeter();
+      const lbl = btn.querySelector('.home-mic-label'); if (lbl && lbl.dataset.idle) lbl.textContent = lbl.dataset.idle;
       btn.classList.remove('recording');
       pendingVoiceSource = 'voice';
       setMicStatus('Listening to what you said\u2026', null, statusId);
@@ -934,7 +1012,17 @@ async function toggleMic(btn, statusId) {
       // happened instead.
       if (!recordedChunks.length || recordedChunks.reduce((s, c) => s + c.size, 0) === 0) {
         track('mic_error', { reason: 'empty_recording' });
-        setMicStatus('No sound was recorded \u2014 check your phone isn\u2019t muted, then try again.', 'err', statusId);
+        if (inAppBrowser()) showOpenInChrome('failed');
+        micFail('No sound was recorded \u2014 please check your phone isn\u2019t muted, then try again.', 'mic_empty', statusId);
+        return;
+      }
+      // The meter never moved: the phone gave us a stream with no voice in it
+      // (in-app browsers and muted mics do exactly this). Say so now instead
+      // of uploading silence and waiting up to a minute for nothing.
+      if (meterWasLive && heardPeak < 10) {
+        track('mic_error', { reason: 'silent_take' });
+        if (inAppBrowser()) showOpenInChrome('failed');
+        micFail('I could not hear you. Please hold the phone close to your mouth and try again, or type it below.', 'mic_silent', statusId);
         return;
       }
       // Real reported symptom, 28 Aug: recordings that DO have bytes (so the
@@ -957,9 +1045,9 @@ async function toggleMic(btn, statusId) {
           // English. Added to every instruction that asks the owner to do
           // something, not to plain statements of fact.
           const msg = recordedMs < 1200
-            ? 'Too quick \u2014 tap, speak, then tap again to stop.'
-            : 'Didn\u2019t catch that \u2014 hold the phone closer and speak clearly.';
-          setMicStatus(msg, 'err', statusId);
+            ? 'Too quick \u2014 please tap, then say what happened.'
+            : 'I did not catch that \u2014 please hold the phone closer and say it again, or type it below.';
+          micFail(msg, 'mic_silent', statusId);
           return;
         }
         if (looksLikeQuestion(heard) && await answerQuestion(heard)) return;
@@ -1019,18 +1107,21 @@ async function toggleMic(btn, statusId) {
             speakVoiceReview(pendingVoiceEvents);
             await render();
           } else {
-            setMicStatus(`Heard: \u201c${heard}\u201d \u2014 but couldn\u2019t work out what happened. Try again, saying an amount in cedis.`, 'err', statusId);
+            micFail(`I heard \u201c${heard}\u201d but could not work out what happened. Please say it again with the amount in cedis, or type it below.`, null, statusId);
           }
         }
       } catch (err) {
         track('mic_error', { reason: 'transcribe_failed' });
-        setMicStatus(err.message || 'Could not hear that \u2014 try again.', 'err', statusId);
+        micFail(err.message || 'Could not hear that \u2014 please try again.', err.name === 'AbortError' ? 'mic_timeout' : 'mic_server', statusId);
       }
     };
     mediaRecorder.start();
     btn.classList.add('recording');
+    const lbl = btn.querySelector('.home-mic-label');
+    if (lbl) { if (!lbl.dataset.idle) lbl.dataset.idle = lbl.textContent; lbl.textContent = 'Speak now\u2026'; }
+    try { if (navigator.vibrate) navigator.vibrate(40); } catch (e) { /* optional */ }
     track('mic_start');
-    setMicStatus('Listening\u2026 tap again when you\u2019re done speaking.', null, statusId);
+    setMicStatus('Speak now. It stops by itself when you finish.', null, statusId);
   } catch (err) {
     // Real Clarity finding, 28 Aug: a real user hit this and got stuck - the
     // old message ("check phone permission") assumes someone can read it AND
@@ -1038,19 +1129,17 @@ async function toggleMic(btn, statusId) {
     // neither of which holds for this audience. Split by the real cause and
     // say it out loud too, since a text-only fix instruction is useless to
     // someone who can't read it in the first place.
-    const msg = err.name === 'NotAllowedError'
-      ? 'This phone said no to the microphone. Please go to your phone\u2019s Settings, find CountMy or your browser, and turn the microphone on. Or just type instead.'
+    const iab = inAppBrowser();
+    const msg = iab
+      ? (isAndroid() ? 'Facebook\u2019s browser cannot use the microphone. Please tap Open in Chrome, or type it below.' : 'Facebook\u2019s browser cannot use the microphone. Please open this page in Safari, or type it below.')
+      : err.name === 'NotAllowedError'
+      ? 'This phone said no to the microphone. Please go to your phone\u2019s Settings, find your browser, and turn the microphone on. Or type it below.'
       : err.name === 'NotFoundError'
-      ? 'This phone/browser has no microphone available. Please type instead.'
-      : 'Couldn\u2019t reach the microphone \u2014 please type instead.';
-    setMicStatus(msg, 'err', statusId);
-    if ('speechSynthesis' in window) {
-      const utter = speakClearly(new SpeechSynthesisUtterance(msg));
-      utter.rate = 0.8;
-      speechSynthesis.cancel();
-      speechSynthesis.speak(utter);
-    }
-    track('mic_error', { reason: err.name || 'getusermedia_failed' });
+      ? 'This phone has no microphone available. Please type it below.'
+      : 'Could not reach the microphone \u2014 please type it below.';
+    if (iab) showOpenInChrome('failed');
+    micFail(msg, err.name === 'NotAllowedError' ? 'mic_denied' : err.name === 'NotFoundError' ? 'mic_nomic' : 'mic_busy', statusId);
+    track('mic_error', { reason: err.name || 'getusermedia_failed', iab: iab ? 1 : 0 });
   }
 }
 // Tracks how each entry was actually created (voice vs manual) - added 27 Aug
@@ -2228,6 +2317,10 @@ document.getElementById('homeMicBtn').addEventListener('click', () => {
   ping('tap'); // funnel step between 'opened' and 'recorded' (16 Sep)
   toggleMic(document.getElementById('homeMicBtn'), 'homeMicStatus');
 });
+if (inAppBrowser()) {
+  // Ad traffic lands here. Offer the way out before the first tap fails.
+  try { showOpenInChrome('warn'); ping('iab'); track('iab_open'); } catch (e) { /* never block */ }
+}
 if (!micSupported()) {
   // No microphone API in this browser (older iOS, some in-app browsers).
   // Say so plainly and open the typed choices, so the page is still usable.
