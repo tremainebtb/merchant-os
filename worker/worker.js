@@ -971,7 +971,7 @@ async function handleTranscribe(request, env) {
 // 50 is a transcription/parsing error, not a fabrication) - evidence-checking
 // targets fabrication specifically, not every possible error; the review UI is
 // still what catches a wrong-but-grounded number.
-const WORKER_VERSION = 'w49';
+const WORKER_VERSION = 'w50';
 
 // Spanish (Venezuela) twin of EXTRACT_SYSTEM_PROMPT below: same event types,
 // same {value, evidence} rule, same JSON-only answer. Amounts are bare
@@ -1441,13 +1441,14 @@ function spanishPrep(text, country) {
   if (country === 'CO') t = t.replace(/\b(\d+)\s*(lucas?|barras)\b/gi, (m, n) => String(Number(n) * 1000) + ' pesos');
   t = t.replace(/\b(un|1)\s+(dolar|d\u00f3lar)(c)?ito\b/gi, '1 d\u00f3lar').replace(/\b(\d+)\s+(dolar|d\u00f3lar)(c)?itos\b/gi, '$1 d\u00f3lares').replace(/\bbolitos?\b/gi, 'bol\u00edvares');
   t = t.replace(/\b(por|con|en)\s+(nequi|daviplata|bancolombia|pago\s+m[o\u00f3]vil|zelle|transferencia|efectivo|binance|usdt)\b/gi, '');
+  t = t.replace(/\s*,?\s*y\s+me\s+pag(o|\u00f3)\s*\.?\s*$/i, '');
   return t;
 }
 const PAY_METHOD_WORDS = /^(nequi|daviplata|bancolombia|pago m[o\u00f3]vil|zelle|transferencia|efectivo|binance|usdt|momo|cash)$/i;
 const PRONOUN_NAMES = new Set(['am', 'e', 'im', 'dem', 'me', 'he', 'she', 'him', 'her', 'them', 'you', 'i', 'we', 'it', 'they', 'el', 'ella', 'ellos', 'le', 'la', 'lo', 'a']);
 const COUNT_WORDS = /\b(bags?|baskets?|tins?|yards?|pieces?|crates?|bunches?|boxes?|cups?|olonka|bowls?|kilos?|kg|libras?|bultos?|arrobas?|cajas?|docenas?|paquetes?|sacos?|cartones?)\b/i;
 // (?=\s|$) instead of \b: JS word boundaries are ASCII-only, so 'compré' never ended on \b.
-const EXPENSE_LEAD = /^\s*(i\s+|we\s+)?(bought|buy|pay|paid|spend|spent|me\s+to|compr[e\u00e9]|pagu[e\u00e9]|gast[e\u00e9]|me\s+traje|ped[i\u00ed])(?=\s|$)/i;
+const EXPENSE_LEAD = /^\s*(i\s+|we\s+)?(bought|buy|pay|paid|spend|spent|give|gave|dash|me\s+to|compr[e\u00e9]|pagu[e\u00e9]|gast[e\u00e9]|me\s+traje|ped[i\u00ed])(?=\s|$)/i;
 const EXPENSE_WORDS = /\b(chop money|market toll|toll|fare|trotro|fuel|petrol|diesel|transport|transporte|rent|arriendo|alquiler|airtime|light bill|water bill|electricity|la luz|el agua|pasaje|gasolina)\b/i;
 // Deterministic rules after the model, for the ways people actually talk.
 function fragmentRules(clean, text, lang, country) {
@@ -1456,6 +1457,10 @@ function fragmentRules(clean, text, lang, country) {
   const nums = (tt.match(/\d+(?:[.,]\d+)?/g) || []).map(x => Number(x.replace(',', '.')));
   const eachM = /(\d+(?:[.,]\d+)?)\s*(?:cedis|cds|ghs|sadis|sities|sedis|sidis|d[o\u00f3]lares|pesos|bs|bol[i\u00ed]vares)?\s+(each|cada un[oa]|la libra|el kilo|la unidad)\b/i.exec(tt);
   const totalM = /\b(eran|fueron|total|en total)\s+(\d+(?:[.,]\d+)?)\s*$/i.exec(tt.trim());
+  const CUR_WORD = '(?:cedis|cds|ghs|sadis|sities|d[o\u00f3]lares|verdes|bolos|bs|bol[i\u00edv]vares|pesos|lucas?)';
+  const moneyAmts = [...tt.matchAll(new RegExp('(\\d+(?:[.,]\\d+)?)\\s*' + CUR_WORD + '\\b', 'g'))].map(m => Number(m[1].replace(',', '.')));
+  const FILLER_NAMES = /^(fiao|fiado|el resto|resto|cr[e\u00e9]dito|credit|cliente|customer)$/i;
+  const salePrices = new Set(clean.filter(e => e.type === 'sale' && e.price !== undefined).map(e => e.price));
   return clean.map(e0 => {
     const e = Object.assign({}, e0);
     const name = String(e.item || e.customer || e.supplier || '').trim();
@@ -1479,9 +1484,42 @@ function fragmentRules(clean, text, lang, country) {
       if (e.price === undefined && e.qty !== undefined) { e.price = e.qty; delete e.qty; }
     }
     // "... y el resto por Nequi, eran 15": the total is the amount
-    if (totalM && e.price !== undefined) { const tot = Number(totalM[2].replace(',', '.')); if (tot > e.price) e.price = tot; }
+    // (Colombia says "eran quince" for 15000 when the first amount was in lucas).
+    if (totalM && e.price !== undefined) {
+      let tot = Number(totalM[2].replace(',', '.'));
+      if (country === 'CO' && tot < 1000 && e.price >= 1000) tot *= 1000;
+      if (tot > e.price) e.price = tot;
+    }
+    // the one stated money amount IS the amount (never quantity x amount) - for
+    // debts and expenses; a sale keeps its per-unit maths
+    if (moneyAmts.length === 1 && e.type !== 'sale' && e.price !== undefined && e.price !== moneyAmts[0]) e.price = moneyAmts[0];
+    // "caramelos 3 verdes": a number followed by a currency word is money, not a count
+    if (e.qty !== undefined && e.qty === e.price && moneyAmts.includes(e.price)) delete e.qty;
+    // "sales today 130" / "sales apem": the number is the money, the item is "sales"
+    if (e.type === 'sale' && /\b(sales?|total)\b/.test(tt) && lang !== 'es') {
+      const it = String(e.item || '').replace(/\b(small small|today|sales?|total)\b/gi, ' ').replace(/\s+/g, ' ').trim();
+      e.item = it || 'sales';
+      if (e.price === undefined && e.qty !== undefined) { e.price = e.qty; delete e.qty; }
+    }
+    // an expense never has a count equal to its amount ("me to abe cedis oha")
+    if (e.type === 'expense' && e.qty !== undefined && e.qty === e.price) delete e.qty;
+    // Ghana: "ntoma anum, cedis oha" / "two yards 80" - a count then one amount
+    // with no "each" is the total; split it when it divides cleanly
+    if (lang !== 'es' && e.type === 'sale' && e.qty > 1 && e.price && !eachM && nums.length <= 1 && e.price % e.qty === 0 && e.price > e.qty) {
+      const runs = twiRunSums(normalizeForMatch(raw));
+      const twiTotal = runs.length && runs[0] === e.price;
+      const digitTotal = nums.length === 1 && nums[0] === e.price;
+      if (twiTotal || digitTotal) e.price = e.price / e.qty;
+    }
+    // "me pagaron 200 de una arepa" is a sale of an arepa
+    if (e.type === 'debt_in' && e.customer && /\bme pagaron\b/.test(tt) && new RegExp('\\bde\\s+una?\\s+' + String(e.customer).toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '')).test(tt)) { e.type = 'sale'; e.item = e.customer; delete e.customer; }
     return e;
-  }).filter(e => e.item || e.customer || e.supplier);
+  }).filter(e => e.item || e.customer || e.supplier)
+    // phantom debts: a credit word as the "customer", a debt with no amount when
+    // the sentence had one number, or a debt that only repeats the sale's price
+    .filter(e => !(e.type === 'debt_in' && e.customer && FILLER_NAMES.test(String(e.customer).trim())))
+    .filter(e => !(e.type === 'debt_in' && e.price === undefined && nums.length === 1 && clean.length > 1))
+    .filter(e => !(e.type === 'debt_in' && nums.length === 1 && salePrices.has(e.price) && clean.length > 1));
 }
 // English fallbacks when the model returned nothing
 function expenseFallback(text) {
@@ -1498,6 +1536,38 @@ function twiFallback(transcriptNorm) {
   const ev = { type, item: item || 'sales', price: sums[0] };
   if (sums.length > 1 && type === 'sale') ev.qty = sums[sums.length - 1];
   return [ev];
+}
+const EN_UNITS = { zero: 0, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12, thirteen: 13, fourteen: 14, fifteen: 15, sixteen: 16, seventeen: 17, eighteen: 18, nineteen: 19 };
+const EN_TENS = { twenty: 20, thirty: 30, forty: 40, fifty: 50, sixty: 60, seventy: 70, eighty: 80, ninety: 90 };
+function englishNumbersToDigits(text) {
+  const words = String(text || '').split(/(\s+)/);
+  const out = []; let i = 0;
+  while (i < words.length) {
+    const w = words[i];
+    if (/^\s*$/.test(w)) { out.push(w); i++; continue; }
+    const f = w.toLowerCase().replace(/[.,;:!?]+$/, '');
+    const isNum = x => x in EN_UNITS || x in EN_TENS || x === 'hundred' || x === 'thousand';
+    if (!isNum(f)) { out.push(w); i++; continue; }
+    let total = 0, cur = 0, j = i, any = false, last = i;
+    while (j < words.length) {
+      const wj = words[j];
+      if (/^\s*$/.test(wj)) { j++; continue; }
+      const fj = wj.toLowerCase().replace(/[.,;:!?]+$/, '');
+      if (fj === 'and' && any) { j++; continue; }
+      if (fj in EN_UNITS) { cur += EN_UNITS[fj]; any = true; }
+      else if (fj in EN_TENS) { cur += EN_TENS[fj]; any = true; }
+      else if (fj === 'hundred') { cur = (cur || 1) * 100; any = true; }
+      else if (fj === 'thousand') { total += (cur || 1) * 1000; cur = 0; any = true; }
+      else break;
+      j++; last = j;
+    }
+    if (!any) { out.push(w); i++; continue; }
+    total += cur;
+    const trailing = (words[last - 1] || '').match(/[.,;:!?]+$/);
+    out.push(String(total) + (trailing ? trailing[0] : ''));
+    i = last;
+  }
+  return out.join('');
 }
 function mentionsANumber(text) {
   const t = String(text || '').toLowerCase();
@@ -1717,7 +1787,8 @@ async function handleExtract(request, env) {
   if (!text) return cors(new Response(JSON.stringify({ error: 'no text received' }), { status: 400 }));
   const lang = (body && body.lang) === 'es' ? 'es' : 'en';
   const country = String((body && body.country) || '').toUpperCase().slice(0, 2);
-  if (lang === 'es') { text = spanishNumbersToDigits(text); if (country === 'CO') text = colombianMoneyToDigits(text); text = spanishPrep(text, country); }
+  if (lang === 'es') { text = spanishPrep(text, country); text = spanishNumbersToDigits(text); if (country === 'CO') text = colombianMoneyToDigits(text); text = spanishPrep(text, country); }
+  else text = englishNumbersToDigits(text);
   const result = (lang === 'es' && /^\s*[\u00bf]?\s*(a c[o\u00f3]mo|cu[a\u00e1]nt[oa]s?|qui[e\u00e9]n|qu[e\u00e9])\b/i.test(text) && !/\d/.test(text)) ? { events: [] } : await extractFromText(text, env, lang, country);
   if (result.error) {
     return cors(new Response(JSON.stringify({ error: result.error, detail: result.detail }), { status: 502 }));
@@ -1771,7 +1842,8 @@ async function handleTranscribeAndExtract(request, env) {
   if (!text.trim()) {
     return cors(new Response(JSON.stringify({ text: '', events: [] }), { headers: { 'Content-Type': 'application/json' } }));
   }
-  if (lang === 'es') { text = spanishNumbersToDigits(text); if (country === 'CO') text = colombianMoneyToDigits(text); text = spanishPrep(text, country); }
+  if (lang === 'es') { text = spanishPrep(text, country); text = spanishNumbersToDigits(text); if (country === 'CO') text = colombianMoneyToDigits(text); text = spanishPrep(text, country); }
+  else text = englishNumbersToDigits(text);
   const extracted = (lang === 'es' && /^\s*[\u00bf]?\s*(a c[o\u00f3]mo|cu[a\u00e1]nt[oa]s?|qui[e\u00e9]n|qu[e\u00e9])\b/i.test(text) && !/\d/.test(text)) ? { events: [] } : await extractFromText(text, env, lang, country);
   return cors(new Response(JSON.stringify({ text, events: extracted.events || [] }), {
     headers: { 'Content-Type': 'application/json' }
