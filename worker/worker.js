@@ -824,7 +824,7 @@ async function handleAdminStats(request, env) {
 // of extra round trip that hurts most on the weak mobile connections this
 // app is built to tolerate. handleTranscribe below still works standalone
 // (nothing that already calls /transcribe breaks).
-async function transcribeAudio(audioBytes, audioType, env, lang) {
+async function transcribeAudio(audioBytes, audioType, env, lang, country) {
   if (audioBytes.length === 0) return { text: '', error: 'no audio received' };
 
   // whisper-large-v3-turbo's input schema wants 'audio' as an array of raw byte
@@ -860,7 +860,9 @@ async function transcribeAudio(audioBytes, audioType, env, lang) {
     const whisperInput = { audio: base64Audio };
     if (lang === 'es') {
       whisperInput.language = 'es';
-      whisperInput.initial_prompt = 'Vendí, compré, me debe, le debo, fiao, dólares, bolívares, bs, cedis.';
+      whisperInput.initial_prompt = country === 'CO'
+        ? 'Vendí, compré, me quedó debiendo, le fié, abonó, pesos, mil, lucas, Nequi, transferencia, libra, bulto.'
+        : 'Vendí, compré, me debe, le debo, fiao, dólares, bolívares, bs, Pago Móvil.';
     } else {
       whisperInput.initial_prompt = 'Sold, bought, owes me, cedis, momo, Ama, Kofi.';
     }
@@ -969,7 +971,7 @@ async function handleTranscribe(request, env) {
 // 50 is a transcription/parsing error, not a fabrication) - evidence-checking
 // targets fabrication specifically, not every possible error; the review UI is
 // still what catches a wrong-but-grounded number.
-const WORKER_VERSION = 'w44';
+const WORKER_VERSION = 'w45';
 
 // Spanish (Venezuela) twin of EXTRACT_SYSTEM_PROMPT below: same event types,
 // same {value, evidence} rule, same JSON-only answer. Amounts are bare
@@ -991,6 +993,26 @@ Ejemplos, uno por tipo - todos los tipos son igual de probables, NO asumas que e
 [{"type":"debt_in","customer":{"value":"Carlos","evidence":"Carlos"},"price":{"value":20,"evidence":"20 dólares"}}]
 [{"type":"debt_in","customer":{"value":"María","evidence":"María"},"price":{"value":15,"evidence":"quince"},"note":{"value":"fiao","evidence":"fiao"}}]
 [{"type":"debt_out","supplier":{"value":"Pedro","evidence":"Pedro"},"price":{"value":400,"evidence":"400"}}]`;
+
+// Colombian twin: pesos only, "de a" = unit price, "en"/"por" = total,
+// "fiado/fiao/me quedó debiendo/le fié" = debt_in, "abonó" is a payment (not
+// an event here), libra/bulto/arroba are units, amounts are already digits.
+const EXTRACT_SYSTEM_PROMPT_ES_CO = `Lees una transcripción de voz, posiblemente desordenada, de un tendero o vendedor colombiano contando qué pasó hoy en su negocio, en español colombiano (palabras como "fiado", "fiao", "me quedó debiendo", "le fié", "plata", "pesos", "de a" = precio por unidad, "en" o "por" = total, "libra", "bulto", "arroba", "Nequi", "transferencia"; los montos ya vienen en dígitos y son pesos colombianos). Extrae cada evento de negocio distinto como un arreglo JSON. Cada evento es de uno de estos tipos:
+- "sale": el dueño vendió algo. Campos: type, item, qty, y O BIEN price (precio por unidad, solo si se dijo "a" o "de a" un precio por unidad) O BIEN total (el monto total dicho con "en" o "por" - por ejemplo "5 camisas en 40000" tiene qty 5 y total 40000, NO price 8000 - nunca hagas la división tú mismo).
+- "expense": el dueño gastó o pagó algo (arriendo, mercancía, transporte, un bulto de papa). Campos: type, item, price (monto total).
+- "debt_in": un cliente le debe al dueño ("fiado", "fiao", "me debe", "me quedó debiendo", "le fié"). Campos: type, customer (nombre de la persona), price (monto), note (opcional, por qué).
+- "debt_out": el dueño le debe a un proveedor ("le quedé debiendo", "le debo"). Campos: type, supplier, price (monto), note (opcional).
+REGLA CRÍTICA: cada campo excepto "type" debe ser un objeto {"value": ..., "evidence": "..."}, donde "evidence" es el fragmento EXACTO copiado palabra por palabra de la transcripción en el que se basa el valor. NUNCA inventes evidence para un número que calculaste tú. Si no puedes señalar palabras reales que respalden un campo, NO incluyas ese campo. Los "value" de qty, price y total deben ser números simples. Ignora palabras de ruido.
+Responde SOLO con un arreglo JSON crudo, sin prosa, sin marcas de código, sin campos extra. Si no hay nada extraíble, responde [].
+Si alguien le debe al dueño y no se dijo un nombre, igual devuelve debt_in usando la palabra exacta dicha para la persona, como "cliente" o "la señora".
+Ejemplos, uno por tipo - todos los tipos son igual de probables, NO asumas que es una venta:
+[{"type":"sale","item":{"value":"camisas","evidence":"camisas"},"qty":{"value":5,"evidence":"5"},"price":{"value":10000,"evidence":"de a 10000"}}]
+[{"type":"sale","item":{"value":"camisas","evidence":"camisas"},"qty":{"value":5,"evidence":"5"},"total":{"value":40000,"evidence":"en 40000"}}]
+[{"type":"expense","item":{"value":"arriendo","evidence":"arriendo"},"price":{"value":200000,"evidence":"200000"}}]
+[{"type":"expense","item":{"value":"papa","evidence":"bulto de papa"},"qty":{"value":1,"evidence":"un bulto"},"total":{"value":80000,"evidence":"en 80000"}}]
+[{"type":"debt_in","customer":{"value":"Juan","evidence":"Juan"},"price":{"value":20000,"evidence":"20000 pesos"}}]
+[{"type":"debt_in","customer":{"value":"doña Marta","evidence":"doña Marta"},"price":{"value":15000,"evidence":"15000"},"note":{"value":"mercado","evidence":"de mercado"}}]
+[{"type":"debt_out","supplier":{"value":"proveedor","evidence":"proveedor"},"price":{"value":300000,"evidence":"300000"}}]`;
 
 const EXTRACT_SYSTEM_PROMPT = `You read a rough, possibly messy speech-to-text transcript from a Ghanaian shop owner describing what happened in their shop today, in English, Twi or Pidgin (Twi numbers: baako 1, mmienu 2, mmiensa 3, enan 4, anum 5, du 10, aduonu 20, aduasa 30, aduonum 50, oha 100, apem 1000; "de me ka" = owes me; transcripts may contain mistranscribed words like "cds" for "cedis"). Extract every distinct business event as a JSON array. Each event is one of these types:
 - "sale": the owner sold something. Fields: type, item, qty, and EITHER price (per-unit price in cedis, only if a per-unit price was actually spoken) OR total (the total amount actually spoken, if only a total was said - e.g. "2 bags for 300" has qty 2 and total 300, NOT price 150 - never do the division yourself).
@@ -1019,12 +1041,17 @@ Examples, one per type - every type below is equally likely, do NOT assume an ut
 // model happens to say on a given day. Never trust model-reported confidence;
 // confidence here is a fact about the value's own type AND whether its claimed
 // evidence is real, nothing the model merely asserts about itself.
+// Explicit Latin accent map (17 Sep): String.normalize('NFD') folded "María"
+// locally but not on the Workers runtime, which dropped every accented name.
+const ACCENT_MAP = { '\u00e1': 'a', '\u00e0': 'a', '\u00e4': 'a', '\u00e2': 'a', '\u00e3': 'a', '\u00e9': 'e', '\u00e8': 'e', '\u00eb': 'e', '\u00ea': 'e', '\u00ed': 'i', '\u00ec': 'i', '\u00ef': 'i', '\u00ee': 'i', '\u00f3': 'o', '\u00f2': 'o', '\u00f6': 'o', '\u00f4': 'o', '\u00f5': 'o', '\u00fa': 'u', '\u00f9': 'u', '\u00fc': 'u', '\u00fb': 'u', '\u00f1': 'n', '\u00e7': 'c' };
+function foldAccents(str) {
+  return String(str).replace(/[\u0300-\u036f]/g, '').replace(/[\u00e0-\u00ff]/g, ch => ACCENT_MAP[ch] || ch);
+}
 function normalizeForMatch(s) {
   // Akan open vowels folded to ASCII first (15 Sep), otherwise the plain
   // a-z strip splits a Twi number word like "aduoson" (70) in two.
-  return String(s).toLowerCase().replace(/\u0254/g, 'o').replace(/\u025b/g, 'e')
-    // Spanish accents and n-tilde (17 Sep): "María" must stay one token.
-    .normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
+  return foldAccents(String(s).toLowerCase().replace(/\u0254/g, 'o').replace(/\u025b/g, 'e'))
+    .replace(/[^a-z0-9]+/g, ' ').trim();
 }
 
 // A field's evidence must be a real, boundedly-short substring of the actual
@@ -1340,7 +1367,7 @@ const ES_UNITS = { cero: 0, uno: 1, una: 1, dos: 2, tres: 3, cuatro: 4, cinco: 5
 const ES_TENS = { treinta: 30, cuarenta: 40, cincuenta: 50, sesenta: 60, setenta: 70, ochenta: 80, noventa: 90 };
 const ES_HUNDREDS = { cien: 100, ciento: 100, doscientos: 200, doscientas: 200, trescientos: 300, trescientas: 300, cuatrocientos: 400, cuatrocientas: 400, quinientos: 500, quinientas: 500, seiscientos: 600, seiscientas: 600, setecientos: 700, setecientas: 700, ochocientos: 800, ochocientas: 800, novecientos: 900, novecientas: 900 };
 function spanishNumbersToDigits(text) {
-  const fold = w => w.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  const fold = w => foldAccents(w.toLowerCase());
   const words = String(text || '').split(/(\s+)/);
   const out = [];
   let i = 0;
@@ -1374,19 +1401,33 @@ function spanishNumbersToDigits(text) {
   }
   return out.join('');
 }
+// Colombia (17 Sep): "veinte lucas" = 20000, "un palo" = 1000000, "dos
+// cincuenta" = 2500 in a shop, and a bare "doscientos de arriendo" means
+// 200000 pesos. Applied after spanishNumbersToDigits, only for country CO.
+function colombianMoneyToDigits(text) {
+  let t = String(text || '');
+  t = t.replace(/\b(\d+(?:[.,]\d+)?)\s+(lucas?|barras)\b/gi, (m, n) => String(Math.round(parseFloat(n.replace(',', '.')) * 1000)) + ' pesos');
+  t = t.replace(/\b(una|1)\s+luca\b/gi, '1000 pesos');
+  t = t.replace(/\b(\d+)\s+(palos?|millon(?:es)?|mill\u00f3n)\b/gi, (m, n) => String(Number(n) * 1000000) + ' pesos');
+  t = t.replace(/\b(un|1)\s+(palo|mill\u00f3n|millon)\b/gi, '1000000 pesos');
+  t = t.replace(/\bmedio\s+(palo|mill\u00f3n|millon)\b/gi, '500000 pesos');
+  // "dos cincuenta", "diez quinientos": thousands + hundreds said bare
+  t = t.replace(/\b(\d{1,2})\s+(\d{2,3})\b(?!\s*(?:mil|pesos|lucas|d[o\u00f3]lares))/g, (m, a, b) => (Number(b) < 1000 && Number(a) < 100) ? String(Number(a) * 1000 + Number(b)) : m);
+  return t;
+}
 function mentionsANumber(text) {
   const t = String(text || '').toLowerCase();
   if (/\d/.test(t)) return true;
-  if (/\b(uno|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|once|doce|quince|veinte|treinta|cuarenta|cincuenta|cien|ciento|quinientos|mil)\b/.test(t.normalize('NFD').replace(/[\u0300-\u036f]/g, ''))) return true;
+  if (/\b(uno|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|once|doce|quince|veinte|treinta|cuarenta|cincuenta|cien|ciento|quinientos|mil|lucas?|palo|millon|millones)\b/.test(foldAccents(t))) return true;
   return /\b(one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand)\b/.test(t);
 }
 
-async function runExtractionModel(text, env, temperature, lang) {
+async function runExtractionModel(text, env, temperature, lang, country) {
   // Spanish gets the 8B model (fp8-fast: cheaper than the plain 8B and far
   // better than 3B on two-event sentences); English keeps the tested 3B path.
   return env.AI.run(lang === 'es' ? '@cf/meta/llama-3.1-8b-instruct-fp8-fast' : '@cf/meta/llama-3.2-3b-instruct', {
     messages: [
-      { role: 'system', content: lang === 'es' ? EXTRACT_SYSTEM_PROMPT_ES : EXTRACT_SYSTEM_PROMPT },
+      { role: 'system', content: lang === 'es' ? (country === 'CO' ? EXTRACT_SYSTEM_PROMPT_ES_CO : EXTRACT_SYSTEM_PROMPT_ES) : EXTRACT_SYSTEM_PROMPT },
       { role: 'user', content: text }
     ],
     max_tokens: 700,
@@ -1402,11 +1443,11 @@ async function runExtractionModel(text, env, temperature, lang) {
   });
 }
 
-async function extractFromText(text, env, lang) {
+async function extractFromText(text, env, lang, country) {
   if (!text) return { events: [] };
   let result;
   try {
-    result = await runExtractionModel(text, env, 0, lang);
+    result = await runExtractionModel(text, env, 0, lang, country);
   } catch (err) {
     return { events: [], error: 'extraction unavailable right now - try again, or fill in manually', detail: String(err).slice(0, 200) };
   }
@@ -1442,7 +1483,7 @@ async function extractFromText(text, env, lang) {
   // number was actually mentioned, so a cough never costs a second call.
   if (clean.length === 0 && mentionsANumber(text)) {
     try {
-      const retry = await runExtractionModel(text, env, 0.4, lang);
+      const retry = await runExtractionModel(text, env, 0.4, lang, country);
       const retryField = retry && retry.response;
       let retryEvents = [];
       if (Array.isArray(retryField)) {
@@ -1482,6 +1523,7 @@ async function extractFromText(text, env, lang) {
     const isBs = /bol[ií]var|\bbolos?\b|\bbs\b/, isUsd = /d[oó]lar|\bverdes?\b|\$/;
     const curAt = pos => { const after = tt.slice(pos, pos + 40); return isBs.test(after) ? 'VES' : isUsd.test(after) ? 'USD' : null; };
     const global = isBs.test(tt) && !isUsd.test(tt) ? 'VES' : 'USD';
+    if (country === 'CO') { clean = clean.map(e => Object.assign({}, e, { currency: 'COP' })); return { events: clean }; }
     clean = clean.map(e => {
       let cur = null;
       const amts = e.type === 'sale' && e.qty && e.price ? [String(e.price * e.qty), String(e.price)] : [String(e.price || '')];
@@ -1586,8 +1628,9 @@ async function handleExtract(request, env) {
   let text = (body && body.text || '').trim();
   if (!text) return cors(new Response(JSON.stringify({ error: 'no text received' }), { status: 400 }));
   const lang = (body && body.lang) === 'es' ? 'es' : 'en';
-  if (lang === 'es') text = spanishNumbersToDigits(text);
-  const result = await extractFromText(text, env, lang);
+  const country = String((body && body.country) || '').toUpperCase().slice(0, 2);
+  if (lang === 'es') { text = spanishNumbersToDigits(text); if (country === 'CO') text = colombianMoneyToDigits(text); }
+  const result = await extractFromText(text, env, lang, country);
   if (result.error) {
     return cors(new Response(JSON.stringify({ error: result.error, detail: result.detail }), { status: 502 }));
   }
@@ -1625,7 +1668,9 @@ async function handleTranscribeAndExtract(request, env) {
   const lang = String(incomingForm.get('lang') || '') === 'es' ? 'es' : 'en';
   diag.lang = lang;
 
-  const transcribed = await transcribeAudio(audioBytes, audio.type, env, lang);
+  const country = String(incomingForm.get('country') || '').toUpperCase().slice(0, 2);
+  diag.country2 = country;
+  const transcribed = await transcribeAudio(audioBytes, audio.type, env, lang, country);
   console.log('transcribe', Object.assign(diag, { ms: Date.now() - t0, ok: !transcribed.error, chars: (transcribed.text || '').length, err: transcribed.error ? String(transcribed.detail || transcribed.error).slice(0, 100) : '' }));
   if (transcribed.error) {
     return cors(new Response(JSON.stringify({ text: '', events: [], error: transcribed.error, detail: transcribed.detail }), { status: 502, headers: { 'Content-Type': 'application/json' } }));
@@ -1638,8 +1683,8 @@ async function handleTranscribeAndExtract(request, env) {
   if (!text.trim()) {
     return cors(new Response(JSON.stringify({ text: '', events: [] }), { headers: { 'Content-Type': 'application/json' } }));
   }
-  if (lang === 'es') text = spanishNumbersToDigits(text);
-  const extracted = await extractFromText(text, env, lang);
+  if (lang === 'es') { text = spanishNumbersToDigits(text); if (country === 'CO') text = colombianMoneyToDigits(text); }
+  const extracted = await extractFromText(text, env, lang, country);
   return cors(new Response(JSON.stringify({ text, events: extracted.events || [] }), {
     headers: { 'Content-Type': 'application/json' }
   }));
