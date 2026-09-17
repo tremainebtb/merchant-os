@@ -711,7 +711,7 @@ async function handleAdminStats(request, env) {
     'SELECT CAST(ts / ? AS INTEGER) as bucket, COUNT(DISTINCT shop_hash) as n FROM live_events WHERE ts >= ? GROUP BY bucket'
   ).bind(DAY, dailySince));
   stmts.push(env.COUNTMY_DB.prepare(
-    "SELECT CAST(ts / ? AS INTEGER) as bucket, COUNT(*) as n FROM live_events WHERE event_type = 'save' AND ts >= ? GROUP BY bucket"
+    "SELECT CAST(ts / ? AS INTEGER) as bucket, COUNT(*) as n FROM live_entries WHERE status = 'saved' AND ts >= ? GROUP BY bucket"
   ).bind(DAY, dailySince));
 
   // Spread loop (16 Sep): the five numbers the 90-day window is judged on.
@@ -949,7 +949,7 @@ async function handleTranscribe(request, env) {
 // 50 is a transcription/parsing error, not a fabrication) - evidence-checking
 // targets fabrication specifically, not every possible error; the review UI is
 // still what catches a wrong-but-grounded number.
-const WORKER_VERSION = 'w34';
+const WORKER_VERSION = 'w35';
 
 const EXTRACT_SYSTEM_PROMPT = `You read a rough, possibly messy speech-to-text transcript from a Ghanaian shop owner describing what happened in their shop today, in English, Twi or Pidgin (Twi numbers: baako 1, mmienu 2, mmiensa 3, enan 4, anum 5, du 10, aduonu 20, aduasa 30, aduonum 50, oha 100, apem 1000; "de me ka" = owes me; transcripts may contain mistranscribed words like "cds" for "cedis"). Extract every distinct business event as a JSON array. Each event is one of these types:
 - "sale": the owner sold something. Fields: type, item, qty, and EITHER price (per-unit price in cedis, only if a per-unit price was actually spoken) OR total (the total amount actually spoken, if only a total was said - e.g. "2 bags for 300" has qty 2 and total 300, NOT price 150 - never do the division yourself).

@@ -133,21 +133,21 @@ footer a{color:var(--muted)}
   </div>
 
   <div class="kpis">
-    <div class="kpi k-used"><div class="label">People who used it</div><div class="num" id="kActive">-</div><div class="sub" id="kActiveSub"></div></div>
+    <div class="kpi k-used"><div class="label">Opened the app</div><div class="num" id="kActive">-</div><div class="sub" id="kActiveSub"></div></div>
     <div class="kpi k-new"><div class="label">New people</div><div class="num" id="kSignups">-</div><div class="sub" id="kSignupsSub"></div></div>
     <div class="kpi k-rec"><div class="label">Records saved</div><div class="num" id="kEntries">-</div><div class="sub" id="kEntriesSub"></div></div>
-    <div class="kpi k-back"><div class="label">Came back</div><div class="num" id="kBack">-</div><div class="sub" id="kBackSub"></div></div>
+    <div class="kpi k-back"><div class="label">Came back another day</div><div class="num" id="kBack">-</div><div class="sub" id="kBackSub"></div></div>
   </div>
 
   <div class="panel">
-    <h3>Where people come from</h3>
-    <p class="note">Real phones only. Crawlers, ad reviewers and your own test devices are never counted.</p>
+    <h3>Where people come from (since launch)</h3>
+    <p class="note">Real people only - crawlers, ad reviewers and your own test devices are never counted. "In Ghana" is where the network says the visitor is; a low Ghana share means desktops and lookers, not customers.</p>
     <p class="verdict" id="verdict"></p>
-    <div class="tw"><table><thead><tr><th>Source</th><th>People</th><th>In Ghana</th><th>Made a record</th></tr></thead><tbody id="srcBody"><tr><td colspan="4" class="empty-note">Nobody yet.</td></tr></tbody></table></div>
+    <div class="tw"><table><thead><tr><th>Source</th><th>People</th><th>This week</th><th>In Ghana</th><th>Made a record</th></tr></thead><tbody id="srcBody"><tr><td colspan="5" class="empty-note">Nobody yet.</td></tr></tbody></table></div>
   </div>
 
   <div class="panel">
-    <h3>Day by day</h3>
+    <h3>Last 30 days, day by day</h3><p class="note">The last dot is today so far.</p>
     <div class="legend">
       <span><i style="background:var(--leaf)"></i>New people</span>
       <span><i style="background:var(--steel)"></i>People who used it</span>
@@ -157,10 +157,10 @@ footer a{color:var(--muted)}
   </div>
 
   <div class="panel">
-    <h3>Business pages</h3>
+    <h3>Business pages (since launch)</h3>
     <div class="mini">
-      <div><div class="n" id="kShops">-</div><div class="l">pages made</div></div>
-      <div><div class="n" id="kShared">-</div><div class="l">people who shared theirs</div></div>
+      <div><div class="n" id="kShops">-</div><div class="l" id="kShopsL">pages made</div></div>
+      <div><div class="n" id="kShared">-</div><div class="l" id="kSharedL">people who shared theirs</div></div>
       <div><div class="n" id="kShopViews">-</div><div class="l">times a page was opened</div></div>
     </div>
   </div>
@@ -179,7 +179,7 @@ footer a{color:var(--muted)}
     </div>
     <div class="panel">
       <h3>Browse recent backups</h3>
-      <p class="note">Every business active in the window, with its last few entries, so you can recognise whose it is. Real content - keep it private.</p>
+      <p class="note">Every business that saved something in that time, with its last few entries, so you can recognise whose it is. Real content - keep it private.</p>
       <div class="recover-row">
         <select id="browseDays">
           <option value="7">Last 7 days</option>
@@ -195,7 +195,7 @@ footer a{color:var(--muted)}
   </details>
 
   <footer>
-    <span>"Today / this week / this month" = the last 24 h / 7 days / 30 days.</span>
+    <span>"Today / this week / this month" = the last 24 h / 7 days / 30 days. Launch = 16 Sep 2026.</span>
     <a href="admin-lab.html">Research view</a>
   </footer>
 </div>
@@ -224,14 +224,19 @@ async function loadStats(key) {
 // Plain-English names for the raw source strings the app records.
 function sourceName(src) {
   const s = String(src || 'direct');
-  if (s === 'facebook/launch_b') return 'Facebook ad - traffic';
-  if (s === 'facebook/launch_b_leads') return 'Facebook ad - records';
-  if (s === 'facebook') return 'Facebook (no campaign tag)';
-  if (s === 'direct') return 'Typed the address / unknown';
-  const [head, tail] = s.split('/');
-  const names = { whatsapp: 'WhatsApp', instagram: 'Instagram', tiktok: 'TikTok', twitter: 'X / Twitter', google: 'Google search', partner: 'Partner', radio: 'Radio', sms: 'SMS' };
+  if (s === 'facebook/launch_b') return 'Facebook ad 1 (traffic)';
+  if (s === 'facebook/launch_b_leads') return 'Facebook ad 2 (leads)';
+  if (s === 'facebook') return 'Facebook (not from an ad)';
+  if (s === 'direct') return 'Typed the address, or unknown';
+  if (s === 'search') return 'Search engine';
+  if (s === 'shoppage') return "Someone's business page";
+  if (s.startsWith('other:')) return 'Other website (' + s.slice(6) + ')';
+  const i = s.indexOf('/');
+  const head = i < 0 ? s : s.slice(0, i), tail = i < 0 ? '' : s.slice(i + 1);
+  const names = { whatsapp: 'WhatsApp', instagram: 'Instagram', tiktok: 'TikTok', twitter: 'X / Twitter', partner: 'Partner programme', radio: 'Radio', sms: 'SMS' };
+  const tails = { debt: 'debt reminder', backup: 'records they shared', eod: "today's summary", shop_page: 'business page link' };
   const base = names[head] || head.charAt(0).toUpperCase() + head.slice(1);
-  return tail ? base + ' - ' + tail : base;
+  return tail ? base + ' - ' + (tails[tail] || tail) : base;
 }
 
 function renderKpis() {
@@ -241,12 +246,12 @@ function renderKpis() {
   document.getElementById('kActive').textContent = fmtInt(p.active);
   document.getElementById('kSignups').textContent = fmtInt(p.signups);
   document.getElementById('kEntries').textContent = fmtInt(p.entries);
-  document.getElementById('kActiveSub').textContent = 'opened the app ' + label;
-  document.getElementById('kSignupsSub').textContent = 'first time ever, ' + label;
-  document.getElementById('kEntriesSub').textContent = 'sales, costs and debts, ' + label;
+  document.getElementById('kActiveSub').textContent = 'people, ' + label;
+  document.getElementById('kSignupsSub').textContent = 'their first time, ' + label;
+  document.getElementById('kEntriesSub').textContent = 'sales, costs and debts, ' + label + (p.notSaved ? ' - ' + fmtInt(p.notSaved) + ' more started but not saved' : '');
   const back = (currentPeriod === 'day' || currentPeriod === 'week') ? L.returning7 : L.returning30;
   document.getElementById('kBack').textContent = fmtInt(back);
-  document.getElementById('kBackSub').textContent = 'used it on 2 or more different days, latest in the last ' + ((currentPeriod === 'day' || currentPeriod === 'week') ? '7' : '30') + ' days';
+  document.getElementById('kBackSub').textContent = 'opened it on 2+ different days; last time within ' + ((currentPeriod === 'day' || currentPeriod === 'week') ? '7' : '30') + ' days (does not change with Today / Since launch)';
 
   const rows = (statsData.sources || []).slice().sort((a, b) => b.devices - a.devices);
   const pct = (n, d) => d ? `<span class="pct">${Math.round(100 * n / d)}%</span>` : '';
@@ -255,18 +260,21 @@ function renderKpis() {
   const eligible = rows.filter(r => r.activated >= 3);
   const bestRec = eligible.length ? eligible.reduce((m, r) => (r.activated / r.devices > m.activated / m.devices ? r : m)) : null;
   document.getElementById('srcBody').innerHTML = rows.length
-    ? rows.map(r => `<tr><td>${esc(sourceName(r.source))}</td><td>${fmtInt(r.devices)}</td><td>${fmtInt(r.gh)}${pct(r.gh, r.devices)}</td><td class="${bestRec && r === bestRec ? 'best' : ''}">${fmtInt(r.activated)}${pct(r.activated, r.devices)}</td></tr>`).join('')
-    : '<tr><td colspan="4" class="empty-note">Nobody yet.</td></tr>';
+    ? rows.map(r => `<tr><td>${esc(sourceName(r.source))}</td><td>${fmtInt(r.devices)}</td><td>${fmtInt(r.week)}</td><td>${fmtInt(r.gh)}${pct(r.gh, r.devices)}</td><td class="${bestRec && r === bestRec ? 'best' : ''}">${fmtInt(r.activated)}${pct(r.activated, r.devices)}</td></tr>`).join('')
+    : '<tr><td colspan="5" class="empty-note">Nobody yet.</td></tr>';
   const ads = rows.filter(r => /^facebook\//.test(r.source));
   const adPeople = ads.reduce((s, r) => s + r.devices, 0), adRec = ads.reduce((s, r) => s + r.activated, 0);
   const totalPeople = rows.reduce((s, r) => s + r.devices, 0), totalRec = rows.reduce((s, r) => s + r.activated, 0);
-  let v = `${fmtInt(totalPeople)} real people so far, ${fmtInt(totalRec)} made a record.`;
+  let v = `${fmtInt(totalPeople)} real people so far. ${fmtInt(totalRec)} of them made a record.`;
   if (adPeople) v += ` From the Facebook ads: ${fmtInt(adPeople)} people, ${fmtInt(adRec)} made a record.`;
-  if (bestRec) v += ` Best source for records: ${sourceName(bestRec.source)} (${Math.round(100 * bestRec.activated / bestRec.devices)}% of its people recorded).`;
-  document.getElementById('verdict').textContent = v;
+  if (bestRec && rows.length > 1) v += ` Best source for records: ${sourceName(bestRec.source)} (${Math.round(100 * bestRec.activated / bestRec.devices)}% of its people recorded).`;
+  document.getElementById('verdict').textContent = rows.length ? v : '';
+  document.getElementById('verdict').style.display = rows.length ? '' : 'none';
 
   document.getElementById('kShops').textContent = fmtInt(L.shops);
+  document.getElementById('kShopsL').textContent = 'pages made' + (L.shops7 ? ' - ' + fmtInt(L.shops7) + ' this week' : '');
   document.getElementById('kShared').textContent = fmtInt(L.sharedEver);
+  document.getElementById('kSharedL').textContent = 'people who shared theirs' + (L.shared7 ? ' - ' + fmtInt(L.shared7) + ' this week' : '');
   document.getElementById('kShopViews').textContent = fmtInt(L.shopViews);
 }
 
@@ -314,7 +322,7 @@ async function boot(key) {
   try {
     statsData = await loadStats(key);
   } catch (err) {
-    localStorage.removeItem(KEY_STORAGE);
+    if (err.message === 'unauthorized') localStorage.removeItem(KEY_STORAGE);
     document.getElementById('gate').style.display = '';
     document.getElementById('dash').style.display = 'none';
     showGateError(err.message === 'unauthorized' ? 'Wrong key.' : 'Could not reach the server - check your connection and try again.');
@@ -322,7 +330,7 @@ async function boot(key) {
   }
   document.getElementById('gate').style.display = 'none';
   document.getElementById('dash').style.display = '';
-  document.getElementById('refreshedAt').textContent = 'Updated ' + new Date(statsData.generatedAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+  document.getElementById('refreshedAt').textContent = 'Updated ' + new Date(statsData.generatedAt).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
   renderKpis();
   renderChart();
 }
@@ -362,7 +370,7 @@ async function lookupShop(params, key) {
     if (!entries.length) { resEl.innerHTML = '<div class="empty-note">Nothing backed up yet for that shop.</div>'; return; }
     resEl.innerHTML = entries.map(e => `
       <div class="recover-entry${e.deleted ? ' is-deleted' : ''}${e.status === 'not_saved' ? ' is-not-saved' : ''}">
-        <div class="re-top"><span>${esc(TYPE_LABEL[e.type] || e.type)}${e.deleted ? ' (deleted on phone)' : ''}${e.status === 'not_saved' ? ' (not saved - abandoned)' : ''}</span><span>${fmtCedis(e.amount)}</span></div>
+        <div class="re-top"><span>${esc(TYPE_LABEL[e.type] || e.type)}${e.deleted ? ' (deleted on phone)' : ''}${e.status === 'not_saved' ? ' (started, not saved)' : ''}</span><span>${fmtCedis(e.amount)}</span></div>
         <div>${esc(e.item || '')}${e.note ? ' - ' + esc(e.note) : ''}</div>
         <div class="re-meta">${new Date(e.ts).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</div>
       </div>`).join('') + `<button class="btn recover-copy-btn" id="recoverCopyBtn">Copy all as text (paste into WhatsApp)</button>`;
@@ -401,9 +409,9 @@ async function browseRecent(days, key) {
       <div class="browse-shop">
         <div class="browse-shop-head">
           <span>${s.total} entr${s.total === 1 ? 'y' : 'ies'} - last active ${new Date(s.lastSeen).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
-          <code>${esc(s.shopHash.slice(0, 10))}</code>
+          <code>${esc(String(s.shopHash || '').slice(0, 10))}</code>
         </div>
-        ${s.preview.map(p => `<div class="browse-preview-line">${esc(TYPE_LABEL[p.type] || p.type)}: ${esc(p.item || '')}${p.note ? ' - ' + esc(p.note) : ''} - ${fmtCedis(p.amount)}${p.deleted ? ' (deleted on phone)' : ''}${p.status === 'not_saved' ? ' (not saved - abandoned)' : ''}</div>`).join('')}
+        ${s.preview.map(p => `<div class="browse-preview-line">${esc(TYPE_LABEL[p.type] || p.type)}: ${esc(p.item || '')}${p.note ? ' - ' + esc(p.note) : ''} - ${fmtCedis(p.amount)}${p.deleted ? ' (deleted on phone)' : ''}${p.status === 'not_saved' ? ' (started, not saved)' : ''}</div>`).join('')}
         <button class="btn browse-use-btn" data-hash="${esc(s.shopHash)}">See all entries for this one</button>
       </div>`).join('');
     resEl.querySelectorAll('.browse-use-btn').forEach(btn => btn.addEventListener('click', () => lookupShop({ shopHash: btn.dataset.hash }, localStorage.getItem(KEY_STORAGE))));
