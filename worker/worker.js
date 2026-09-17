@@ -971,7 +971,7 @@ async function handleTranscribe(request, env) {
 // 50 is a transcription/parsing error, not a fabrication) - evidence-checking
 // targets fabrication specifically, not every possible error; the review UI is
 // still what catches a wrong-but-grounded number.
-const WORKER_VERSION = 'w50';
+const WORKER_VERSION = 'w51';
 
 // Spanish (Venezuela) twin of EXTRACT_SYSTEM_PROMPT below: same event types,
 // same {value, evidence} rule, same JSON-only answer. Amounts are bare
@@ -1299,8 +1299,8 @@ function buildCleanEvents(rawEvents, getField) {
 // "de me ka", "dey owe me" -> they owe her. If the transcript says one and
 // the model said the other, the model is corrected. If it says neither, the
 // model's call stands.
-const OWED_BY_ME = /\b(i|we)\s+(still\s+|also\s+)?owe\b(?!\s+me\b)|\b(i|we)\s+(take|took|collect|buy|bought)\b.*\bon credit\b/;
-const OWED_TO_ME = /\b(owes?\s+me|de\s+me\s+ka|dey\s+owe\s+me|owing\s+me|go pay|will pay|pay me (later|tomorrow|next week)|pay (later|tomorrow|next week)|(take|took|collect|carry)\b.*\bon credit)\b/;
+const OWED_BY_ME = /\b(i|we)\s+(still\s+|also\s+)?owe\b(?!\s+me\b)|\b(i|we)\s+(take|took|collect|buy|bought)\b.*\bon credit\b|\b(i|we)\s+(go|will|dey go|for)\s+pay\b/;
+const OWED_TO_ME = /\b(owes?\s+me|de\s+me\s+ka|dey\s+owe\s+me|owing\s+me|(?<!\b(?:i|we)\s)(?:go pay|will pay)|pay me (later|tomorrow|next week)|(?<!\b(?:i|we)\s)(?:take|took|collect|carry)\b.*\bon credit)\b/;
 function debtDirection(transcriptNorm) {
   const byMe = OWED_BY_ME.test(transcriptNorm);
   const toMe = OWED_TO_ME.test(transcriptNorm);
@@ -1465,27 +1465,31 @@ function fragmentRules(clean, text, lang, country) {
     const e = Object.assign({}, e0);
     const name = String(e.item || e.customer || e.supplier || '').trim();
     // payment words are never things or people
-    if (PAY_METHOD_WORDS.test(name)) { delete e.item; delete e.customer; delete e.supplier; }
+    for (const k of ['item', 'customer', 'supplier']) { if (e[k] && PAY_METHOD_WORDS.test(String(e[k]).trim())) delete e[k]; }
     // pronouns are not names
-    if (e.customer && PRONOUN_NAMES.has(String(e.customer).toLowerCase())) e.customer = 'customer';
-    if (e.supplier && PRONOUN_NAMES.has(String(e.supplier).toLowerCase())) e.supplier = 'supplier';
+    if (e.customer && PRONOUN_NAMES.has(String(e.customer).toLowerCase())) e.customer = lang === 'es' ? 'cliente' : 'customer';
+    if (e.supplier && PRONOUN_NAMES.has(String(e.supplier).toLowerCase())) e.supplier = lang === 'es' ? 'proveedor' : 'supplier';
     // "N each" is the unit price
-    if (eachM && e.qty && (e.type === 'sale' || e.type === 'expense')) e.price = Number(eachM[1].replace(',', '.'));
+    if (eachM && e.qty && clean.length === 1 && (e.type === 'sale' || e.type === 'expense')) e.price = Number(eachM[1].replace(',', '.'));
     // a lone number after an item is money, not a count
     if (e.type === 'sale' && e.price === undefined && e.qty !== undefined && nums.length === 1) {
-      const idx = tt.indexOf(String(nums[0]));
+      const numTxt = (tt.match(/\d+(?:[.,]\d+)?/) || [''])[0];
+      const idx = numTxt ? tt.indexOf(numTxt) : -1;
+      const itemIdx = e.item ? tt.indexOf(String(e.item).toLowerCase().split(' ')[0]) : -1;
       const before = idx >= 0 ? tt.slice(Math.max(0, idx - 24), idx) : '';
       const after = idx >= 0 ? tt.slice(idx, idx + 18) : '';
-      if (!COUNT_WORDS.test(before) && !COUNT_WORDS.test(after)) { e.price = e.qty; delete e.qty; }
+      // "sold 20 sachets water" keeps its count; "pepper 25" is money
+      if (idx >= 0 && itemIdx >= 0 && itemIdx < idx && !COUNT_WORDS.test(before) && !COUNT_WORDS.test(after)) { e.price = e.qty; delete e.qty; }
     }
     // expense verbs and expense things
-    if (e.type === 'sale' && (EXPENSE_LEAD.test(raw) || EXPENSE_WORDS.test(tt))) {
+    const saleVerb = /\b(sold|sell|sale|sales|me ton|vend[i\u00ed]|vendo)\b/.test(tt);
+    if (e.type === 'sale' && clean.length === 1 && !saleVerb && (EXPENSE_LEAD.test(raw) || EXPENSE_WORDS.test(String(e.item || '').toLowerCase()))) {
       e.type = 'expense';
       if (e.price === undefined && e.qty !== undefined) { e.price = e.qty; delete e.qty; }
     }
     // "... y el resto por Nequi, eran 15": the total is the amount
     // (Colombia says "eran quince" for 15000 when the first amount was in lucas).
-    if (totalM && e.price !== undefined) {
+    if (totalM && e.price !== undefined && clean.length === 1 && e.qty === undefined) {
       let tot = Number(totalM[2].replace(',', '.'));
       if (country === 'CO' && tot < 1000 && e.price >= 1000) tot *= 1000;
       if (tot > e.price) e.price = tot;
@@ -1528,6 +1532,7 @@ function expenseFallback(text) {
   return [];
 }
 function twiFallback(transcriptNorm) {
+  if (!/\b(me ton|me to|cedis|cedi|sidi|sika|ntoma|nkyene|abe|apem|oha|aduonu|aduasa|aduanan|aduonum)\b/.test(transcriptNorm)) return [];
   const sums = twiRunSums(transcriptNorm);
   if (!sums.length) return [];
   const IGN = new Set(['cedis', 'cedi', 'ghs', 'cds', 'cd', 'ma', 'no', 'ye', 'yee', 'ne', 'me', 'ton', 'to', 'sales', 'today']);
@@ -1572,7 +1577,7 @@ function englishNumbersToDigits(text) {
 function mentionsANumber(text) {
   const t = String(text || '').toLowerCase();
   if (/\d/.test(t)) return true;
-  if (Object.keys(TWI_NUMBERS).some(w => new RegExp('\\b' + w + '\\b').test(t))) return true;
+  if (Object.keys(TWI_NUMBERS).some(w => w.length > 3 && new RegExp('\\b' + w + '\\b').test(t))) return true;
   if (/\b(uno|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|once|doce|quince|veinte|treinta|cuarenta|cincuenta|cien|ciento|quinientos|mil|lucas?|palo|millon|millones)\b/.test(foldAccents(t))) return true;
   return /\b(one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand)\b/.test(t);
 }
