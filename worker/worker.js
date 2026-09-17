@@ -971,7 +971,7 @@ async function handleTranscribe(request, env) {
 // 50 is a transcription/parsing error, not a fabrication) - evidence-checking
 // targets fabrication specifically, not every possible error; the review UI is
 // still what catches a wrong-but-grounded number.
-const WORKER_VERSION = 'w48';
+const WORKER_VERSION = 'w49';
 
 // Spanish (Venezuela) twin of EXTRACT_SYSTEM_PROMPT below: same event types,
 // same {value, evidence} rule, same JSON-only answer. Amounts are bare
@@ -1446,7 +1446,8 @@ function spanishPrep(text, country) {
 const PAY_METHOD_WORDS = /^(nequi|daviplata|bancolombia|pago m[o\u00f3]vil|zelle|transferencia|efectivo|binance|usdt|momo|cash)$/i;
 const PRONOUN_NAMES = new Set(['am', 'e', 'im', 'dem', 'me', 'he', 'she', 'him', 'her', 'them', 'you', 'i', 'we', 'it', 'they', 'el', 'ella', 'ellos', 'le', 'la', 'lo', 'a']);
 const COUNT_WORDS = /\b(bags?|baskets?|tins?|yards?|pieces?|crates?|bunches?|boxes?|cups?|olonka|bowls?|kilos?|kg|libras?|bultos?|arrobas?|cajas?|docenas?|paquetes?|sacos?|cartones?)\b/i;
-const EXPENSE_LEAD = /^\s*(i\s+|we\s+)?(bought|buy|pay|paid|spend|spent|me\s+to|compr[e\u00e9]|pagu[e\u00e9]|gast[e\u00e9]|me\s+traje|ped[i\u00ed])\b/i;
+// (?=\s|$) instead of \b: JS word boundaries are ASCII-only, so 'compré' never ended on \b.
+const EXPENSE_LEAD = /^\s*(i\s+|we\s+)?(bought|buy|pay|paid|spend|spent|me\s+to|compr[e\u00e9]|pagu[e\u00e9]|gast[e\u00e9]|me\s+traje|ped[i\u00ed])(?=\s|$)/i;
 const EXPENSE_WORDS = /\b(chop money|market toll|toll|fare|trotro|fuel|petrol|diesel|transport|transporte|rent|arriendo|alquiler|airtime|light bill|water bill|electricity|la luz|el agua|pasaje|gasolina)\b/i;
 // Deterministic rules after the model, for the ways people actually talk.
 function fragmentRules(clean, text, lang, country) {
