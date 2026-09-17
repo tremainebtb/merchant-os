@@ -486,9 +486,18 @@ async function transcribeAndExtract(blob) {
   try {
     ({ res, data } = await postToApi('/transcribe-and-extract', form));
   } catch (err) {
-    throw new Error(plainApiError(err, null, null, 'Could not hear that \u2014 try again'));
+    // 17 Sep: a fetch that never reached the server is a data/connection
+    // problem, not "could not hear" - say so, and count it separately.
+    const e = new Error(err.name === 'AbortError' || err.status ? plainApiError(err, null, null, '') : 'Could not send your voice \u2014 please check your data connection and try again, or type it below.');
+    e.cls = err.name === 'AbortError' ? 'mic_timeout' : (err.status ? 'mic_server' : 'mic_network');
+    e.http = err.status || 0;
+    throw e;
   }
-  if (!res.ok && !data.text) throw new Error(plainApiError(null, res, data, 'Could not hear that \u2014 try again'));
+  if (!res.ok && !data.text) {
+    const e = new Error(plainApiError(null, res, data, 'The server could not read that recording \u2014 please try again, or type it below.'));
+    e.cls = 'mic_server'; e.http = res.status;
+    throw e;
+  }
   return { text: data.text || '', events: Array.isArray(data.events) ? data.events : [] };
 }
 
@@ -1111,8 +1120,8 @@ async function toggleMic(btn, statusId) {
           }
         }
       } catch (err) {
-        track('mic_error', { reason: 'transcribe_failed' });
-        micFail(err.message || 'Could not hear that \u2014 please try again.', err.name === 'AbortError' ? 'mic_timeout' : 'mic_server', statusId);
+        track('mic_error', { reason: err.cls || 'transcribe_failed', http: err.http || 0, ms: recordedMs, bytes: recordedChunks.reduce((s, c) => s + c.size, 0) });
+        micFail(err.message || 'Could not hear that \u2014 please try again, or type it below.', err.cls || 'mic_server', statusId);
       }
     };
     mediaRecorder.start();

@@ -191,7 +191,7 @@ async function handlePing(request, env) {
   // share_shop / shop_created added 16 Sep for the spread-loop numbers.
   // mic_* and iab (17 Sep): one name per voice-failure class, never content.
   if (!['open', 'save', 'share_shop', 'shop_created', 'ask', 'tap', 'install', 'voice_en', 'voice_twi', 'voice_pidgin',
-    'iab', 'mic_denied', 'mic_nomic', 'mic_busy', 'mic_empty', 'mic_silent', 'mic_timeout', 'mic_server'].includes(eventType)) {
+    'iab', 'mic_denied', 'mic_nomic', 'mic_busy', 'mic_empty', 'mic_silent', 'mic_timeout', 'mic_server', 'mic_network'].includes(eventType)) {
     return cors(new Response(JSON.stringify({ error: 'invalid event' }), { status: 400 }));
   }
   const shopHash = (await sha256Hex(shop)).slice(0, 32);
@@ -951,7 +951,7 @@ async function handleTranscribe(request, env) {
 // 50 is a transcription/parsing error, not a fabrication) - evidence-checking
 // targets fabrication specifically, not every possible error; the review UI is
 // still what catches a wrong-but-grounded number.
-const WORKER_VERSION = 'w36';
+const WORKER_VERSION = 'w37';
 
 const EXTRACT_SYSTEM_PROMPT = `You read a rough, possibly messy speech-to-text transcript from a Ghanaian shop owner describing what happened in their shop today, in English, Twi or Pidgin (Twi numbers: baako 1, mmienu 2, mmiensa 3, enan 4, anum 5, du 10, aduonu 20, aduasa 30, aduonum 50, oha 100, apem 1000; "de me ka" = owes me; transcripts may contain mistranscribed words like "cds" for "cedis"). Extract every distinct business event as a JSON array. Each event is one of these types:
 - "sale": the owner sold something. Fields: type, item, qty, and EITHER price (per-unit price in cedis, only if a per-unit price was actually spoken) OR total (the total amount actually spoken, if only a total was said - e.g. "2 bags for 300" has qty 2 and total 300, NOT price 150 - never do the division yourself).
@@ -1401,12 +1401,21 @@ async function handleTranscribeAndExtract(request, env) {
   if (!env.AI) {
     return cors(new Response(JSON.stringify({ error: 'transcription not configured yet' }), { status: 503 }));
   }
-  const incomingForm = await request.formData();
+  const t0 = Date.now();
+  let incomingForm;
+  try { incomingForm = await request.formData(); } catch (err) {
+    console.log('transcribe form-error', { ctype: request.headers.get('content-type') || '', ua: (request.headers.get('user-agent') || '').slice(0, 80), err: String(err).slice(0, 120) });
+    return cors(new Response(JSON.stringify({ error: 'bad upload', detail: String(err).slice(0, 120) }), { status: 400, headers: { 'Content-Type': 'application/json' } }));
+  }
   const audio = incomingForm.get('audio');
-  if (!audio) return cors(new Response(JSON.stringify({ error: 'no audio received' }), { status: 400, headers: { 'Content-Type': 'application/json' } }));
+  // Field diagnostics (17 Sep, observability on): size, type, browser family
+  // and outcome per voice upload. Never the audio, never the words.
+  const diag = { bytes: (audio && audio.size) || 0, type: (audio && audio.type) || '', ua: (request.headers.get('user-agent') || '').slice(0, 80), country: (request.cf && request.cf.country) || '' };
+  if (!audio) { console.log('transcribe no-audio', diag); return cors(new Response(JSON.stringify({ error: 'no audio received' }), { status: 400, headers: { 'Content-Type': 'application/json' } })); }
   const audioBytes = new Uint8Array(await audio.arrayBuffer());
 
   const transcribed = await transcribeAudio(audioBytes, audio.type, env);
+  console.log('transcribe', Object.assign(diag, { ms: Date.now() - t0, ok: !transcribed.error, chars: (transcribed.text || '').length, err: transcribed.error ? String(transcribed.detail || transcribed.error).slice(0, 100) : '' }));
   if (transcribed.error) {
     return cors(new Response(JSON.stringify({ text: '', events: [], error: transcribed.error, detail: transcribed.detail }), { status: 502, headers: { 'Content-Type': 'application/json' } }));
   }
