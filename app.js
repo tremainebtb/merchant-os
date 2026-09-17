@@ -623,6 +623,7 @@ function wordsToNumber(text) {
 const DISFLUENCY = /\b(um+|uh+|erm+|ehm+|hmm+|like|actually|basically|so|yeah|yep|okay|ok|please|thanks|thank you|hello|hi|today|i think|i mean|you know|kind of|sort of)\b/gi;
 const FILLER = /\b(a|an|the|for|of|on|to|me|i|owe|owes|he|she|they|it|at|each|cedis|cedi|ghs|cds|cd|sold|spent|bought|paid|is|was|and)\b/gi;
 
+const FILLER_ES = /\b(d[o\u00f3]lares?|bol[i\u00edv]vares?|bolos?|bs|pesos?|lucas?|luca|verdes?|plata|de a|cada una|cada uno|vend[i\u00ed]|compr[e\u00e9]|gast[e\u00e9]|pagu[e\u00e9]|me debe|me qued[o\u00f3] debiendo|le fi[e\u00e9] a|le debo a|fiao|fiado)\b/gi;
 function parseHeardText(type, raw) {
   const text = wordsToNumber(raw);
   const numbers = (text.match(/\d+(\.\d+)?/g) || []).map(Number);
@@ -630,6 +631,7 @@ function parseHeardText(type, raw) {
     .replace(/\d+(\.\d+)?/g, ' ')
     .replace(DISFLUENCY, ' ')
     .replace(FILLER, ' ')
+    .replace(ES ? FILLER_ES : /$^/g, ' ')
     .replace(/[.,!?]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
@@ -1177,6 +1179,7 @@ async function toggleMic(btn, statusId) {
     return;
   }
   micArming = true;
+  pendingHeard = null;
   try {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     recordedChunks = [];
@@ -1326,7 +1329,17 @@ async function toggleMic(btn, statusId) {
             speakVoiceReview(pendingVoiceEvents);
             await render();
           } else {
-            micFail(t(`I heard \u201c${heard}\u201d but could not work out what happened. Please say it again with the amount in cedis, or type it below.`, `Escuch\u00e9 \u201c${heard}\u201d pero no entend\u00ed qu\u00e9 pas\u00f3. Dilo otra vez y di cu\u00e1nto fue, ${tc('en d\u00f3lares o en bol\u00edvares', 'en pesos')}, o escr\u00edbelo abajo.`), null, statusId);
+            // People say fragments ("Ama 120", "cinco camisas diez mil"), not
+            // sentences (17 Sep). If a number was heard, keep the words, ask
+            // one question out loud, and let one tap on the typed choices
+            // finish it with the fields already filled in.
+            if (/\d/.test(wordsToNumber(heard))) {
+              pendingHeard = heard;
+              track('clarify_ask');
+              micFail(t(`I heard \u201c${heard}\u201d. Was that a sale, a cost, or someone who owes you? Please tap one below.`, `Escuch\u00e9 \u201c${heard}\u201d. \u00bfFue una venta, un gasto o alguien que te debe? Toca uno abajo.`), null, statusId);
+            } else {
+              micFail(t(`I heard \u201c${heard}\u201d but could not work out what happened. Please say it again with the amount in cedis, or type it below.`, `Escuch\u00e9 \u201c${heard}\u201d pero no entend\u00ed qu\u00e9 pas\u00f3. Dilo otra vez y di cu\u00e1nto fue, ${tc('en d\u00f3lares o en bol\u00edvares', 'en pesos')}, o escr\u00edbelo abajo.`), null, statusId);
+            }
           }
         }
       } catch (err) {
@@ -2383,10 +2396,19 @@ function updateOfflineBadge() {
 
 // [data-type] only - the photo button (#snapBtn) shares .act-btn for its
 // size and look but opens the camera, not a typed sheet.
+let pendingHeard = null;
 document.querySelectorAll('.act-btn[data-type]').forEach(btn => {
-  btn.addEventListener('click', () => openSheet(btn.dataset.type));
+  btn.addEventListener('click', () => {
+    openSheet(btn.dataset.type);
+    if (pendingHeard) {
+      // The words from the last recording, split into name/item and amount.
+      try { fillFields(parseHeardText(btn.dataset.type, pendingHeard)); sheetVoiceFilled = true; pendingVoiceSource = 'voice'; track('clarify_pick', { type: btn.dataset.type }); } catch (e) { /* typed sheet still works */ }
+      pendingHeard = null;
+    }
+  });
 });
 document.getElementById('cancelBtn').addEventListener('click', () => {
+  pendingHeard = null;
   if (activeType && !editingEntry) {
     const v = readValues();
     if (v.item || v.price) syncNotSaved({ type: activeType, item: v.item, note: v.note, qty: v.qty, price: v.price, amount: FIELD_CONFIG[activeType].compute(v) });
