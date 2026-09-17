@@ -974,7 +974,7 @@ async function handleTranscribe(request, env) {
 // 50 is a transcription/parsing error, not a fabrication) - evidence-checking
 // targets fabrication specifically, not every possible error; the review UI is
 // still what catches a wrong-but-grounded number.
-const WORKER_VERSION = 'w58';
+const WORKER_VERSION = 'w59';
 
 // Spanish (Venezuela) twin of EXTRACT_SYSTEM_PROMPT below: same event types,
 // same {value, evidence} rule, same JSON-only answer. Amounts are bare
@@ -1619,7 +1619,7 @@ function repairTranscript(text, lang, country) {
     t = t.replace(/\blucas?\b/gi, m => m.toLowerCase());
     t = t.replace(/\b(quedo|qued\u00f3)\s+de\s+viendo\b/gi, 'qued\u00f3 debiendo');
     t = t.replace(/\b(bi-?es|b\.s\.|bes)\b/gi, 'bs');
-    t = t.replace(/(^|[^a-z])mes+pararon(?=s+d)/gi, '$1me pagaron');
+    t = t.replace(/(^|[^a-z])me\s+pararon(?=\s+\d)/gi, '$1me pagaron');
     t = t.replace(/\b(daste|gaste|gasté)\s+(\d)/gi, 'gast\u00e9 $2');
     // a trailing "a" / "a." after an amount is the voice's own breath, not a word
     t = t.replace(/(\d)\s+a\s*\.?\s*$/i, '$1');
