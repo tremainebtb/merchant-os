@@ -971,7 +971,7 @@ async function handleTranscribe(request, env) {
 // 50 is a transcription/parsing error, not a fabrication) - evidence-checking
 // targets fabrication specifically, not every possible error; the review UI is
 // still what catches a wrong-but-grounded number.
-const WORKER_VERSION = 'w45';
+const WORKER_VERSION = 'w46';
 
 // Spanish (Venezuela) twin of EXTRACT_SYSTEM_PROMPT below: same event types,
 // same {value, evidence} rule, same JSON-only answer. Amounts are bare
@@ -1386,7 +1386,9 @@ function spanishNumbersToDigits(text) {
       if (/^\s+$/.test(wj) || wj === '') { j++; continue; }
       const fj = fold(wj).replace(/[.,;:!?]+$/, '');
       if (fj === 'y' && any) { j++; continue; }
-      if (fj in ES_HUNDREDS) { cur += ES_HUNDREDS[fj]; any = true; }
+      // "dos quinientos" = 2500, "diez quinientos" = 10500 (shop shorthand):
+      // a small number straight before a hundreds word is thousands.
+      if (fj in ES_HUNDREDS) { cur = (any && cur > 0 && cur < 100) ? cur * 1000 + ES_HUNDREDS[fj] : cur + ES_HUNDREDS[fj]; any = true; }
       else if (fj in ES_TENS) { cur += ES_TENS[fj]; any = true; }
       else if (fj in ES_UNITS && fj !== 'una' && (fj !== 'uno' || any)) { cur += ES_UNITS[fj]; any = true; }
       else if (fj === 'mil') { total += (cur || 1) * 1000; cur = 0; any = true; }
@@ -1411,6 +1413,7 @@ function colombianMoneyToDigits(text) {
   t = t.replace(/\b(\d+)\s+(palos?|millon(?:es)?|mill\u00f3n)\b/gi, (m, n) => String(Number(n) * 1000000) + ' pesos');
   t = t.replace(/\b(un|1)\s+(palo|mill\u00f3n|millon)\b/gi, '1000000 pesos');
   t = t.replace(/\bmedio\s+(palo|mill\u00f3n|millon)\b/gi, '500000 pesos');
+  t = t.replace(/\b(\d+)\s+pesos\s+y\s+medi[ao]\b/gi, (m, n) => String(Number(n) + 500) + ' pesos');
   // "dos cincuenta", "diez quinientos": thousands + hundreds said bare
   t = t.replace(/\b(\d{1,2})\s+(\d{2,3})\b(?!\s*(?:mil|pesos|lucas|d[o\u00f3]lares))/g, (m, a, b) => (Number(b) < 1000 && Number(a) < 100) ? String(Number(a) * 1000 + Number(b)) : m);
   return t;
@@ -1501,7 +1504,11 @@ async function extractFromText(text, env, lang, country) {
   }
 
   if (clean.length === 0) clean = lang === 'es' ? debtFallbackEs(text) : debtFallback(text);
-  if (lang === 'es') console.log('extract-es stages', { rawN: Array.isArray(respField) ? respField.length : -1, cleanN: clean.length, names: clean.map(e => e.item || e.customer || e.supplier || '').join('|') });
+  if (lang === 'es') {
+    const esc = x => JSON.stringify(x).replace(/[^\x20-\x7e]/g, c => '\\u' + c.charCodeAt(0).toString(16).padStart(4, '0'));
+    const first = Array.isArray(respField) && respField[0] ? respField[0] : null;
+    console.log('extract-es stages', { rawN: Array.isArray(respField) ? respField.length : -1, cleanN: clean.length, names: esc(clean.map(e => e.item || e.customer || e.supplier || '')), rawName: esc(first && (first.customer || first.item || first.supplier) || ''), tn: esc(normalizeForMatch(text)) });
+  }
   if (lang === 'es') {
     const tt = String(text).toLowerCase();
     // A name of one or two letters is a preposition the model grabbed
