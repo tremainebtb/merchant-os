@@ -974,7 +974,7 @@ async function handleTranscribe(request, env) {
 // 50 is a transcription/parsing error, not a fabrication) - evidence-checking
 // targets fabrication specifically, not every possible error; the review UI is
 // still what catches a wrong-but-grounded number.
-const WORKER_VERSION = 'w55';
+const WORKER_VERSION = 'w56';
 
 // Spanish (Venezuela) twin of EXTRACT_SYSTEM_PROMPT below: same event types,
 // same {value, evidence} rule, same JSON-only answer. Amounts are bare
@@ -1547,6 +1547,7 @@ function fragmentRules(clean, text, lang, country) {
     if (e.type === 'debt_in' && e.customer && /\bme pagaron\b/.test(tt) && new RegExp('\\bde\\s+una?\\s+' + String(e.customer).toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '')).test(tt)) { e.type = 'sale'; e.item = e.customer; delete e.customer; }
     return e;
   }).filter(e => e.item || e.customer || e.supplier)
+    .filter(e => !(e.price === undefined && e.qty === undefined && String(e.item || e.customer || e.supplier || '').trim().length <= 2))
     // phantom debts: a credit word as the "customer", a debt with no amount when
     // the sentence had one number, or a debt that only repeats the sale's price
     .filter(e => !(e.type === 'debt_in' && e.customer && FILLER_NAMES.test(String(e.customer).trim())))
