@@ -853,6 +853,8 @@ function shapeEvents(events) {
   return events.map(ev => {
     if (!ev || typeof ev !== 'object') return ev;
     if (!ev.item && (ev.customer || ev.supplier)) ev.item = String(ev.customer || ev.supplier).trim();
+    // "kelewele 30" is one sale of 30: a sale with a price and no count is one
+    if (ev.type === 'sale' && ev.price && (ev.qty === undefined || ev.qty === null || ev.qty === '')) ev.qty = 1;
     return ev;
   });
 }
