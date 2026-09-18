@@ -1301,8 +1301,19 @@ function browserSttSupported() {
 }
 function phoneSttPreferred() {
   if (!browserSttSupported()) return false;
-  try { const until = Number(localStorage.getItem('kym_stt_server_until') || 0); if (until > Date.now()) return false; } catch (e) { /* optional */ }
-  return true;
+  try {
+    const until = Number(localStorage.getItem('kym_stt_server_until') || 0); if (until > Date.now()) return false;
+    // Only after the server said "quota gone" today (18 Sep: Whisper with the
+    // Ghanaian word list hears waakye, kenkey, trotro; Google's ear does not).
+    const phoneUntil = Number(localStorage.getItem('kym_stt_phone_until') || 0);
+    return phoneUntil > Date.now();
+  } catch (e) { return false; }
+}
+function usePhoneEarUntilMidnight() {
+  try {
+    const d = new Date(); d.setUTCHours(24, 0, 0, 0);
+    localStorage.setItem('kym_stt_phone_until', String(d.getTime()));
+  } catch (e) { /* optional */ }
 }
 function noteBrowserSttFailure() {
   try {
@@ -1334,7 +1345,7 @@ async function recognizeWithPhone(btn, statusId, opts) {
   if (lbl) { if (!lbl.dataset.idle) lbl.dataset.idle = lbl.textContent; lbl.textContent = t('Speak now\u2026', 'Habla ahora\u2026'); }
   btn.classList.add('recording');
   setMicStatus(t('Speak now. It stops by itself when you finish.', 'Habla ahora. Cuando termines, se apaga solo.'), null, statusId);
-  await Promise.race([say(askMode ? t('Ask me.', 'Preg\u00fantame.') : t('Speak now.', 'Habla ahora.')), new Promise(res => setTimeout(res, 1800))]);
+  await Promise.race([say(opts && opts.again ? t('Say it again.', 'Dilo otra vez.') : askMode ? t('Ask me.', 'Preg\u00fantame.') : t('Speak now.', 'Habla ahora.')), new Promise(res => setTimeout(res, 1800))]);
   askMode = false;
   stopSpeaking();
   try { if (navigator.vibrate) navigator.vibrate(40); } catch (e) { /* optional */ }
@@ -1527,6 +1538,12 @@ async function processVoiceBlob(blob, statusId, recordedMs, bytes, heardText) {
           }
         }
       } catch (err) {
+        if (err.cls === 'mic_server' && err.http >= 500 && blob && blob.size && browserSttSupported() && !phoneSttPreferred()) {
+          usePhoneEarUntilMidnight();
+          track('stt_switch_phone', { http: err.http });
+          const btn = document.getElementById('homeMicBtn');
+          if (btn) { await recognizeWithPhone(btn, statusId, { again: true }); return; }
+        }
         track('mic_error', { reason: err.cls || 'transcribe_failed', http: err.http || 0, ms: recordedMs, bytes });
         micFail(err.message || t('Could not hear that \u2014 please try again, or type it below.', 'No te escuch\u00e9 bien. Int\u00e9ntalo otra vez, o escr\u00edbelo abajo.'), err.cls || 'mic_server', statusId);
   }

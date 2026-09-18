@@ -1064,7 +1064,7 @@ async function handleTranscribe(request, env) {
 // 50 is a transcription/parsing error, not a fabrication) - evidence-checking
 // targets fabrication specifically, not every possible error; the review UI is
 // still what catches a wrong-but-grounded number.
-const WORKER_VERSION = 'w69';
+const WORKER_VERSION = 'w70';
 
 // Spanish (Venezuela) twin of EXTRACT_SYSTEM_PROMPT below: same event types,
 // same {value, evidence} rule, same JSON-only answer. Amounts are bare
@@ -1801,6 +1801,15 @@ function finalizeEvents(events, text, lang) {
   }
   // "I owe 400 cedis" with no name: the placeholder, never the words "I owe"
   out.forEach(e => { if (e.type === 'debt_out' && /^(i|we)\s+(still\s+)?owe$/i.test(String(e.supplier || '').trim())) e.supplier = 'supplier'; });
+  // "le fié a doña Marta" / "fiao": the customer owes the shop, whatever the model said
+  if (lang === 'es' && /\b(le|les)\s+fie\b|\bfiao\b|\bfiado\b|\bme\s+(quedo|queda)\s+debiendo\b/.test(tt)) {
+    out.forEach(e => { if (e.type === 'debt_out') { e.type = 'debt_in'; e.customer = e.supplier; delete e.supplier; } });
+  }
+  // "me pagaron 200 bolívares de una arepa": a sale of that thing, not a debt
+  if (lang === 'es' && !out.length && /\bme\s+pagaron\b/.test(tt) && nums.length === 1) {
+    const m = /\bde\s+(?:una?|unos?|unas?|el|la|los|las)?\s*([a-z\u00e1\u00e9\u00ed\u00f3\u00fa\u00f1]+)\s*[.,]?\s*$/.exec(tt);
+    if (m) out = [{ type: 'sale', item: m[1], price: nums[0] }];
+  }
   // "From all small sales to made 130" (a garbled "small small sales today
   // 130"): the word sales plus one number is the day's takings
   if (!out.length && lang !== 'es' && /\bsales?\b|\bsold\b/.test(tt) && nums.length === 1 && nums[0] > 0) out = [{ type: 'sale', item: 'sales', price: nums[0] }];
