@@ -883,7 +883,7 @@ async function groqChat(messages, env, temperature) {
   try {
     const r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST', headers: { Authorization: 'Bearer ' + env.GROQ_API_KEY, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model: 'llama-3.1-8b-instant', messages, temperature, max_tokens: 700 }), signal: ctl.signal
+      body: JSON.stringify({ model: 'openai/gpt-oss-20b', messages, temperature, max_tokens: 900, reasoning_effort: 'low' }), signal: ctl.signal
     });
     const j = await r.json().catch(() => ({}));
     if (!r.ok) { console.log('groq chat fail', r.status, JSON.stringify(j).slice(0, 200)); return null; }
@@ -1048,7 +1048,7 @@ async function handleTranscribe(request, env) {
 // 50 is a transcription/parsing error, not a fabrication) - evidence-checking
 // targets fabrication specifically, not every possible error; the review UI is
 // still what catches a wrong-but-grounded number.
-const WORKER_VERSION = 'w66';
+const WORKER_VERSION = 'w67';
 
 // Spanish (Venezuela) twin of EXTRACT_SYSTEM_PROMPT below: same event types,
 // same {value, evidence} rule, same JSON-only answer. Amounts are bare
