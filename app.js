@@ -1221,14 +1221,27 @@ let micLevelRaf = null;
 // upload a take that never had any voice in it.
 const MIC_LOUD = 22;
 let micPeak = 0, micSpeechAt = 0, micLastLoudAt = 0, micMeterLive = false;
+// Real bug, 18 Sep (Bobby: "nothing records on any device"): this meter
+// made its own AudioContext AFTER the microphone permission step, which is
+// outside the tap - iPhones and many Android phones leave such a context
+// suspended, so the meter read zero forever. The meter also decides when
+// to stop and whether the take was silent, so every take ran to the 12 s
+// limit and was then refused as "I could not hear you". Now the meter uses
+// the one context every tap already unlocks (ttsCtx), and only counts as
+// live while that context is actually running; a dead meter never refuses
+// a take and never blocks the stop.
+let micLevelSource = null, micLevelOwnCtx = false;
 function startMicLevelMeter(stream) {
   micPeak = 0; micSpeechAt = 0; micLastLoudAt = 0; micMeterLive = false;
   const meter = document.getElementById('micLevelMeter');
   if (!meter || typeof AudioContext === 'undefined' && typeof webkitAudioContext === 'undefined') return;
   try {
     const Ctx = window.AudioContext || window.webkitAudioContext;
-    micLevelCtx = new Ctx();
+    if (ttsCtx && ttsCtx.state !== 'closed') { micLevelCtx = ttsCtx; micLevelOwnCtx = false; }
+    else { micLevelCtx = new Ctx(); micLevelOwnCtx = true; }
+    if (micLevelCtx.state === 'suspended') { try { micLevelCtx.resume(); } catch (e) { /* optional */ } }
     const source = micLevelCtx.createMediaStreamSource(stream);
+    micLevelSource = source;
     const analyser = micLevelCtx.createAnalyser();
     analyser.fftSize = 256;
     source.connect(analyser);
@@ -1237,7 +1250,7 @@ function startMicLevelMeter(stream) {
     const tick = () => {
       analyser.getByteFrequencyData(data);
       const avg = data.reduce((s, v) => s + v, 0) / data.length;
-      micMeterLive = true;
+      micMeterLive = micLevelCtx.state === 'running';
       if (avg > micPeak) micPeak = avg;
       if (avg >= MIC_LOUD) { micLastLoudAt = Date.now(); if (!micSpeechAt) micSpeechAt = micLastLoudAt; }
       bars.forEach((bar, i) => {
@@ -1255,7 +1268,9 @@ function startMicLevelMeter(stream) {
 function stopMicLevelMeter() {
   if (micLevelRaf) cancelAnimationFrame(micLevelRaf);
   micLevelRaf = null;
-  if (micLevelCtx) { micLevelCtx.close().catch(() => {}); micLevelCtx = null; }
+  try { if (micLevelSource) micLevelSource.disconnect(); } catch (e) { /* already gone */ }
+  micLevelSource = null;
+  if (micLevelCtx) { if (micLevelOwnCtx) micLevelCtx.close().catch(() => {}); micLevelCtx = null; }
   const meter = document.getElementById('micLevelMeter');
   if (meter) meter.querySelectorAll('span').forEach(bar => bar.style.height = '6px');
 }
@@ -1419,7 +1434,7 @@ async function toggleMic(btn, statusId) {
     const autoStop = setInterval(() => {
       if (!mediaRecorder || mediaRecorder.state !== 'recording') { clearInterval(autoStop); return; }
       const t = Date.now();
-      if (t - recordingStartedAt >= MAX_MS || (micSpeechAt && t - micSpeechAt >= 700 && t - micLastLoudAt >= QUIET_MS)) {
+      if (t - recordingStartedAt >= MAX_MS || (!micMeterLive && t - recordingStartedAt >= 7000) || (micSpeechAt && t - micSpeechAt >= 700 && t - micLastLoudAt >= QUIET_MS)) {
         clearInterval(autoStop);
         try { mediaRecorder.stop(); } catch (e) { /* already stopped */ }
       }
@@ -1448,7 +1463,7 @@ async function toggleMic(btn, statusId) {
       // The meter never moved: the phone gave us a stream with no voice in it
       // (in-app browsers and muted mics do exactly this). Say so now instead
       // of uploading silence and waiting up to a minute for nothing.
-      if (meterWasLive && heardPeak < 10) {
+      if (meterWasLive && heardPeak < 2) {
         track('mic_error', { reason: 'silent_take' });
         if (inAppBrowser()) showOpenInChrome('failed');
         micFail(t('I could not hear you. Please hold the phone close to your mouth and try again, or type it below.', 'No te escuch\u00e9. Acerca el celular a la boca e int\u00e9ntalo otra vez, o escr\u00edbelo abajo.'), 'mic_silent', statusId);
