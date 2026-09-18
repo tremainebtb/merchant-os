@@ -2204,9 +2204,12 @@ async function render() {
   }
   const secondRow = document.querySelector('.second-row'); if (secondRow) secondRow.hidden = firstUse;
   const langLine = document.querySelector('.mic-lang-line'); if (langLine) langLine.hidden = firstUse;
-  const person = document.getElementById('personLine'); if (person) person.hidden = !firstUse || ES;
+  // First screen (v143): one button, one spoken example, three words of trust.
+  // The proof line and the who-made-it line read well to a literate reviewer
+  // and mean nothing to the person this is for; both stay off the screen.
+  const person = document.getElementById('personLine'); if (person) person.hidden = true;
   if (firstUse) { const st = document.getElementById('homeMicStatus'); if (st && !st.textContent) st.textContent = t('Talk Twi, Pidgin or English.', 'Habla en espa\u00f1ol, como t\u00fa hablas.'); }
-  document.getElementById('whatIs').hidden = !firstUse;
+  document.getElementById('whatIs').hidden = true;
   const strip = document.getElementById('todayStrip'); if (strip) strip.hidden = firstUse;
   document.getElementById('exampleChat').hidden = true;
   document.getElementById('trustLine').hidden = !firstUse;
@@ -3220,8 +3223,7 @@ if (ES) {
       if (S[k] !== undefined) el.textContent = raw.replace(k, S[k]);
     });
     const tl = document.getElementById('trustLine');
-    if (tl) tl.innerHTML = tc('Gratis. Sin registrarte. Nunca toca tu plata. No te pide clave, c\u00e9dula ni Pago M\u00f3vil. <a href="safety.html">\u00bfEs seguro?</a>',
-      'Gratis. Sin registrarte. Nunca toca tu plata. No te pide c\u00e9dula, clave ni Nequi. Solo guarda tus cuentas. <a href="safety.html">\u00bfEs seguro?</a>');
+    if (tl) tl.textContent = tc('Gratis. Sin clave ni Pago M\u00f3vil.', 'Gratis. Sin clave ni Nequi.');
     const mic = document.getElementById('homeMicBtn'); if (mic) mic.setAttribute('aria-label', 'Cu\u00e9ntale a CountMy qu\u00e9 pas\u00f3');
     document.querySelectorAll('[data-speak]').forEach(el => {
       const m = { 'Sales': 'Ventas', 'Expenses': 'Gastos', 'Stock bought': 'Mercanc\u00eda comprada', 'Money you took home': 'Plata para la casa', 'Customers owe you': tc('Clientes te deben', 'Fiao por cobrar'), 'Money left over': 'Lo que te queda', 'Cash you have now': tc('Efectivo que tienes ahora', 'Plata en caja') };
