@@ -51,6 +51,12 @@ function detectLang() {
     if (q === 'es' || q === 'en') { localStorage.setItem('kym_lang', q); return q; }
     const saved = localStorage.getItem('kym_lang');
     if (saved === 'es' || saved === 'en') return saved;
+    // Phone language decides only when nothing else has. A phone set to
+    // Spanish inside Africa (a Ghana ad click on an oddly configured phone)
+    // still gets English; Spanish from the phone needs an Americas or
+    // Europe clock. ?lang= and the saved choice above always win.
+    let tz = ''; try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch (e2) { /* optional */ }
+    if (/^Africa\//.test(tz)) return 'en';
     return /^es\b/i.test(navigator.language || '') ? 'es' : 'en';
   } catch (e) { return 'en'; }
 }
