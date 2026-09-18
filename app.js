@@ -111,7 +111,7 @@ function fmtSay(n, cur) {
 }
 
 // ---------------------------------------------------------------------------
-// Spoken replies (17 Sep). Bobby's verdict on the phone's built-in voice was
+// Spoken replies (17 Sep). the owner's verdict on the phone's built-in voice was
 // blunt and right. say() fetches a short clip from the Worker (/say - a real
 // voice, Spanish included), keeps it in the Cache API so fixed phrases cost
 // once, and plays it through one AudioContext unlocked by any tap (the only
@@ -286,7 +286,7 @@ function todayKey(ts) {
 // Real request, 30 Aug: if a phone is lost, broken, or an entry gets deleted
 // by mistake (a real elderly first-time user, not a hypothetical one), there
 // was no way to get it back - records lived ONLY in this device's IndexedDB.
-// Bobby's explicit call: automatic, no toggle, no extra button - "less
+// the owner's explicit call: automatic, no toggle, no extra button - "less
 // confusion or buttons or worries for users" - over an opt-in backup setting.
 // Same privacy shape as ping(): the shop id is hashed server-side before it
 // touches storage (see worker.js handleSync), this is best-effort/fire-and-
@@ -576,7 +576,7 @@ function showTypedChoices() {
 // Every voice failure ends here: said out loud (the audience does not read),
 // written under the button, counted on the owner dashboard by class only
 // (never the words), and the typed choices opened so the page still works.
-// Owner phones (Bobby's and his family's, marked with ?owner=1): each step
+// Owner phones (the owner's and his family's, marked with ?owner=1): each step
 // of a voice attempt is written to the server log so a test can be read
 // without being there. Other phones never send this.
 function ownerLog(step, info) {
@@ -665,7 +665,7 @@ const NUMBER_WORD_RE = new RegExp(
 );
 
 // What Google's and Apple's recognisers make of Ghanaian money words and
-// dishes (18 Sep, Bobby's phone: "bowls" and "cedis" both came out wrong).
+// dishes (18 Sep, the owner's phone: "bowls" and "cedis" both came out wrong).
 // Same map as the server's repairTranscript, so the phone path and the
 // server path hear the same thing.
 // The phone's own Twi (18 Sep): numerals and the few debt words, the same
@@ -818,7 +818,7 @@ async function transcribeAndExtract(blob, heardText) {
   form.append('lang', LANG);
   form.append('country', COUNTRY);
   form.append('ver', window.KYM_VERSION || '');
-  if (window.KYM_IS_OWNER_DEVICE) form.append('dbg', 'owner'); // Bobby's own phones: transcript goes to the server log so mishearings can be read and fixed
+  if (window.KYM_IS_OWNER_DEVICE) form.append('dbg', 'owner'); // the owner's own phones: transcript goes to the server log so mishearings can be read and fixed
   let res, data;
   try {
     try {
@@ -1401,7 +1401,7 @@ let micLevelRaf = null;
 // upload a take that never had any voice in it.
 const MIC_LOUD = 22;
 let micPeak = 0, micSpeechAt = 0, micLastLoudAt = 0, micMeterLive = false;
-// Real bug, 18 Sep (Bobby: "nothing records on any device"): this meter
+// Real bug, 18 Sep (the owner: "nothing records on any device"): this meter
 // made its own AudioContext AFTER the microphone permission step, which is
 // outside the tap - iPhones and many Android phones leave such a context
 // suspended, so the meter read zero forever. The meter also decides when
@@ -1745,7 +1745,7 @@ async function toggleMic(btn, statusId, opts) {
     // Auto-stop (17 Sep): nobody reads "tap again when you're done", and a
     // recording that never ends is the exact "it can't hear me". Stop 1.8 s
     // after the person goes quiet (once they have spoken), or at 12 s flat.
-    // Real bug, 18 Sep (Bobby: "nothing records on any device"): this timer
+    // Real bug, 18 Sep (the owner: "nothing records on any device"): this timer
     // used to be started HERE, before the "Speak now" prompt, so its first
     // tick saw a recorder that had not started yet and cancelled itself.
     // The recording then never ended on its own. It now starts right after
@@ -2111,7 +2111,7 @@ async function saveEntry() {
   }
 }
 
-// Plan state's only source of truth is countmy-api / KV \u2014 Bobby, the CEO, flips a
+// Plan state's only source of truth is countmy-api / KV \u2014 the owner, the CEO, flips a
 // shop's status directly in the Cloudflare dashboard after seeing a MoMo payment
 // (see worker/worker.js). There is deliberately no local self-report toggle any
 // more \u2014 one existed briefly as an offline fallback but shipped as a tappable
@@ -2137,7 +2137,7 @@ async function refreshPaidStatus() {
 
 function renderAdmin() {
   const paid = isPaid();
-  // Real advice, 28 Aug, from real testing (Bobby's mum and aunties found
+  // Real advice, 28 Aug, from real testing (the owner's mum and aunties found
   // "everything" confusing) plus two independent AI reviews plus real stats
   // (zero paid conversions ever from a prominent, full-width payment pitch):
   // a payment button on the main screen contradicts "always free" no matter
@@ -2149,7 +2149,7 @@ function renderAdmin() {
   if (shopInput && document.activeElement !== shopInput) shopInput.value = getShopId();
 }
 
-// Real design reference, 28 Aug: AxisTrade (a Ghana competitor Bobby
+// Real design reference, 28 Aug: AxisTrade (a Ghana competitor the owner
 // specifically pointed to) greets by name and time of day instead of a
 // plain "TODAY" label. Falls back to just the greeting, no name, when no
 // Shop ID is set yet - which is most people, so this must read naturally
@@ -2508,7 +2508,7 @@ function reminderMessage(name, amount, note, cur) {
 }
 
 function shareFooter(campaign) {
-  if (campaign === 'backup') return t('\n\nTomorrow, press this: https://countmy.app/?r=wa\nFree. Made by Bobby in Ghana.', '\n\nMa\u00f1ana toca aqu\u00ed: https://countmy.app/?lang=es&r=wa');
+  if (campaign === 'backup') return t('\n\nTomorrow, press this: https://countmy.app/?r=wa\nFree. Made in Ghana.', '\n\nMa\u00f1ana toca aqu\u00ed: https://countmy.app/?lang=es&r=wa');
   return t('\n\nI keep my business money with CountMy. It is free: https://countmy.app/?utm_source=whatsapp&utm_medium=share&utm_campaign=' + campaign,
     '\n\nLlevo las cuentas de mi negocio con CountMy. Es gratis: https://countmy.app/?lang=es&utm_source=whatsapp&utm_medium=share&utm_campaign=' + campaign);
 }
@@ -3158,7 +3158,7 @@ document.querySelectorAll('.ts-tile').forEach(tile => tile.addEventListener('cli
   el.textContent = ex;
 })();
 // One tap between English and Spanish (18 Sep): a test link with ?lang=es
-// left Bobby's own phone in Spanish with no way back but the address bar.
+// left the owner's own phone in Spanish with no way back but the address bar.
 (function langSwitch() {
   const b = document.getElementById('langSwitch'); if (!b) return;
   let chosen = false; try { chosen = !!localStorage.getItem('kym_lang') || new URLSearchParams(location.search).has('lang'); } catch (e) { /* optional */ }

@@ -479,9 +479,9 @@ async function handleProgrammeReport(request, env) {
   }
 }
 
-// Automatic entry backup, added 30 Aug: Bobby's explicit call - "it shouldn't
+// Automatic entry backup, added 30 Aug: the owner's explicit call - "it shouldn't
 // be an option, it should be automatic, less confusion or buttons or worries
-// for users" - after asking how to let him recover his mum's records if her
+// for users" - after asking how to let him recover the first testers's records if her
 // phone is lost or she deletes something by mistake. This is a real change to
 // this file's own stated privacy shape above (handlePing's comment: "no shop
 // name, item, price, or customer name ever reaches this dashboard or the
@@ -490,7 +490,7 @@ async function handleProgrammeReport(request, env) {
 // entry content (item names, customer names typed into debts, amounts) so it
 // can be recovered. What's preserved from the original design: the shop id
 // itself is still never stored in plaintext, only its one-way hash, so
-// nobody - Bobby included - can list or browse shops; entries are only ever
+// nobody - the owner included - can list or browse shops; entries are only ever
 // retrievable by already knowing the exact shop id, the same shape as
 // handleShopActivity below. Soft-delete only (a flag, never a real SQL
 // DELETE) since "recover something that was deleted" is the entire point.
@@ -561,7 +561,7 @@ async function handleAdminEntries(request, env) {
   const rawHash = (url.searchParams.get('shopHash') || '').trim().toLowerCase();
   // Accepts either a plaintext shop id (hashed here, same as always) or an
   // already-hashed shopHash - the latter lets handleAdminRecentEntries's
-  // browse view link straight into a full lookup once Bobby recognizes a
+  // browse view link straight into a full lookup once the owner recognizes a
   // shop's content, without ever needing to learn its real name or id.
   if (!shop && !rawHash) return cors(new Response(JSON.stringify({ error: 'missing shop id' }), { status: 400 }));
   const shopHash = rawHash || (await sha256Hex(shop)).slice(0, 32);
@@ -574,7 +574,7 @@ async function handleAdminEntries(request, env) {
 }
 
 // Owner-only "recent backups" browse, added 30 Aug: handleAdminEntries above
-// only works if you already know the exact Shop ID - but most users, his mum
+// only works if you already know the exact Shop ID - but most users, the first testers
 // included, never type one in at all (the app silently falls back to a random
 // per-device id - see getShopId() || getDeviceId() in app.js), so there is
 // often no name to look up. This is a real, deliberate widening of this
@@ -587,7 +587,7 @@ async function handleAdminEntries(request, env) {
 // up front. Same ADMIN_KEY gate as every other /admin/* route - this is
 // exactly as sensitive as it sounds, which is why it exists only behind that
 // key, not as a feature reachable from the app itself.
-// Owner-only: permanently remove everything flagged as test (Bobby's own
+// Owner-only: permanently remove everything flagged as test (the owner's own
 // devices, probes) and datacentre visitors (crawlers, ad reviewers). Same
 // ADMIN_KEY gate as every other /admin/* route; POST only; returns counts.
 async function handleAdminPurgeTest(request, env) {

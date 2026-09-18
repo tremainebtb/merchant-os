@@ -56,7 +56,7 @@
      app.js?v=. Lets anyone - a reviewer, a tester in Kumasi, a future session -
      answer "which CountMy am I looking at?" from view-source or the console,
      the same way the Worker answers with "wv". -->
-<meta name="countmy-version" content="v139">
+<meta name="countmy-version" content="v140">
 <!-- Real finding, 28 Aug: the bare "CountMy" title carried no keywords at all
      for what people actually search - a free sales/expense ledger for
      Ghanaian shop owners. The <title> tag is the single strongest on-page
@@ -220,7 +220,7 @@ body{margin:0;background:var(--paper);color:var(--ink);font-family:"Work Sans",-
    small underneath - and said some version of "I don't know what this is,"
    even after it was explained to them out loud. The brand name told them
    nothing about what to do or why; the plain-language sentence below is what
-   Bobby was actually saying out loud to explain it, now living on the page
+   the owner was actually saying out loud to explain it, now living on the page
    itself instead of depending on him being there to say it. */
 .brand-sub{font-weight:500;font-size:.68em;color:var(--muted)}
 .pitch{font-family:"Manrope",sans-serif;font-size:1.6rem;font-weight:800;line-height:1.3;margin:8px 0 14px;color:var(--navy);letter-spacing:-.01em;display:flex;align-items:center;gap:10px}
@@ -399,7 +399,7 @@ input[type="number"]{-moz-appearance:textfield}
 .offline-badge.show{display:block}
 .offline-badge:active{background:var(--amber-soft)}
 /* Real, ground-truth input from the founder: an estimated 80% of the actual
-   target audience (market traders his mother and aunts' age) never had
+   target audience (market traders of the target age) never had
    formal schooling and cannot read or write. No amount of bigger, clearer
    text solves that - it's a different problem. But the /extract pipeline
    (see app.js) already classifies sale/expense/debt automatically from
@@ -557,7 +557,7 @@ body.iab-first .home-mic-btn{opacity:.55}
 <!-- Moved to the head 16 Sep so a two-second visit is still counted. -->
 <!-- Analytics for the Silent Alpha pilot only (27 Aug) - added to observe real
      merchant behavior (what they tap first, voice vs manual usage), NOT to
-     collect financial data. Both IDs are placeholders until Bobby creates the
+     collect financial data. Both IDs are placeholders until the owner creates the
      free GA4 property and Clarity project himself (account creation is his to
      do, not something done on his behalf) - this whole block is inert with the
      placeholder values in place, both SDKs no-op safely on a blank/invalid ID.
@@ -620,7 +620,7 @@ body.iab-first .home-mic-btn{opacity:.55}
     } catch (e) { /* never block the page */ }
   })();
 
-  // The only two lines that need editing once Bobby sends the real IDs.
+  // The only two lines that need editing once the owner sends the real IDs.
   window.GA4_ID = 'G-YJW9J53BL9';
   window.CLARITY_ID = 'y91blwr2nq';
 
@@ -706,14 +706,14 @@ body.iab-first .home-mic-btn{opacity:.55}
        user had no way to know without guessing and just trying. Say it
        plainly, right where the decision to speak is made. -->
   <div class="try-line"><span class="try-label">Try saying:</span> <span id="tryExample" class="try-example">&ldquo;I sold 3 bowls of waakye for 60 cedis.&rdquo;</span> <button type="button" id="hearExample" class="hear-example">&#9654; Hear it</button></div>
-  <!-- Trust, before the tap (16 Sep, Bobby: "is it free? is it a scam? is there
+  <!-- Trust, before the tap (16 Sep, the owner: "is it free? is it a scam? is there
        a catch?"). Ghanaian online-trust research puts trust above ease of use;
        GSMA lists confidence/safety as a top barrier. Three facts, one link,
        first use only. -->
   <p id="trustLine" class="trust-line" hidden>Free. No password, no MoMo PIN, no Ghana Card. It only keeps your records.</p>
   <!-- 5. A person, not a website (18 Sep red team): the founder and his
        WhatsApp, on the FIRST screen, where a stranger decides. -->
-  <p id="personLine" class="person-line" hidden>Made by Bobby for his mother in Ghana. Questions? <a id="waBobby" target="_blank" rel="noopener" href="https://wa.me/233209090019?text=Hello%20Bobby%2C%20I%20saw%20CountMy">WhatsApp Bobby</a></p>
+  <p id="personLine" class="person-line" hidden>Made in Ghana for market traders. Questions? <a id="waSupport" target="_blank" rel="noopener" href="https://wa.me/233209090019?text=Hello%2C%20I%20saw%20CountMy">Message us on WhatsApp</a></p>
   <!-- Show, don't explain: the same exchange as the share card. First use only. -->
   <div id="exampleChat" class="example-chat" aria-label="Example" hidden>
     <div class="ex-you">&ldquo;Ama owes me 120.&rdquo;</div>
@@ -786,7 +786,7 @@ body.iab-first .home-mic-btn{opacity:.55}
 
   <div class="today">
     <div class="today-top">
-      <!-- Real design reference, 28 Aug: AxisTrade (a Ghana competitor Bobby
+      <!-- Real design reference, 28 Aug: AxisTrade (a Ghana competitor the owner
            specifically likes) greets by name - "Good afternoon, Adjoa" -
            instead of a plain "TODAY" label. What actually reads as
            glocalised there isn't decoration, it's real specificity: a real
@@ -860,7 +860,7 @@ body.iab-first .home-mic-btn{opacity:.55}
        first use too: nobody learns a genuinely new interaction ("talk to
        your phone, it writes down your sale") by reading about it - they
        learn by watching it happen once. This button IS that demonstration,
-       built into the app itself, so it doesn't depend on Bobby being
+       built into the app itself, so it doesn't depend on the owner being
        physically there to show anyone. Tapping it (a real user gesture,
        not autoplay) speaks one concrete example aloud and pulses the real
        mic button, so the next thing a first-time user does is watch and
@@ -984,7 +984,7 @@ body.iab-first .home-mic-btn{opacity:.55}
     <button id="recoverCloseBtn" class="btn btn-cancel" style="width:100%">Close</button>
   </div>
 
-  <!-- Real advice, 28 Aug, from real testing (Bobby's mum, born 1964, and
+  <!-- Real advice, 28 Aug, from real testing (a first-time tester, born 1964, and
        aunties - "everything" was confusing) plus two independent AI reviews
        and real stats (zero paid conversions ever, from a payment pitch
        that's been live and prominent): a full-width button pitching a
@@ -1009,7 +1009,7 @@ body.iab-first .home-mic-btn{opacity:.55}
       <div id="shopItems" class="shop-items"></div>
       <button id="shopAddItem" type="button" class="type-toggle" style="padding:8px">+ Add another</button></div>
     <!-- Instagram / TikTok fields kept in the DOM (app.js reads them) but hidden:
-         Bobby's call 16 Sep - the social layer waits until 1,000+ shops. -->
+         the owner's call 16 Sep - the social layer waits until 1,000+ shops. -->
     <div class="field" hidden><label for="shopIg">Instagram (optional)</label><input id="shopIg" type="text" maxlength="40" placeholder="@amasfashion"></div>
     <div class="field" hidden><label for="shopTiktok">TikTok (optional)</label><input id="shopTiktok" type="text" maxlength="40" placeholder="@amasfashion"></div>
     <div id="shopStatus" class="home-mic-status" aria-live="polite"></div>
@@ -1084,7 +1084,7 @@ body.iab-first .home-mic-btn{opacity:.55}
      string is what forces a fresh script fetch even before any service worker logic
      runs, independent of it. Found live 27 Aug: without this, an already-visited
      browser can keep running old code from plain HTTP cache regardless of SW strategy. -->
-<script src="app.js?v=139"></script>
+<script src="app.js?v=140"></script>
 
 </body>
 </html>
