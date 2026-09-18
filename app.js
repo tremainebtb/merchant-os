@@ -3179,7 +3179,7 @@ if (ES) {
   // Static page text, Spanish. Leaf elements whose whole text matches an
   // English line are swapped; everything else is untouched.
   const S = {
-    'Your free money notebook. You talk, it remembers.': 'Tu cuaderno de cuentas gratis. T\u00fa hablas, \u00e9l lleva la cuenta.',
+    'You talk. It keeps the proof: today\u2019s sales, who owes you, your year. Free, on your own WhatsApp.': 'T\u00fa hablas. \u00c9l guarda la prueba: las ventas de hoy, qui\u00e9n te debe, tu a\u00f1o. Gratis, en tu propio WhatsApp.',
     'What happened in your business today?': '\u00bfQu\u00e9 pas\u00f3 hoy en tu negocio?',
     'Tell CountMy': 'Cu\u00e9ntale a CountMy',
     'Say it in English, Twi or Pidgin. You can also ask: \u201cwho owes me?\u201d': 'Dilo en espa\u00f1ol. Tambi\u00e9n puedes preguntar: \u201c\u00bfqui\u00e9n me debe?\u201d',
