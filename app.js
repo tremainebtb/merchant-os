@@ -250,15 +250,32 @@ let db;
 function openDB() {
   return new Promise((resolve, reject) => {
     const req = indexedDB.open(DB_NAME, 1);
+    req.onsuccess = () => {
+      const d = req.result;
+      // the browser (Facebook's iPhone webview, 18 Sep) can close the
+      // connection under us; forget it so the next call reopens
+      d.onclose = () => { if (db === d) db = null; };
+      d.onversionchange = () => { try { d.close(); } catch (e) { /* fine */ } if (db === d) db = null; };
+      resolve(d);
+    };
     req.onupgradeneeded = () => {
       const d = req.result;
       const store = d.createObjectStore(STORE, { keyPath: 'id', autoIncrement: true });
       store.createIndex('day', 'day');
       store.createIndex('type', 'type');
     };
-    req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error);
   });
+}
+// Every transaction goes through here: a connection that has been closed
+// ("The database connection is closing") is reopened once and retried.
+async function dbTx(mode) {
+  if (!db) db = await openDB();
+  try { return db.transaction(STORE, mode); }
+  catch (e) {
+    if (e && (e.name === 'InvalidStateError' || /clos/i.test(String(e.message || '')))) { db = await openDB(); return db.transaction(STORE, mode); }
+    throw e;
+  }
 }
 
 function todayKey(ts) {
@@ -322,8 +339,8 @@ function syncNotSaved(entryLike) {
 }
 
 function addEntry(entry) {
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE, 'readwrite');
+  return new Promise(async (resolve, reject) => {
+    const tx = await dbTx('readwrite');
     const req = tx.objectStore(STORE).add(entry);
     let reqError = null;
     req.onerror = (e) => { reqError = req.error; e.preventDefault(); tx.abort(); };
@@ -334,8 +351,8 @@ function addEntry(entry) {
 }
 
 function deleteEntry(id) {
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE, 'readwrite');
+  return new Promise(async (resolve, reject) => {
+    const tx = await dbTx('readwrite');
     tx.objectStore(STORE).delete(id);
     // Delete-only payload, deliberately just the id: the entry's real content
     // was already mirrored server-side when it was first created (or last
@@ -347,8 +364,8 @@ function deleteEntry(id) {
 }
 
 function updateEntry(id, patch) {
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE, 'readwrite');
+  return new Promise(async (resolve, reject) => {
+    const tx = await dbTx('readwrite');
     const store = tx.objectStore(STORE);
     const req = store.get(id);
     let merged = null;
@@ -362,8 +379,8 @@ function updateEntry(id, patch) {
 }
 
 function getAllEntries() {
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE, 'readonly');
+  return new Promise(async (resolve, reject) => {
+    const tx = await dbTx('readonly');
     const req = tx.objectStore(STORE).getAll();
     req.onsuccess = () => resolve(req.result.sort((a, b) => b.ts - a.ts));
     req.onerror = () => reject(req.error);
@@ -3094,7 +3111,14 @@ document.getElementById('askBtn').addEventListener('click', () => {
 document.getElementById('seeBtn').addEventListener('click', async () => {
   track('see_business');
   const entries = await getAllEntries();
-  if (!entries.length) { speakShort(t('Nothing recorded yet. Tap Tell CountMy and say what happened.', 'Todav\u00eda no hay nada anotado. Toca Cu\u00e9ntale a CountMy y di qu\u00e9 pas\u00f3.')); return; }
+  if (!entries.length) {
+    // 18 Sep, from two Facebook visitors' recordings: this tap looked dead
+    // to a first-timer. Now it plays the walkthrough instead of only speaking.
+    speakShort(t('Nothing recorded yet. Tap Tell CountMy and say what happened.', 'Todav\u00eda no hay nada anotado. Toca Cu\u00e9ntale a CountMy y di qu\u00e9 pas\u00f3.'));
+    const demo = document.getElementById('demoBtn');
+    if (demo) { demo.scrollIntoView({ behavior: 'smooth', block: 'center' }); setTimeout(() => { try { demo.click(); } catch (e) { /* optional */ } }, 1800); }
+    return;
+  }
   seeOpen = true;
   await render();
   const card = document.querySelector('.today');
@@ -3454,11 +3478,11 @@ function bumpVisitCount() {
   // when opened as ?bridge=1, and uses put so a row that already exists is
   // overwritten rather than duplicated.
   if (new URLSearchParams(location.search).get('bridge') === '1' && window.parent !== window) {
-    window.addEventListener('message', function (e) {
+    window.addEventListener('message', async function (e) {
       if (e.origin !== 'http://' + location.host) return;
       if (!e.data || e.data.type !== 'kym-bridge' || !Array.isArray(e.data.rows)) return;
       try {
-        const tx = db.transaction(STORE, 'readwrite');
+        const tx = await dbTx('readwrite');
         const st = tx.objectStore(STORE);
         e.data.rows.forEach(r => { if (r && r.id) st.put(r); });
         tx.oncomplete = () => { track('bridge_import', { rows: e.data.rows.length }); e.source.postMessage('kym-bridge-done', e.origin); };
