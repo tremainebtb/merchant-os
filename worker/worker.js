@@ -1064,7 +1064,7 @@ async function handleTranscribe(request, env) {
 // 50 is a transcription/parsing error, not a fabrication) - evidence-checking
 // targets fabrication specifically, not every possible error; the review UI is
 // still what catches a wrong-but-grounded number.
-const WORKER_VERSION = 'w71';
+const WORKER_VERSION = 'w72';
 
 // Spanish (Venezuela) twin of EXTRACT_SYSTEM_PROMPT below: same event types,
 // same {value, evidence} rule, same JSON-only answer. Amounts are bare
@@ -1666,6 +1666,46 @@ function twiFallback(transcriptNorm) {
 }
 const EN_UNITS = { zero: 0, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12, thirteen: 13, fourteen: 14, fifteen: 15, sixteen: 16, seventeen: 17, eighteen: 18, nineteen: 19 };
 const EN_TENS = { twenty: 20, thirty: 30, forty: 40, fifty: 50, sixty: 60, seventy: 70, eighty: 80, ninety: 90 };
+// Twi and Pidgin, before the model (18 Sep, from the 50-phrase stress test:
+// 4/10 Twi-mixed passed; every miss was a numeral or a debt verb the model
+// had never seen). Numerals become digits, incl. "aduonu baako" (21) and
+// "oha aduonu" (120); debt words become the English the rules key on.
+function twiPrep(text) {
+  let t = String(text || '');
+  const fold = w => w.toLowerCase().replace(/\u0254/g, 'o').replace(/\u025b/g, 'e');
+  // numerals: a run of Twi number words is summed (hundreds+tens+units), "ne" joins
+  const isNum = w => Object.prototype.hasOwnProperty.call(TWI_NUMBERS, fold(w));
+  const words = t.split(/(\s+|[.,;!?]+)/);
+  const isSep = w => /^(\s+|[.,;!?]+)$/.test(w);
+  const out = [];
+  for (let i = 0; i < words.length; i++) {
+    const w = words[i];
+    if (!w || isSep(w) || !isNum(w)) { out.push(w); continue; }
+    let sum = TWI_NUMBERS[fold(w)], last = sum, j = i + 1;
+    // extend the run over separators / "ne" only while the next word is a
+    // smaller number word (hundreds, then tens, then units)
+    while (j < words.length) {
+      let k = j;
+      while (k < words.length && (isSep(words[k]) || fold(words[k]) === 'ne')) k++;
+      if (k >= words.length || !isNum(words[k])) break;
+      const v = TWI_NUMBERS[fold(words[k])];
+      if (v >= last) break; // "aduonu aduasa" is two amounts, not one
+      sum += v; last = v; j = k + 1;
+    }
+    out.push(String(sum));
+    i = j - 1;
+  }
+  t = out.join('');
+  // debt and payment words
+  t = t.replace(/\b(\w+)\s+(a?tuaa?|tua)\s+(ne\s+)?(ka|sika)\b/gi, '$1 paid');
+  t = t.replace(/\bme\s+de\s+([A-Za-z]+)\s+ka\b/gi, 'I owe $1');
+  t = t.replace(/\b([A-Za-z]+)\s+de\s+me\s+ka\b/gi, '$1 owes me');
+  t = t.replace(/\b([oɔ]b[eɛ]tua|obetua)\s+([oɔ]ky[eɛ]na|okyena)\b/gi, 'will pay tomorrow').replace(/\b([oɔ]b[eɛ]tua|obetua)\b/gi, 'will pay').replace(/\b([oɔ]ky[eɛ]na|okyena)\b/gi, 'tomorrow');
+  t = t.replace(/\bme\s+t[oɔ]n\b/gi, 'I sold').replace(/\bme\s+t[oɔ]\b/gi, 'I bought');
+  // Pidgin tense markers
+  t = t.replace(/\b(don|done)\s+pay\b/gi, 'paid').replace(/\b(don|done)\s+buy\b/gi, 'bought');
+  return t;
+}
 function englishNumbersToDigits(text) {
   const words = String(text || '').split(/(\s+)/);
   const out = []; let i = 0;
@@ -1775,7 +1815,7 @@ async function runExtractionModel(text, env, temperature, lang, country) {
 const PAY_EN = /\b(paid|pay|payed|don\s+pay)\s+me\b|\bpaid\s+(me\s+)?back\b|\breceived\b[^.]*\bfrom\b|\bmomo\s+(from|received)\b|\b(gave|give|dash|bring|brought|sent|send)\s+me\b|\bsettled?\b|\bhas\s+paid\b|\batua\b|\b[a-z]+\s+(has\s+)?paid\b(?!\s+(for|\d+\s+for))|\bpay\s+small\b|\bwas\s+owing\b/i;
 const NOT_PAY_EN = /\b(owes?\s+me|dey\s+owe|owing\s+me|go\s+pay|will\s+pay|pay\s+(me\s+)?(later|tomorrow|next)|on\s+credit|credit|(i|we)\s+(still\s+)?owe|(i|we)\s+(paid|pay|payed)|paid\s+for|pay\s+for|paid\s+\d+\s+for)\b/i;
 const PAY_ES = /\babono\b|\bme\s+pago\b|\bme\s+pagaron\b|\bpago\s+(lo\s+que|la\s+deuda|todo)\b|\bse\s+puso\s+al\s+dia\b|\b(me\s+)?cancelo\b|\bme\s+(trajo|dio|consigno|transfirio|paso|abono)\b|\bsaldo\s+(la|su)\b|\bme\s+devolvio\b/i;
-const NOT_PAY_ES = /\bfie\b|\bfiao\b|\bfiado\b|\bdebiendo\b|\bme\s+debe\b|\bcredito\b|\bva\s+a\s+pagar\b|\bme\s+paga\s+(luego|manana|despues|la\s+semana)\b|\ble\s+debo\b|\bdebo\b/i;
+const NOT_PAY_ES = /\ble\s+fie\b|\bfie\s+a\b|\bdebiendo\b|\bme\s+debe\b|\bcredito\b|\bva\s+a\s+pagar\b|\bme\s+paga\s+(luego|manana|despues|la\s+semana)\b|\ble\s+debo\b|\bdebo\b/i;
 function finalizeEvents(events, text, lang) {
   let out = Array.isArray(events) ? events.slice() : [];
   const raw = String(text || '');
@@ -1801,8 +1841,57 @@ function finalizeEvents(events, text, lang) {
   }
   // "I owe 400 cedis" with no name: the placeholder, never the words "I owe"
   out.forEach(e => { if (e.type === 'debt_out' && /^(i|we)\s+(still\s+)?owe$/i.test(String(e.supplier || '').trim())) e.supplier = 'supplier'; });
+  // "Kojo took 3 plantain 8 each, will pay Friday": credit, not a sale
+  if (lang !== 'es' && out.length === 1 && out[0].type === 'sale') {
+    const credit = /\b(will|go|gonna|shall|dey go)\s+pay\b|\bpay\s+(later|tomorrow|next\s+week|on\s+\w+day|monday|tuesday|wednesday|thursday|friday|saturday|sunday|month\s+end)\b|\bon\s+credit\b|\bno\s+pay\s+yet\b|\bnever\s+pay\b/i.test(raw) && !/\b(i|we)\s+(will|go)\s+pay\b/i.test(raw);
+    const who = /^\s*([A-Z][a-z\u00e0-\u00ff]+(?:\s+[A-Z][a-z\u00e0-\u00ff]+)?)\s+(took|take|collect|carry|carried|buy|bought|come\s+take)\b/.exec(raw);
+    if (credit && who) {
+      const e = out[0];
+      const total = (e.qty || 1) * (e.price || 0);
+      out = [{ type: 'debt_in', customer: who[1], price: total || e.price, note: e.item }];
+    }
+  }
+  // "Ama pay small 20 out of 50": the part paid is the first number
+  const part = /\b(\d+(?:\.\d+)?)\s+(?:out\s+of|of\s+the|of)\s+(\d+(?:\.\d+)?)\b/i.exec(raw);
+  if (part) out.forEach(e => { if (e.type === 'payment' && Number(e.price) === Number(part[2])) e.price = Number(part[1]); });
+  // "le fié a Yeferson tres cervezas a dos dólares": a debt is qty x each, like a sale
+  if (lang === 'es') out.forEach(e => {
+    if (e.type !== 'debt_in' || !e.price) return;
+    const m = new RegExp('\\b(\\d+)\\s+[a-z\u00e1\u00e9\u00ed\u00f3\u00fa\u00f1]+\\s+(?:a|de a)\\s+' + String(e.price) + '\\b').exec(tt);
+    if (m && Number(m[1]) > 1 && !e.qty) { e.note = (e.note ? e.note + ' ' : '') + m[1] + ' ' + (tt.split(new RegExp('\\b' + m[1] + '\\s+'))[1] || '').split(' ')[0]; e.price = Number(m[1]) * e.price; }
+  });
+  // an event with no price while a number was said: the number after its item, else the last one
+  if (nums.length) out.forEach(e => {
+    if (e.price !== undefined && e.price !== null && e.price !== '') return;
+    const key = String(e.item || e.customer || e.supplier || '').toLowerCase().split(' ')[0];
+    let pick = null;
+    if (key) {
+      let after = tt.split(key)[1] || '';
+      // stop at the next event's own item ("almuerzo 12000 y un jugo 3000")
+      for (const o of out) { if (o === e) continue; const ok = String(o.item || o.customer || o.supplier || '').toLowerCase().split(' ')[0]; if (ok && after.indexOf(ok) > 0) after = after.slice(0, after.indexOf(ok)); }
+      // "2 gaseosas a 3000" after the name: two of them at 3000 each
+      const each = /(\d+)\s+[a-z\u00e1\u00e9\u00ed\u00f3\u00fa\u00f1]+\s+(?:a|de a|at)\s+(\d+(?:\.\d+)?)/.exec(after);
+      if (each && Number(each[1]) > 1 && e.type !== 'sale') pick = Number(each[1]) * Number(each[2]);
+      else { const all = after.match(/\d+(?:\.\d+)?/g); if (all && all.length) pick = Number(all[all.length - 1]); }
+    }
+    if (pick === null) pick = nums[nums.length - 1];
+    if (pick > 0) e.price = pick;
+  });
+  // nothing at all, but the words say what happened
+  if (!out.length && nums.length >= 1) {
+    const pay = /^\s*([A-Za-z][A-Za-z' -]{1,30}?)\s+(?:has\s+)?(?:paid|payed)\s+(?:me\s+)?(?:back\s+)?(?:small\s+)?(\d+)/i.exec(raw);
+    if (pay && lang !== 'es' && nums.length === 1 && !/\bfor\s+[a-z]/i.test(raw.slice(pay.index + pay[0].length))) out = [{ type: 'payment', customer: pay[1].trim(), price: Number(pay[2]) }];
+    // "compré dos cajas de huevos a seis verdes": a purchase the model returned nothing for
+    const buy = /^\s*(compr[e\u00e9]|pagu[e\u00e9]|gast[e\u00e9])\s+(?:(\d+)\s+)?(?:[a-z\u00e1\u00e9\u00ed\u00f3\u00fa\u00f1]+\s+)?(?:de\s+)?([a-z\u00e1\u00e9\u00ed\u00f3\u00fa\u00f1]{3,})/i.exec(tt);
+    if (!out.length && lang === 'es' && buy) {
+      const q = Number(buy[2] || 0), unit = nums[nums.length - 1];
+      const e = { type: 'expense', item: buy[3], price: q > 1 ? unit * q : unit };
+      if (q > 1) e.note = buy[2] + ' ' + (tt.split(buy[2] + ' ')[1] || '').split(' ')[0];
+      out = [e];
+    }
+  }
   // "le fié a doña Marta" / "fiao": the customer owes the shop, whatever the model said
-  if (lang === 'es' && /\b(le|les)\s+fie\b|\bfiao\b|\bfiado\b|\bme\s+(quedo|queda)\s+debiendo\b/.test(tt)) {
+  if (lang === 'es' && !PAY_ES.test(tt) && /\b(le|les)\s+fie\b|\bfie\s+a\b|\bfiado\s+a\b|\bme\s+(quedo|queda)\s+debiendo\b/.test(tt)) {
     out.forEach(e => { if (e.type === 'debt_out') { e.type = 'debt_in'; e.customer = e.supplier; delete e.supplier; } });
   }
   // "me pagaron 200 bolívares de una arepa": a sale of that thing, not a debt
@@ -2018,7 +2107,7 @@ async function handleExtract(request, env) {
   const country = String((body && body.country) || '').toUpperCase().slice(0, 2);
   text = repairTranscript(text, lang, country);
   if (lang === 'es') { text = spanishPrep(text, country); text = spanishNumbersToDigits(text); if (country === 'CO') text = colombianMoneyToDigits(text); text = spanishPrep(text, country); }
-  else text = englishNumbersToDigits(text);
+  else text = twiPrep(englishNumbersToDigits(text));
   const result = (lang === 'es' && /^\s*[\u00bf]?\s*(a c[o\u00f3]mo|cu[a\u00e1]nt[oa]s?|qui[e\u00e9]n|qu[e\u00e9])\b/i.test(text) && !/\d/.test(text)) ? { events: [] } : await extractFromText(text, env, lang, country);
   if (result.events) result.events = finalizeEvents(result.events, text, lang);
   if (result.error) {
@@ -2083,7 +2172,7 @@ async function handleTranscribeAndExtractInner(request, env) {
     return cors(new Response(JSON.stringify({ text: '', events: [] }), { headers: { 'Content-Type': 'application/json' } }));
   }
   if (lang === 'es') { text = spanishPrep(text, country); text = spanishNumbersToDigits(text); if (country === 'CO') text = colombianMoneyToDigits(text); text = spanishPrep(text, country); }
-  else text = englishNumbersToDigits(text);
+  else text = twiPrep(englishNumbersToDigits(text));
   const extracted = (lang === 'es' && /^\s*[\u00bf]?\s*(a c[o\u00f3]mo|cu[a\u00e1]nt[oa]s?|qui[e\u00e9]n|qu[e\u00e9])\b/i.test(text) && !/\d/.test(text)) ? { events: [] } : await extractFromText(text, env, lang, country);
   if (extracted.events) extracted.events = finalizeEvents(extracted.events, text, lang);
   return cors(new Response(JSON.stringify({ text, events: extracted.events || [], wv: WORKER_VERSION, rep: text !== String(transcribed.text || '') }), {
