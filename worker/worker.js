@@ -850,14 +850,14 @@ async function handleAdminStats(request, env) {
 // (no card, ~8 hours of audio a day), used first whenever a GROQ_API_KEY
 // secret is set on the Worker. Cloudflare's own Whisper stays as the
 // fallback, so a Groq hiccup costs nothing but a second try.
-const GROQ_PROMPT_EN = 'Shop records: pepper 25 cedis, chop money 20 cedis, bought stock 400 cedis, Kofi 200, Ama owes me 120 cedis, sold 4 bags of rice 120 each, transport 15, momo 50, Adwoa dey owe me 50, I sell kenkey and fish twenty cedis, Yaw come take oil 25 he go pay tomorrow, I owe Mensah 400, airtime 50, Kofi paid me 200.';
+const GROQ_PROMPT_EN = 'Ghana shop records in cedis: I sold 3 bowls of waakye 60 cedis, 2 plantain 10 cedis, kelewele, banku and tilapia, fufu, jollof, red red, kenkey and fish, koko, bofrot, gari, shito, kontomire, garden eggs, okro, yam, cassava, tomatoes, onions, pepper, palm oil, groundnut, sachet water, minerals, bread, eggs, indomie, charcoal, ntoma, slippers. chop money 20, bought stock 400, transport 15, trotro fare 5, momo 50, airtime 50, Kofi 200, Ama owes me 120 cedis, Adwoa dey owe me 50, Yaw come take oil 25 he go pay tomorrow, I owe Mensah 400, Kofi paid me 200.';
 async function groqTranscribe(audioBytes, audioType, env, lang, country) {
   if (!env.GROQ_API_KEY) return null;
   const type = audioType || 'audio/webm';
   const ext = /mp4|m4a/.test(type) ? 'm4a' : /mpeg|mp3/.test(type) ? 'mp3' : /ogg/.test(type) ? 'ogg' : /wav/.test(type) ? 'wav' : /flac/.test(type) ? 'flac' : 'webm';
   const form = new FormData();
   form.append('file', new Blob([audioBytes], { type }), 'voice.' + ext);
-  form.append('model', 'whisper-large-v3-turbo');
+  form.append('model', 'whisper-large-v3');
   form.append('response_format', 'json');
   form.append('temperature', '0');
   if (lang === 'es') {
@@ -1064,7 +1064,7 @@ async function handleTranscribe(request, env) {
 // 50 is a transcription/parsing error, not a fabrication) - evidence-checking
 // targets fabrication specifically, not every possible error; the review UI is
 // still what catches a wrong-but-grounded number.
-const WORKER_VERSION = 'w70';
+const WORKER_VERSION = 'w71';
 
 // Spanish (Venezuela) twin of EXTRACT_SYSTEM_PROMPT below: same event types,
 // same {value, evidence} rule, same JSON-only answer. Amounts are bare
@@ -2059,7 +2059,8 @@ async function handleTranscribeAndExtractInner(request, env) {
   const audio = incomingForm.get('audio');
   // Field diagnostics (17 Sep, observability on): size, type, browser family
   // and outcome per voice upload. Never the audio, never the words.
-  const diag = { bytes: (audio && audio.size) || 0, type: (audio && audio.type) || '', ua: (request.headers.get('user-agent') || '').slice(0, 80), country: (request.cf && request.cf.country) || '' };
+  const diag = { bytes: (audio && audio.size) || 0, type: (audio && audio.type) || '', ua: (request.headers.get('user-agent') || '').slice(0, 80), country: (request.cf && request.cf.country) || '', ver: String(incomingForm.get('ver') || '').slice(0, 8) };
+  const ownerDebug = String(incomingForm.get('dbg') || '') === 'owner';
   if (!audio) { console.log('transcribe no-audio', diag); return cors(new Response(JSON.stringify({ error: 'no audio received' }), { status: 400, headers: { 'Content-Type': 'application/json' } })); }
   const audioBytes = new Uint8Array(await audio.arrayBuffer());
   const lang = String(incomingForm.get('lang') || '') === 'es' ? 'es' : 'en';
@@ -2068,7 +2069,8 @@ async function handleTranscribeAndExtractInner(request, env) {
   const country = String(incomingForm.get('country') || '').toUpperCase().slice(0, 2);
   diag.country2 = country;
   const transcribed = await transcribeAudio(audioBytes, audio.type, env, lang, country);
-  console.log('transcribe', Object.assign(diag, { ms: Date.now() - t0, ok: !transcribed.error, chars: (transcribed.text || '').length, err: transcribed.error ? String(transcribed.detail || transcribed.error).slice(0, 100) : '' }));
+  console.log('transcribe', Object.assign(diag, { ms: Date.now() - t0, ok: !transcribed.error, engine: transcribed.engine || '', chars: (transcribed.text || '').length, err: transcribed.error ? String(transcribed.detail || transcribed.error).slice(0, 100) : '' }));
+  if (ownerDebug) console.log('OWNER-HEARD', JSON.stringify({ text: String(transcribed.text || '').slice(0, 300), engine: transcribed.engine || '', bytes: diag.bytes, type: diag.type, ver: diag.ver }));
   if (transcribed.error) {
     return cors(new Response(JSON.stringify({ text: '', events: [], error: transcribed.error, detail: transcribed.detail }), { status: 502, headers: { 'Content-Type': 'application/json' } }));
   }

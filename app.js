@@ -738,6 +738,8 @@ async function transcribeAndExtract(blob, heardText) {
   form.append('audio', blob, `voice.${ext}`);
   form.append('lang', LANG);
   form.append('country', COUNTRY);
+  form.append('ver', window.KYM_VERSION || '');
+  if (window.KYM_IS_OWNER_DEVICE) form.append('dbg', 'owner'); // Bobby's own phones: transcript goes to the server log so mishearings can be read and fixed
   let res, data;
   try {
     ({ res, data } = await postToApi('/transcribe-and-extract', form));
@@ -1566,7 +1568,11 @@ async function toggleMic(btn, statusId, opts) {
   micArming = true;
   pendingHeard = null;
   try {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    // Market noise (18 Sep): ask the phone for its own noise suppression,
+    // echo cancellation and automatic gain; phones that lack them ignore it.
+    let stream;
+    try { stream = await navigator.mediaDevices.getUserMedia({ audio: { noiseSuppression: true, echoCancellation: true, autoGainControl: true, channelCount: 1 } }); }
+    catch (e) { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
     if (inAppBrowser() && !window.KYM_IAB_MIC_OK) { window.KYM_IAB_MIC_OK = true; ping('iab_mic_ok'); }
     recordedChunks = [];
     startMicLevelMeter(stream);
@@ -1581,7 +1587,9 @@ async function toggleMic(btn, statusId, opts) {
     // for how the resulting blob is labeled.
     const mimeCandidates = ['audio/webm', 'audio/mp4', 'audio/ogg'];
     const supportedMime = mimeCandidates.find(m => window.MediaRecorder.isTypeSupported && window.MediaRecorder.isTypeSupported(m));
-    mediaRecorder = supportedMime ? new MediaRecorder(stream, { mimeType: supportedMime }) : new MediaRecorder(stream);
+    const recOpts = { audioBitsPerSecond: 64000 };
+    if (supportedMime) recOpts.mimeType = supportedMime;
+    try { mediaRecorder = new MediaRecorder(stream, recOpts); } catch (e) { mediaRecorder = supportedMime ? new MediaRecorder(stream, { mimeType: supportedMime }) : new MediaRecorder(stream); }
     const actualMime = mediaRecorder.mimeType || supportedMime || 'audio/webm';
     let recordingStartedAt = Date.now();
     mediaRecorder.onstart = () => {
