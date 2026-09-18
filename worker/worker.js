@@ -1064,7 +1064,7 @@ async function handleTranscribe(request, env) {
 // 50 is a transcription/parsing error, not a fabrication) - evidence-checking
 // targets fabrication specifically, not every possible error; the review UI is
 // still what catches a wrong-but-grounded number.
-const WORKER_VERSION = 'w81';
+const WORKER_VERSION = 'w82';
 
 // Spanish (Venezuela) twin of EXTRACT_SYSTEM_PROMPT below: same event types,
 // same {value, evidence} rule, same JSON-only answer. Amounts are bare
@@ -2410,8 +2410,212 @@ async function handleExtractFromImage(request, env) {
   }));
 }
 
+// ---------------------------------------------------------------------------
+// WhatsApp voice-note channel (18 Sep, pilot). A person sends a voice note
+// to the CountMy WhatsApp number; the same ear and the same rules as the app
+// turn it into a record; the reply is the record plus today's totals and who
+// owes. No app, no browser, no permission prompt: the one path that works
+// inside a burner Android with only WhatsApp on it.
+//
+// Meta Cloud API contract (developers.facebook.com/docs/whatsapp/cloud-api):
+//   GET  /wa  hub.mode=subscribe&hub.verify_token=X&hub.challenge=Y -> Y
+//   POST /wa  {entry:[{changes:[{value:{messages:[...], metadata:{...}}}]}]}
+//   media: GET graph.facebook.com/v21.0/<MEDIA_ID> -> {url}; GET url with the
+//   same bearer -> bytes (audio/ogg; codecs=opus). URL is good for 5 minutes.
+//   reply: POST graph.facebook.com/v21.0/<PHONE_ID>/messages
+// Secrets (Cloudflare dashboard, never in code): WHATSAPP_TOKEN,
+// WHATSAPP_PHONE_ID, WHATSAPP_VERIFY_TOKEN, optional WHATSAPP_APP_SECRET.
+// Phone numbers are stored only as sha256(number + salt) - nobody can read a
+// number back out of the table, and the reply goes to the live message's
+// sender, not to anything stored.
+const WA_GRAPH = 'https://graph.facebook.com/v21.0';
+let waSchemaReady = false;
+async function ensureWaSchema(env) {
+  if (waSchemaReady) return;
+  await env.COUNTMY_DB.prepare(`CREATE TABLE IF NOT EXISTS wa_entries (
+    id TEXT PRIMARY KEY, phone_hash TEXT NOT NULL, msg_id TEXT, type TEXT NOT NULL,
+    item TEXT, who TEXT, qty REAL, price REAL, amount REAL, cur TEXT, note TEXT,
+    heard TEXT, lang TEXT, ts INTEGER NOT NULL)`).run();
+  await env.COUNTMY_DB.prepare('CREATE INDEX IF NOT EXISTS wa_entries_phone_ts ON wa_entries(phone_hash, ts)').run();
+  await env.COUNTMY_DB.prepare(`CREATE TABLE IF NOT EXISTS wa_seen (msg_id TEXT PRIMARY KEY, ts INTEGER NOT NULL)`).run();
+  waSchemaReady = true;
+}
+function waLocale(from) {
+  const n = String(from || '');
+  if (n.startsWith('58')) return { lang: 'es', country: 'VE', cur: 'VES' };
+  if (n.startsWith('57')) return { lang: 'es', country: 'CO', cur: 'COP' };
+  if (n.startsWith('234')) return { lang: 'en', country: 'NG', cur: 'NGN' };
+  if (n.startsWith('254')) return { lang: 'en', country: 'KE', cur: 'KES' };
+  return { lang: 'en', country: 'GH', cur: 'GHS' };
+}
+const WA_CUR = { GHS: 'GH₵', VES: 'Bs', USD: '$', COP: '$', NGN: '₦', KES: 'KSh' };
+function waMoney(n, cur) {
+  const v = Math.round(Number(n || 0) * 100) / 100;
+  return (WA_CUR[cur] || cur || '') + ' ' + v.toLocaleString(cur === 'GHS' ? 'en-GH' : 'es-VE');
+}
+async function waGraph(env, path, init) {
+  const r = await fetch(WA_GRAPH + path, Object.assign({}, init, { headers: Object.assign({ Authorization: 'Bearer ' + env.WHATSAPP_TOKEN }, (init && init.headers) || {}) }));
+  return r;
+}
+async function waSend(env, to, body) {
+  if (!env.WHATSAPP_TOKEN || !env.WHATSAPP_PHONE_ID) { console.log('WA-SEND skipped: no token/phone id'); return false; }
+  const r = await waGraph(env, '/' + env.WHATSAPP_PHONE_ID + '/messages', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ messaging_product: 'whatsapp', recipient_type: 'individual', to, type: 'text', text: { preview_url: false, body: String(body).slice(0, 4000) } })
+  });
+  if (!r.ok) console.log('WA-SEND fail', r.status, (await r.text()).slice(0, 300));
+  return r.ok;
+}
+async function waMarkRead(env, msgId) {
+  if (!env.WHATSAPP_TOKEN || !env.WHATSAPP_PHONE_ID) return;
+  try { await waGraph(env, '/' + env.WHATSAPP_PHONE_ID + '/messages', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ messaging_product: 'whatsapp', status: 'read', message_id: msgId }) }); } catch (e) { /* ignore */ }
+}
+async function waDownloadMedia(env, mediaId) {
+  const meta = await waGraph(env, '/' + mediaId + (env.WHATSAPP_PHONE_ID ? '?phone_number_id=' + env.WHATSAPP_PHONE_ID : ''));
+  if (!meta.ok) return { error: 'media meta ' + meta.status };
+  const j = await meta.json();
+  if (!j.url) return { error: 'no media url' };
+  const bin = await fetch(j.url, { headers: { Authorization: 'Bearer ' + env.WHATSAPP_TOKEN } });
+  if (!bin.ok) return { error: 'media bytes ' + bin.status };
+  return { bytes: new Uint8Array(await bin.arrayBuffer()), type: j.mime_type || 'audio/ogg' };
+}
+// Same pipeline as /transcribe-and-extract, on a transcript.
+async function waEventsFromText(rawText, env, lang, country) {
+  let text = repairTranscript(rawText || '', lang, country);
+  if (/^[\s.!?,¡¿]*$|^(thank you|thanks|bye|you|okay|ok|hello|hi|mm+|hmm+|uh+|gracias|hola|s[ií])[.!?]?$/i.test(text.trim()) || /amara\.org|subt[ií]tulos/i.test(text)) text = '';
+  if (!text.trim()) return { text: '', events: [] };
+  if (lang === 'es') { text = spanishPrep(text, country); text = spanishNumbersToDigits(text); if (country === 'CO') text = colombianMoneyToDigits(text); text = spanishPrep(text, country); }
+  else text = twiPrep(englishNumbersToDigits(text));
+  const extracted = await extractFromText(text, env, lang, country);
+  const events = finalizeEvents(extracted.events || [], text, lang, country);
+  return { text, events };
+}
+function waIsQuestion(text, lang) {
+  const t = String(text || '').toLowerCase();
+  if (lang === 'es') return /qui[eé]n.*debe|cu[aá]nto.*(vend|hoy|deben)|resumen|hoy/.test(t) && !/\d/.test(t);
+  return /who (dey )?owe|who owes|how much.*(today|sold|owe)|today|summary|total|hwan na ɔde me ka|hena na ode me ka/.test(t) && !/\d/.test(t);
+}
+async function waSummary(env, phoneHash, cur, lang) {
+  const dayStart = Math.floor(Date.now() / 86400000) * 86400000;
+  const rows = (await env.COUNTMY_DB.prepare('SELECT type, who, amount FROM wa_entries WHERE phone_hash = ? AND ts >= ?').bind(phoneHash, dayStart - 366 * 86400000).all()).results || [];
+  let inToday = 0, outToday = 0, year = 0;
+  const owed = {};
+  const todays = (await env.COUNTMY_DB.prepare('SELECT type, amount FROM wa_entries WHERE phone_hash = ? AND ts >= ?').bind(phoneHash, dayStart).all()).results || [];
+  for (const r of todays) { if (r.type === 'sale' || r.type === 'payment') inToday += r.amount || 0; else if (r.type === 'expense') outToday += r.amount || 0; }
+  for (const r of rows) {
+    if (r.type === 'sale') year += r.amount || 0;
+    if (r.type === 'debt_in') owed[r.who || '?'] = (owed[r.who || '?'] || 0) + (r.amount || 0);
+    if (r.type === 'payment') owed[r.who || '?'] = (owed[r.who || '?'] || 0) - (r.amount || 0);
+  }
+  const owedList = Object.entries(owed).filter(([, v]) => v > 0.01).sort((a, b) => b[1] - a[1]).slice(0, 8);
+  const L = lang === 'es'
+    ? { today: 'Hoy', inn: 'entró', out: 'salió', owe: 'Te deben', none: 'Nadie te debe.', year: 'Ventas de 12 meses' }
+    : { today: 'Today', inn: 'in', out: 'out', owe: 'Owed to you', none: 'Nobody owes you.', year: 'Sales in the last 12 months' };
+  const lines = [L.today + ': ' + L.inn + ' ' + waMoney(inToday, cur) + ', ' + L.out + ' ' + waMoney(outToday, cur)];
+  lines.push(owedList.length ? L.owe + ': ' + owedList.map(([k, v]) => k + ' ' + waMoney(v, cur)).join(', ') : L.none);
+  if (year > 0) lines.push(L.year + ': ' + waMoney(year, cur));
+  return lines.join('\n');
+}
+function waDescribe(e, cur, lang) {
+  const es = lang === 'es';
+  const c = e.currency || cur;
+  const qty = e.qty && e.qty !== 1 ? e.qty : null;
+  const amt = e.amount;
+  if (e.type === 'sale') return (es ? 'Venta' : 'Sale') + ': ' + (e.item || (es ? 'artículo' : 'item')) + (qty ? ' ' + qty + ' × ' + waMoney(e.price, c) + ' = ' : ' ') + waMoney(amt, c);
+  if (e.type === 'expense') return (es ? 'Gasto' : 'Cost') + ': ' + (e.item || '') + ' ' + waMoney(amt, c);
+  if (e.type === 'debt_in') return (e.who || (es ? 'cliente' : 'customer')) + (es ? ' te debe ' : ' owes you ') + waMoney(amt, c);
+  if (e.type === 'debt_out') return (es ? 'Debes a ' : 'You owe ') + (e.who || '') + ' ' + waMoney(amt, c);
+  if (e.type === 'payment') return (e.who || '') + (es ? ' pagó ' : ' paid ') + waMoney(amt, c);
+  return '';
+}
+async function waHandleMessage(env, msg, contactName) {
+  await ensureWaSchema(env);
+  const from = String(msg.from || '');
+  const msgId = String(msg.id || '');
+  if (!from || !msgId) return;
+  const seen = await env.COUNTMY_DB.prepare('INSERT OR IGNORE INTO wa_seen (msg_id, ts) VALUES (?, ?)').bind(msgId, Date.now()).run();
+  if (!seen.meta || !seen.meta.changes) return; // Meta redelivered it; already handled
+  const loc = waLocale(from);
+  const phoneHash = await sha256Hex('wa:' + from + ':' + (env.WHATSAPP_VERIFY_TOKEN || ''));
+  await waMarkRead(env, msgId);
+  let heard = '';
+  let engine = '';
+  if (msg.type === 'audio' && msg.audio && msg.audio.id) {
+    const media = await waDownloadMedia(env, msg.audio.id);
+    if (media.error) { console.log('WA media', media.error); await waSend(env, from, loc.lang === 'es' ? 'No pude oír la nota. Envíala otra vez.' : 'I could not get the voice note. Please send it again.'); return; }
+    const t = await transcribeAudio(media.bytes, media.type, env, loc.lang, loc.country);
+    heard = t.text || ''; engine = t.engine || '';
+    if (t.error) { await waSend(env, from, loc.lang === 'es' ? 'No pude oír la nota. Envíala otra vez.' : 'I could not hear that. Please send it again.'); return; }
+  } else if (msg.type === 'text' && msg.text && msg.text.body) {
+    heard = String(msg.text.body).slice(0, 500); engine = 'text';
+  } else {
+    await waSend(env, from, loc.lang === 'es' ? 'Envíame una nota de voz: "vendí 3 arepas a 2 dólares".' : 'Send me a voice note: "Sold 3 bowls of waakye, 60 cedis".');
+    return;
+  }
+  console.log('WA-IN', JSON.stringify({ type: msg.type, engine, len: heard.length, lang: loc.lang }));
+  if (waIsQuestion(heard, loc.lang)) { await waSend(env, from, await waSummary(env, phoneHash, loc.cur, loc.lang)); return; }
+  const { text, events } = await waEventsFromText(heard, env, loc.lang, loc.country);
+  if (!text) { await waSend(env, from, loc.lang === 'es' ? 'No oí nada. Habla cerca del teléfono y envía otra vez.' : 'I heard nothing. Talk close to the phone and send again.'); return; }
+  if (!events.length) {
+    await waSend(env, from, (loc.lang === 'es' ? 'Oí: "' + text + '"\nNo entendí la cantidad. Di qué y cuánto: "vendí 3 arepas a 2 dólares".' : 'I heard: "' + text + '"\nI could not find the amount. Say what and how much: "Sold 3 bowls of waakye, 60 cedis".'));
+    return;
+  }
+  const now = Date.now();
+  const saved = [];
+  for (const e of events.slice(0, 6)) {
+    const qty = e.qty && e.qty > 0 ? e.qty : null;
+    const price = Number(e.price || 0);
+    const amount = e.type === 'sale' && qty ? qty * price : price;
+    if (!(amount > 0)) continue;
+    const row = { type: e.type, item: e.item || null, who: e.customer || e.supplier || null, qty, price, amount, cur: e.currency || loc.cur, note: e.note || null };
+    await env.COUNTMY_DB.prepare('INSERT INTO wa_entries (id, phone_hash, msg_id, type, item, who, qty, price, amount, cur, note, heard, lang, ts) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
+      .bind(crypto.randomUUID(), phoneHash, msgId, row.type, row.item, row.who, row.qty, row.price, row.amount, row.cur, row.note, text.slice(0, 300), loc.lang, now).run();
+    saved.push(row);
+  }
+  if (!saved.length) { await waSend(env, from, loc.lang === 'es' ? 'Oí: "' + text + '" pero no había cantidad.' : 'I heard: "' + text + '" but no amount.'); return; }
+  const lines = saved.map(r => (loc.lang === 'es' ? '✔ ' : '✔ ') + waDescribe(r, loc.cur, loc.lang));
+  lines.push('');
+  lines.push(await waSummary(env, phoneHash, loc.cur, loc.lang));
+  await waSend(env, from, lines.join('\n'));
+}
+async function handleWaVerify(url, env) {
+  const mode = url.searchParams.get('hub.mode');
+  const token = url.searchParams.get('hub.verify_token');
+  const challenge = url.searchParams.get('hub.challenge');
+  if (mode === 'subscribe' && env.WHATSAPP_VERIFY_TOKEN && token === env.WHATSAPP_VERIFY_TOKEN && challenge) return new Response(challenge, { status: 200 });
+  return new Response('forbidden', { status: 403 });
+}
+async function waSignatureOk(request, rawBody, env) {
+  if (!env.WHATSAPP_APP_SECRET) return true; // pilot without the secret set; verify token still gates the GET
+  const sig = request.headers.get('x-hub-signature-256') || '';
+  if (!sig.startsWith('sha256=')) return false;
+  const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(env.WHATSAPP_APP_SECRET), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  const mac = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(rawBody));
+  const hex = Array.from(new Uint8Array(mac)).map(b => b.toString(16).padStart(2, '0')).join('');
+  return hex === sig.slice(7);
+}
+async function handleWaWebhook(request, env, ctx) {
+  const raw = await request.text();
+  if (!(await waSignatureOk(request, raw, env))) return new Response('bad signature', { status: 403 });
+  let body = {};
+  try { body = JSON.parse(raw); } catch (e) { return new Response('ok', { status: 200 }); }
+  const work = (async () => {
+    try {
+      for (const entry of body.entry || []) {
+        for (const ch of entry.changes || []) {
+          const v = ch.value || {};
+          const name = v.contacts && v.contacts[0] && v.contacts[0].profile ? v.contacts[0].profile.name : '';
+          for (const m of v.messages || []) await waHandleMessage(env, m, name);
+        }
+      }
+    } catch (e) { console.log('WA error', String(e && e.message || e).slice(0, 300)); }
+  })();
+  if (ctx && ctx.waitUntil) ctx.waitUntil(work); else await work;
+  return new Response('ok', { status: 200 });
+}
+
 export default {
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     if (request.method === 'OPTIONS') {
       return cors(new Response(null, { status: 204 }));
     }
@@ -2425,6 +2629,10 @@ export default {
       // catch block. Awaiting closes that hole for every route, not just the one
       // that happened to hit it first.
       if (url.pathname === '/status' && request.method === 'GET') return await handleStatus(request, env);
+      // WhatsApp Cloud API webhook (18 Sep). Meta calls this; no CORS, no
+      // per-IP limiter (Meta's IPs), signature-checked when the app secret is set.
+      if (url.pathname === '/wa' && request.method === 'GET') return await handleWaVerify(url, env);
+      if (url.pathname === '/wa' && request.method === 'POST') return await handleWaWebhook(request, env, ctx);
 
       // Abuse limits (see the constants at the top). Checked before the
       // handler runs so a capped request never touches Workers AI or D1.
