@@ -1064,7 +1064,7 @@ async function handleTranscribe(request, env) {
 // 50 is a transcription/parsing error, not a fabrication) - evidence-checking
 // targets fabrication specifically, not every possible error; the review UI is
 // still what catches a wrong-but-grounded number.
-const WORKER_VERSION = 'w84';
+const WORKER_VERSION = 'w85';
 
 // Spanish (Venezuela) twin of EXTRACT_SYSTEM_PROMPT below: same event types,
 // same {value, evidence} rule, same JSON-only answer. Amounts are bare
@@ -2574,6 +2574,12 @@ async function waHandleMessage(env, msg, contactName) {
     return;
   }
   console.log('WA-IN', JSON.stringify({ type: msg.type, engine, len: heard.length, lang: loc.lang }));
+  // Privacy promise (privacy.html): one word deletes everything kept for this number.
+  if (/^\s*(delete|delete everything|delete my records|borrar|borrar todo|eliminar)\s*[.!]?\s*$/i.test(heard)) {
+    await env.COUNTMY_DB.prepare('DELETE FROM wa_entries WHERE phone_hash = ?').bind(phoneHash).run();
+    await waSend(env, from, loc.lang === 'es' ? 'Listo. Borré todo lo que guardaba de este número.' : 'Done. Everything kept for this number is deleted.');
+    return;
+  }
   if (waIsQuestion(heard, loc.lang)) { await waSend(env, from, await waSummary(env, phoneHash, loc.cur, loc.lang)); return; }
   const { text, events } = await waEventsFromText(heard, env, loc.lang, loc.country);
   if (!text) { await waSend(env, from, loc.lang === 'es' ? 'No oí nada. Habla cerca del teléfono y envía otra vez.' : 'I heard nothing. Talk close to the phone and send again.'); return; }

@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Privacy - CountMy</title>
+<meta name="description" content="CountMy privacy policy in plain words: what is kept, where, for how long, who can see it, and how to delete it.">
+<meta name="robots" content="index, follow">
+<link rel="canonical" href="https://countmy.app/privacy.html">
+<meta name="theme-color" content="#D9541A">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&family=Work+Sans:wght@400;500;600&display=swap">
+<style>
+:root{
+  --paper:#F8F3EC; --surface:#FFFFFF; --ink:#221A12; --ink-soft:#5C5142; --muted:#6E6353;
+  --rule:#E7DDCD; --flame:#D9541A; --flame-deep:#A83F12; --flame-soft:#FBE3D2;
+  --leaf:#1B7A43; --leaf-deep:#125C32; --leaf-soft:#E1F2E7;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#161009; --surface:#1F1810; --ink:#F3EBDF; --ink-soft:#CDBFA9; --muted:#93876F;
+    --rule:#372B1D; --flame:#F0713A; --flame-deep:#F79764; --flame-soft:#3A2415;
+    --leaf:#4CC585; --leaf-deep:#6FD79E; --leaf-soft:#15301F;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#161009; --surface:#1F1810; --ink:#F3EBDF; --ink-soft:#CDBFA9; --muted:#93876F;
+  --rule:#372B1D; --flame:#F0713A; --flame-deep:#F79764; --flame-soft:#3A2415;
+  --leaf:#4CC585; --leaf-deep:#6FD79E; --leaf-soft:#15301F;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:"Work Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;line-height:1.55}
+.wrap{max-width:480px;margin:0 auto;padding:20px 16px 50px}
+a.back{color:var(--muted);text-decoration:none;font-size:.86rem;font-weight:600}
+h1{font-family:"Manrope",sans-serif;font-size:1.4rem;font-weight:800;margin:14px 0 4px}
+.sub{color:var(--muted);font-size:.9rem;margin:0 0 24px}
+.card{background:var(--surface);border:1px solid var(--rule);border-radius:14px;padding:18px;margin-bottom:14px}
+.card h2{font-family:"Manrope",sans-serif;font-size:1.02rem;margin:0 0 8px;display:flex;align-items:center;gap:8px}
+.card p{margin:0 0 8px;font-size:.94rem;color:var(--ink-soft)}
+.card p:last-child{margin-bottom:0}
+.leaf-card{background:var(--leaf-soft);border-color:var(--leaf-soft)}
+.leaf-card h2,.leaf-card p{color:var(--leaf-deep)}
+footer{margin-top:24px;text-align:center;font-size:.8rem;color:var(--muted)}
+footer a{color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<a class="back" href="index.html">&larr; Back to CountMy</a>
+<h1>Privacy</h1>
+<p class="sub">Plain words. Last updated 19 September 2026.</p>
+
+<div class="card leaf-card">
+  <h2>&#x1F512; In one breath</h2>
+  <p>CountMy keeps the records you say to it and nothing else. No account, no password, no Mobile Money PIN, no Ghana Card, no contacts, no location. We do not sell or share your records. You can delete everything at any time.</p>
+</div>
+
+<div class="card">
+  <h2>The app (countmy.app)</h2>
+  <p>Your sales, costs and debts are saved on your own phone. A safety copy is kept on our server under your business name so it can be given back to you if the phone is lost.</p>
+  <p>When you speak, the recording is sent once to be understood, then discarded. It is not kept, not listened to by a person, and not used to train anything.</p>
+  <p>We count taps and screens without names (which button was pressed, how long the page took to load) to fix what is broken. No advertising trackers run inside the app.</p>
+</div>
+
+<div class="card">
+  <h2>WhatsApp</h2>
+  <p>If you send a voice note or a message to the CountMy WhatsApp number, the message is used to write your record and to reply with your totals. The voice note is discarded after it is understood.</p>
+  <p>Your phone number is not stored. It is turned into a scrambled code that cannot be turned back into a number, and your records are kept under that code. Nobody can look up a number and find records.</p>
+  <p>WhatsApp itself is run by Meta; their own terms apply to the messages on your phone.</p>
+</div>
+
+<div class="card">
+  <h2>Delete everything</h2>
+  <p>In the app: the records on your phone go when you clear the site's data in your browser, and a WhatsApp message to us with your business name removes the safety copy the same day. On WhatsApp: send the single word <b>delete</b> to the CountMy number and everything kept for that number is removed at once, and you get a reply saying so.</p>
+</div>
+
+<div class="card">
+  <h2>Who can see your records</h2>
+  <p>You. The safety copy can only be opened by someone who knows your exact business name. The people who run CountMy can see counts and error logs, not your records.</p>
+</div>
+
+<div class="card">
+  <h2>Where it runs</h2>
+  <p>CountMy is served from Cloudflare and GitHub. Speech is understood by Groq and Cloudflare. Each of them sees only the piece it needs for a moment and keeps nothing of yours.</p>
+</div>
+
+<footer>
+  Questions about privacy? <a href="https://wa.me/233209090019?text=Hello%2C%20I%20have%20a%20privacy%20question%20about%20CountMy">Message us on WhatsApp</a>. See also <a href="safety.html">Is CountMy safe?</a>
+</footer>
+
+</div>
+</body>
+</html>
