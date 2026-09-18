@@ -3190,13 +3190,29 @@ if (inAppBrowser()) {
     const top = document.createElement('div');
     top.className = 'iab-top'; top.id = 'iabTop';
     const android = isAndroid();
-    top.innerHTML = `<p>${t('Tap once to open CountMy in ' + (android ? 'Chrome' : 'Safari') + ' \u2014 your voice works there.', 'Toca una vez para abrir CountMy en ' + (android ? 'Chrome' : 'Safari') + ': ah\u00ed s\u00ed funciona la voz.')}</p>`
-      + `<a class="iab-open" id="iabTopBtn" href="${android ? (window.KYM_CHROME_URL || chromeIntentUrl()) : (window.KYM_SAFARI_URL || '#')}">${android ? t('Open in Chrome', 'Abrir en Chrome') : t('Open in Safari', 'Abrir en Safari')}</a>`
-      + `<p class="iab-sub">${android ? t('Same page. Free. No signup.', 'La misma p\u00e1gina. Gratis. Sin registro.') : t('If nothing opens: tap <b>\u22ef</b> at the top right, then <b>Open in Safari</b>.', 'Si no se abre: toca <b>\u22ef</b> arriba a la derecha y luego <b>Abrir en Safari</b>.')}</p>`;
+    const iosApp = window.KYM_IOS_APP || 'other';
+    if (android) {
+      // Facebook's Android browser has no microphone permission at all
+      // (Meta developer thread, 2024-25): the tap is unavoidable, so it is
+      // the whole first screen. Fallback link for phones without Chrome.
+      top.innerHTML = `<p>${t('Tap once to open CountMy in Chrome \u2014 your voice works there.', 'Toca una vez para abrir CountMy en Chrome: ah\u00ed s\u00ed funciona la voz.')}</p>`
+        + `<a class="iab-open" id="iabTopBtn" href="${window.KYM_CHROME_URL || chromeIntentUrl()}">${t('Open in Chrome', 'Abrir en Chrome')}</a>`
+        + `<p class="iab-sub">${t('Same page. Free. No signup.', 'La misma p\u00e1gina. Gratis. Sin registro.')}</p>`
+        + `<a class="iab-alt" id="iabAltBtn" href="${window.KYM_ANYBROWSER_URL || '#'}">${t('No Chrome? Open in another browser', '\u00bfSin Chrome? Abrir en otro navegador')}</a>`;
+    } else if (iosApp === 'instagram') {
+      top.innerHTML = `<p>${t('Tap once to open CountMy in Safari \u2014 your voice works best there.', 'Toca una vez para abrir CountMy en Safari: ah\u00ed la voz funciona mejor.')}</p>`
+        + `<a class="iab-open" id="iabTopBtn" href="${window.KYM_IG_URL || '#'}">${t('Open in Safari', 'Abrir en Safari')}</a>`
+        + `<p class="iab-sub">${t('If nothing opens: tap <b>\u22ef</b> at the top right, then <b>Open in external browser</b>. Or just tap the orange button below \u2014 voice works here too.', 'Si no se abre: toca <b>\u22ef</b> arriba a la derecha y luego <b>Abrir en el navegador</b>. O toca el bot\u00f3n naranja abajo: aqu\u00ed tambi\u00e9n funciona la voz.')}</p>`;
+    } else {
+      // Facebook / Messenger on iPhone: no way out but the menu; the mic
+      // does work here, so the page stays fully usable and says so.
+      top.innerHTML = `<p>${t('Voice works here. For the best experience, tap <b>\u22ef</b> at the top right, then <b>Open in Safari</b>.', 'La voz funciona aqu\u00ed. Para lo mejor, toca <b>\u22ef</b> arriba a la derecha y luego <b>Abrir en Safari</b>.')}</p>`;
+    }
     const first = document.querySelector('.pitch') || document.getElementById('homeGreeting');
     if (first && first.parentNode) first.parentNode.insertBefore(top, first.nextSibling);
-    document.getElementById('iabTopBtn').addEventListener('click', () => { ping(android ? 'iab_tap' : 'iab_tap_ios'); track('iab_tap'); });
-    showTypedChoices();
+    const tb = document.getElementById('iabTopBtn'); if (tb) tb.addEventListener('click', () => { ping(android ? 'iab_tap' : 'iab_tap_ios'); track('iab_tap'); });
+    const ab = document.getElementById('iabAltBtn'); if (ab) ab.addEventListener('click', () => { ping('iab_tap'); track('iab_tap_any'); });
+    if (android) showTypedChoices();
   } catch (e) { /* never block */ }
 }
 try { if (new URLSearchParams(location.search).get('from') === 'iab' && !inAppBrowser()) { ping(isAndroid() ? 'iab_escaped' : 'iab_escaped_ios'); track('iab_escaped'); } } catch (e) { /* optional */ }

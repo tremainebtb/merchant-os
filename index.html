@@ -56,7 +56,7 @@
      app.js?v=. Lets anyone - a reviewer, a tester in Kumasi, a future session -
      answer "which CountMy am I looking at?" from view-source or the console,
      the same way the Worker answers with "wv". -->
-<meta name="countmy-version" content="v136">
+<meta name="countmy-version" content="v137">
 <!-- Real finding, 28 Aug: the bare "CountMy" title carried no keywords at all
      for what people actually search - a free sales/expense ledger for
      Ghanaian shop owners. The <title> tag is the single strongest on-page
@@ -485,6 +485,7 @@ input[type="number"]{-moz-appearance:textfield}
 .iab-top p{margin:0 0 10px;font-size:1.05rem;font-weight:700;color:#fff}
 .iab-top .iab-open{background:var(--flame);font-size:1.25rem;padding:18px 16px}
 .iab-top .iab-sub{color:rgba(255,255,255,.85);margin:10px 0 0;font-size:.9rem}
+.iab-top .iab-alt{display:inline-block;margin-top:8px;color:#fff;font-size:.9rem;text-decoration:underline}
 .iab-note input{display:none}
 .home-mic-status.heard{color:var(--leaf-deep);font-weight:600}
 .home-mic-status.err{color:var(--brick);font-weight:600}
@@ -595,7 +596,17 @@ input[type="number"]{-moz-appearance:textfield}
       // renders, and the very first thing on it is one big button that
       // opens Chrome / Safari on a tap, which those browsers do honour.
       window.KYM_IAB = /Android/i.test(ua) ? 'android' : (/iPhone|iPad|iPod/i.test(ua) ? 'ios' : 'other');
-      window.KYM_CHROME_URL = 'intent://' + target + '#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=' + encodeURIComponent(location.protocol + '//' + location.host + location.pathname + '?' + q.toString()) + ';end';
+      // Fallback (no Chrome on the phone) comes back here with ?iab=stay,
+      // counted as iab_stay; a second, package-less intent lets the phone's
+      // own browser chooser open whatever browser it has.
+      var fb = new URLSearchParams(location.search); fb.set('iab', 'stay');
+      var back = encodeURIComponent(location.protocol + '//' + location.host + location.pathname + '?' + fb.toString());
+      window.KYM_CHROME_URL = 'intent://' + target + '#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=' + back + ';end';
+      window.KYM_ANYBROWSER_URL = 'intent://' + target + '#Intent;scheme=https;action=android.intent.action.VIEW;category=android.intent.category.BROWSABLE;S.browser_fallback_url=' + back + ';end';
+      // iPhone: Instagram honours its own tapped "open externally" scheme;
+      // Facebook and Messenger have none (Aug 2026), only the menu.
+      window.KYM_IOS_APP = /Instagram/i.test(ua) ? 'instagram' : (/FBAN|FBAV|FB_IAB|Messenger/i.test(ua) ? 'facebook' : 'other');
+      window.KYM_IG_URL = 'instagram://extbrowser/?url=' + encodeURIComponent('https://' + target);
       window.KYM_SAFARI_URL = 'x-safari-https://' + target;
     } catch (e) { /* never block the page */ }
   })();
@@ -1061,7 +1072,7 @@ input[type="number"]{-moz-appearance:textfield}
      string is what forces a fresh script fetch even before any service worker logic
      runs, independent of it. Found live 27 Aug: without this, an already-visited
      browser can keep running old code from plain HTTP cache regardless of SW strategy. -->
-<script src="app.js?v=136"></script>
+<script src="app.js?v=137"></script>
 
 </body>
 </html>
