@@ -179,15 +179,19 @@ function stopSpeaking() {
 }
 async function playClip(text) {
   const key = ttsKey(text);
+  const tok = ttsToken; // stopSpeaking() bumps this: a clip that arrives late must stay silent
   let buf = ttsMem.get(key);
   if (!buf) {
     const res = await ttsFetch(key);
+    if (tok !== ttsToken) return;
     if (!res || !res.ok) throw new Error('tts ' + (res && res.status));
     try { buf = await ttsDecode(await res.arrayBuffer()); } catch (e) { ttsForget(key); throw e; }
     if (!buf) throw new Error('no buffer');
     if (text.length <= 40) ttsMem.set(key, buf); // only short fixed phrases stay in memory
   }
+  if (tok !== ttsToken) return;
   if (ttsCtx.state !== 'running') { await Promise.race([ttsCtx.resume(), new Promise(r => setTimeout(r, 1500))]); }
+  if (tok !== ttsToken) return;
   if (ttsCtx.state !== 'running') throw new Error('phone');
   const src = ttsCtx.createBufferSource();
   src.buffer = buf; src.connect(ttsCtx.destination);
@@ -522,7 +526,7 @@ function showOpenInChrome(reason) {
       ping('iab_note'); track('iab_note', { bytes: f.size, type: f.type });
       pendingVoiceSource = 'voice';
       setMicStatus(t('Listening to your voice note\u2026', 'Escuchando tu nota de voz\u2026'), null, 'homeMicStatus');
-      await processVoiceBlob(f, 'homeMicStatus', 0, f.size);
+      await processVoiceBlob(f, 'homeMicStatus', 5000, f.size);
       noteIn.value = '';
     });
   }
@@ -742,21 +746,30 @@ async function transcribeAndExtract(blob, heardText) {
   if (window.KYM_IS_OWNER_DEVICE) form.append('dbg', 'owner'); // Bobby's own phones: transcript goes to the server log so mishearings can be read and fixed
   let res, data;
   try {
-    ({ res, data } = await postToApi('/transcribe-and-extract', form));
-    // One quiet retry on a server hiccup (a rare Cloudflare 1101 was seen on
-    // 17 Sep); the person never hears about a failure that heals in 2 s.
+    try {
+      ({ res, data } = await postToApi('/transcribe-and-extract', form));
+    } catch (first) {
+      // One quiet retry on a server hiccup (a rare Cloudflare 1101 HTML page
+      // was seen on 17 Sep); the person never hears about a failure that
+      // heals in 2 s.
+      if (!(first.status >= 500)) throw first;
+      track('mic_retry', { http: first.status });
+      ({ res, data } = await postToApi('/transcribe-and-extract', form));
+    }
     if (res && res.status >= 500) { track('mic_retry', { http: res.status }); ({ res, data } = await postToApi('/transcribe-and-extract', form)); }
   } catch (err) {
     // 17 Sep: a fetch that never reached the server is a data/connection
     // problem, not "could not hear" - say so, and count it separately.
-    const e = new Error(err.name === 'AbortError' || err.status ? plainApiError(err, null, null, '') : 'Could not send your voice \u2014 please check your data connection and try again, or type it below.');
+    const e = new Error(err.name === 'AbortError' ? plainApiError(err, null, null, '') : err.status ? (err.message || plainApiError(null, { status: err.status }, null, '')) : 'Could not send your voice \u2014 please check your data connection and try again, or type it below.');
     e.cls = err.name === 'AbortError' ? 'mic_timeout' : (err.status ? 'mic_server' : 'mic_network');
     e.http = err.status || 0;
+    e.quota = !!(data && /daily free allocation|quota/i.test(String(data.detail || data.error || '')));
     throw e;
   }
   if (!res.ok && !data.text) {
     const e = new Error(plainApiError(null, res, data, 'The server could not read that recording \u2014 please try again, or type it below.'));
     e.cls = 'mic_server'; e.http = res.status;
+    e.quota = /daily free allocation|quota/i.test(String((data && (data.detail || data.error)) || ''));
     throw e;
   }
   return { text: data.text || '', events: Array.isArray(data.events) ? data.events : [], via: 'whisper' };
@@ -1059,9 +1072,10 @@ function nameKey(s) {
 function sameName(a, b) {
   const x = nameKey(a), y = nameKey(b);
   if (!x || !y) return false;
-  if (x === y || x.startsWith(y) || y.startsWith(x)) return true;
-  const fx = x.split(/\s+/)[0], fy = y.split(/\s+/)[0];
-  return fx.length >= 3 && fx === fy;
+  if (x === y) return true;
+  // "Ama" matches "Ama Serwaa" (a whole word of it), never "Amadu"
+  const wx = x.split(/\s+/), wy = y.split(/\s+/);
+  return wx[0].length >= 3 && wx[0] === wy[0];
 }
 async function applyVoicePayment(p) {
   const amount = Number(p.price) || 0;
@@ -1071,6 +1085,12 @@ async function applyVoicePayment(p) {
   const open = e => Math.max(0, (Number(e.amount) || 0) - (Number(e.paid) || 0));
   const entries = await getAllEntries();
   const matches = placeholder ? [] : entries.filter(e => e.type === 'debt_in' && open(e) > 0 && sameName(e.item, name)).sort((x, y) => x.ts - y.ts);
+  const distinct = [...new Set(matches.map(m => nameKey(m.item)))];
+  if (distinct.length > 1) {
+    // two different people share the first name: never guess with money
+    const names = [...new Set(matches.map(m => m.item))];
+    return t(`${name} paid ${fmtSay(amount, cur)}. Which ${name}: ${names.join(' or ')}? Please tap that person below and use Paid small small.`, `${name} pag\u00f3 ${fmtSay(amount, cur)}. \u00bfCu\u00e1l ${name}: ${names.join(' o ')}? Toca a esa persona abajo y usa Abon\u00f3 una parte.`);
+  }
   const spoken = matches.length ? matches[0].item : name;
   if (amount <= 0) return t(`I heard ${spoken || 'a payment'} but not the amount - please tap the debt below and enter it.`, `Escuch\u00e9 ${spoken || 'un pago'} pero no el monto. Toca la deuda abajo y an\u00f3talo.`);
   if (!matches.length) {
@@ -1371,12 +1391,16 @@ async function recognizeWithPhone(btn, statusId, opts) {
     await processVoiceBlob(null, statusId, 0, 0, text);
     return;
   }
+  if (sttCancelled) { sttCancelled = false; setMicStatus('', null, statusId); return; } // the person tapped to stop: not a failure, no second take
   track('stt_browser_empty', { code: errCode || 'no_words' });
-  if (errCode === 'not-allowed' || errCode === 'service-not-allowed') {
+  if (errCode === 'not-allowed') {
     micFail(t('This phone said no to the microphone. Please go to your phone\u2019s Settings, find your browser, and turn the microphone on. Or type it below.', `El celular no dio permiso al micr\u00f3fono. Ve a ${tc('Configuraci\u00f3n', 'Ajustes')}, busca tu navegador y prende el micr\u00f3fono. O escr\u00edbelo abajo.`), 'mic_denied', statusId);
     return;
   }
-  noteBrowserSttFailure();
+  if (errCode === 'service-not-allowed' || errCode === 'language-not-supported' || errCode === 'audio-capture') {
+    // the phone's recogniser is off (Siri & Dictation off, or no such language): the recorder still works
+    try { localStorage.setItem('kym_stt_server_until', String(Date.now() + 7 * 86400000)); } catch (e) { /* optional */ }
+  } else noteBrowserSttFailure();
   // second ear, same tap: record the words for the server
   await toggleMic(btn, statusId, { recorder: true, again: true });
 }
@@ -1427,7 +1451,14 @@ function stopMicLevelMeter() {
 // One path for every clip, however it was captured: the page's own
 // recorder, or (18 Sep) a voice note recorded by the phone's recorder app
 // inside Facebook's browser, where the page cannot use the microphone.
+let voiceBusy = false, sttSwitchedThisTake = false, sttCancelled = false;
 async function processVoiceBlob(blob, statusId, recordedMs, bytes, heardText) {
+  voiceBusy = true; voiceSpeechPrefix = '';
+  try {
+    await processVoiceBlobInner(blob, statusId, recordedMs, bytes, heardText);
+  } finally { voiceBusy = false; }
+}
+async function processVoiceBlobInner(blob, statusId, recordedMs, bytes, heardText) {
   try {
         setMicStatus(t('Working out what happened\u2026', 'Anotando lo que dijiste\u2026'), null, statusId);
         let { text: heard, events: heardEvents, via } = await transcribeAndExtract(blob, heardText);
@@ -1540,21 +1571,26 @@ async function processVoiceBlob(blob, statusId, recordedMs, bytes, heardText) {
           }
         }
       } catch (err) {
-        if (err.cls === 'mic_server' && err.http >= 500 && blob && blob.size && browserSttSupported() && !phoneSttPreferred()) {
+        if (err.cls === 'mic_server' && err.quota && blob && blob.size && browserSttSupported() && !sttSwitchedThisTake) {
+          // the server said its daily allowance is gone: the phone's own ear for the rest of the day, tried once now
+          sttSwitchedThisTake = true;
           usePhoneEarUntilMidnight();
           track('stt_switch_phone', { http: err.http });
           const btn = document.getElementById('homeMicBtn');
           if (btn) { await recognizeWithPhone(btn, statusId, { again: true }); return; }
         }
-        track('mic_error', { reason: err.cls || 'transcribe_failed', http: err.http || 0, ms: recordedMs, bytes });
-        micFail(err.message || t('Could not hear that \u2014 please try again, or type it below.', 'No te escuch\u00e9 bien. Int\u00e9ntalo otra vez, o escr\u00edbelo abajo.'), err.cls || 'mic_server', statusId);
+        track('mic_error', { reason: err.cls || 'app_error', http: err.http || 0, ms: recordedMs, bytes });
+        // F7: only our own error texts are spoken; anything else is an app fault, never read aloud
+        micFail(err.cls ? (err.message || t('Could not hear that \u2014 please try again, or type it below.', 'No te escuch\u00e9 bien. Int\u00e9ntalo otra vez, o escr\u00edbelo abajo.')) : t('Something went wrong on the phone \u2014 please check the list below, or try again.', 'Algo fall\u00f3 en el celular. Revisa la lista abajo, o int\u00e9ntalo otra vez.'), err.cls || 'mic_server', statusId);
   }
 }
 let micArming = false;
 let askMode = false;
 async function toggleMic(btn, statusId, opts) {
-  if (micArming) return; // a second tap while "Speak now" is playing
-  if (bstt) { try { bstt.stop(); } catch (e) { /* fine */ } return; }
+  if (micArming) { askMode = false; return; } // a second tap while "Speak now" is playing
+  if (bstt) { sttCancelled = true; try { bstt.stop(); } catch (e) { /* fine */ } askMode = false; return; }
+  if (voiceBusy) { askMode = false; speakShort(t('One moment.', 'Un momento.')); return; } // F4: a tap while the last take is still being worked out
+  if (!(opts && opts.recorder)) { sttSwitchedThisTake = false; sttCancelled = false; }
   if (!(opts && opts.recorder) && phoneSttPreferred()) return recognizeWithPhone(btn, statusId, opts);
   if (!micSupported()) {
     if (inAppBrowser()) showOpenInChrome('failed');
@@ -1563,14 +1599,15 @@ async function toggleMic(btn, statusId, opts) {
   }
   if (mediaRecorder && mediaRecorder.state === 'recording') {
     mediaRecorder.stop();
+    askMode = false;
     return;
   }
   micArming = true;
   pendingHeard = null;
+  let stream = null;
   try {
     // Market noise (18 Sep): ask the phone for its own noise suppression,
     // echo cancellation and automatic gain; phones that lack them ignore it.
-    let stream;
     try { stream = await navigator.mediaDevices.getUserMedia({ audio: { noiseSuppression: true, echoCancellation: true, autoGainControl: true, channelCount: 1 } }); }
     catch (e) { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
     if (inAppBrowser() && !window.KYM_IAB_MIC_OK) { window.KYM_IAB_MIC_OK = true; ping('iab_mic_ok'); }
@@ -1689,7 +1726,11 @@ async function toggleMic(btn, statusId, opts) {
       : err.name === 'NotFoundError'
       ? t('This phone has no microphone available. Please type it below.', 'Este celular no tiene micr\u00f3fono disponible. Escr\u00edbelo abajo.')
       : t('Could not reach the microphone \u2014 please type it below.', 'No pude usar el micr\u00f3fono. Escr\u00edbelo abajo.');
-    micArming = false;
+    micArming = false; askMode = false;
+    try { if (stream) stream.getTracks().forEach(tr => tr.stop()); } catch (e) { /* fine */ }
+    stopMicLevelMeter();
+    btn.classList.remove('recording');
+    const lbl = btn.querySelector('.home-mic-label'); if (lbl && lbl.dataset.idle) lbl.textContent = lbl.dataset.idle;
     if (iab) showOpenInChrome('failed');
     micFail(msg, err.name === 'NotAllowedError' ? 'mic_denied' : err.name === 'NotFoundError' ? 'mic_nomic' : 'mic_busy', statusId);
     track('mic_error', { reason: err.name || 'getusermedia_failed', iab: iab ? 1 : 0 });
