@@ -56,7 +56,7 @@
      app.js?v=. Lets anyone - a reviewer, a tester in Kumasi, a future session -
      answer "which CountMy am I looking at?" from view-source or the console,
      the same way the Worker answers with "wv". -->
-<meta name="countmy-version" content="v144">
+<meta name="countmy-version" content="v145">
 <!-- Real finding, 28 Aug: the bare "CountMy" title carried no keywords at all
      for what people actually search - a free sales/expense ledger for
      Ghanaian shop owners. The <title> tag is the single strongest on-page
@@ -481,7 +481,7 @@ input[type="number"]{-moz-appearance:textfield}
 .iab-banner .iab-sub{font-size:.88rem;font-weight:400;color:var(--ink-soft);margin:6px 0 0}
 .iab-open{display:block;background:var(--flame);color:#fff;text-decoration:none;font-weight:800;font-size:1.1rem;border-radius:14px;padding:14px 16px}
 .iab-note{display:block;margin:10px 0 0;background:var(--leaf-soft);color:var(--leaf-deep);font-weight:800;font-size:1.05rem;border-radius:14px;padding:13px 16px;cursor:pointer}
-.iab-top{background:var(--navy);color:#fff;border-radius:18px;padding:16px;margin:0 0 16px;text-align:center}
+.iab-top{background:#1E2F55;color:#fff;border-radius:18px;padding:16px;margin:0 0 16px;text-align:center} /* fixed navy: the --navy token flips pale in dark mode and white text on it vanished (real screenshot, 19 Sep) */
 .iab-top p{margin:0 0 10px;font-size:1.05rem;font-weight:700;color:#fff}
 .iab-top .iab-open{background:var(--flame);font-size:1.25rem;padding:18px 16px}
 .iab-top .iab-sub{color:rgba(255,255,255,.85);margin:10px 0 0;font-size:.9rem}
@@ -1084,7 +1084,7 @@ body.iab-first .home-mic-btn{opacity:.55}
      string is what forces a fresh script fetch even before any service worker logic
      runs, independent of it. Found live 27 Aug: without this, an already-visited
      browser can keep running old code from plain HTTP cache regardless of SW strategy. -->
-<script src="app.js?v=144"></script>
+<script src="app.js?v=145"></script>
 
 </body>
 </html>
