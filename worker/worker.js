@@ -1064,7 +1064,7 @@ async function handleTranscribe(request, env) {
 // 50 is a transcription/parsing error, not a fabrication) - evidence-checking
 // targets fabrication specifically, not every possible error; the review UI is
 // still what catches a wrong-but-grounded number.
-const WORKER_VERSION = 'w78';
+const WORKER_VERSION = 'w79';
 
 // Spanish (Venezuela) twin of EXTRACT_SYSTEM_PROMPT below: same event types,
 // same {value, evidence} rule, same JSON-only answer. Amounts are bare
@@ -1539,6 +1539,7 @@ function spanishPrep(text, country) {
   t = t.replace(/\b(al|a la|el|la)\s+de\s+(la|el|los|las)\s+/gi, '');
   t = t.replace(/\b(un|1)\s+(dolar|d\u00f3lar)(c)?ito\s+de\s+(\w+)/gi, '$4 1 d\u00f3lar').replace(/\b(un|1)\s+(dolar|d\u00f3lar)(c)?ito\b/gi, '1 d\u00f3lar').replace(/\b(\d+)\s+(dolar|d\u00f3lar)(c)?itos\b/gi, '$1 d\u00f3lares').replace(/\bbolitos?\b/gi, 'bol\u00edvares');
   t = t.replace(/\b(por|con|en)\s+(nequi|daviplata|bancolombia|pago\s+m[o\u00f3]vil|zelle|transferencia|efectivo|binance|usdt)\b/gi, '');
+  t = t.replace(/\b(un|una)\s+(d[o\u00f3]lar|bolo|bol[i\u00ed]var|peso|real|verde|luca)\b/gi, '1 $2');
   t = t.replace(/\s*,?\s*y\s+me\s+pag(o|\u00f3)\s*\.?\s*$/i, '');
   return t;
 }
@@ -1899,6 +1900,7 @@ function finalizeEvents(events, text, lang, country) {
   if (lang === 'es' && !PAY_ES.test(tt) && /\b(le|les)\s+fie\b|\bfie\s+a\b|\bfiado\s+a\b|\bme\s+(quedo|queda)\s+debiendo\b/.test(tt)) {
     out.forEach(e => { if (e.type === 'debt_out') { e.type = 'debt_in'; e.customer = e.supplier; delete e.supplier; } });
   }
+  if (lang === 'es') out = out.filter(e => !(e.customer && /^(me\s+)?(pagaron|pago|pag\u00f3|abonaron|abono|abon\u00f3|cancelaron)$/i.test(String(e.customer).trim())));
   // "me pagaron 200 bolívares de una arepa" / "me pagaron 20 verdes de café y pan": a sale, not a debt
   if (lang === 'es' && !out.length && /\bme\s+pagaron\b/.test(tt) && nums.length === 1) {
     const m = /\b(?:de|por)\s+(?:una?|unos?|unas?|el|la|los|las)?\s*([a-z\u00e1\u00e9\u00ed\u00f3\u00fa\u00f1][a-z\u00e1\u00e9\u00ed\u00f3\u00fa\u00f1 ]{1,40}?)\s*[.,]?\s*$/.exec(tt.replace(/\b(verdes?|d[o\u00f3]lares?|bs|bolos?|bol[i\u00ed]vares?|pesos?)\b/g, ''));
