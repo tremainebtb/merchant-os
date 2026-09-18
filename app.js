@@ -1430,15 +1430,23 @@ async function toggleMic(btn, statusId) {
     // Auto-stop (17 Sep): nobody reads "tap again when you're done", and a
     // recording that never ends is the exact "it can't hear me". Stop 1.8 s
     // after the person goes quiet (once they have spoken), or at 12 s flat.
+    // Real bug, 18 Sep (Bobby: "nothing records on any device"): this timer
+    // used to be started HERE, before the "Speak now" prompt, so its first
+    // tick saw a recorder that had not started yet and cancelled itself.
+    // The recording then never ended on its own. It now starts right after
+    // mediaRecorder.start() below.
     const MAX_MS = 12000, QUIET_MS = 1800;
-    const autoStop = setInterval(() => {
-      if (!mediaRecorder || mediaRecorder.state !== 'recording') { clearInterval(autoStop); return; }
-      const t = Date.now();
-      if (t - recordingStartedAt >= MAX_MS || (!micMeterLive && t - recordingStartedAt >= 7000) || (micSpeechAt && t - micSpeechAt >= 700 && t - micLastLoudAt >= QUIET_MS)) {
-        clearInterval(autoStop);
-        try { mediaRecorder.stop(); } catch (e) { /* already stopped */ }
-      }
-    }, 150);
+    let autoStop = null;
+    const armAutoStop = () => {
+      autoStop = setInterval(() => {
+        if (!mediaRecorder || mediaRecorder.state !== 'recording') { clearInterval(autoStop); return; }
+        const t = Date.now();
+        if (t - recordingStartedAt >= MAX_MS || (!micMeterLive && t - recordingStartedAt >= 7000) || (micSpeechAt && t - micSpeechAt >= 700 && t - micLastLoudAt >= QUIET_MS)) {
+          clearInterval(autoStop);
+          try { mediaRecorder.stop(); } catch (e) { /* already stopped */ }
+        }
+      }, 150);
+    };
     mediaRecorder.onstop = async () => {
       clearInterval(autoStop);
       const heardPeak = micPeak, meterWasLive = micMeterLive;
@@ -1490,6 +1498,8 @@ async function toggleMic(btn, statusId) {
     stopSpeaking(); // never let the prompt run into the recording
     try { if (navigator.vibrate) navigator.vibrate(40); } catch (e) { /* optional */ }
     mediaRecorder.start();
+    recordingStartedAt = Date.now();
+    armAutoStop();
     micArming = false;
     track('mic_start');
   } catch (err) {
