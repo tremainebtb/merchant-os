@@ -2515,7 +2515,7 @@ async function updateOfflineBadge() {
   let reallyOff = true;
   try {
     const ctl = new AbortController(); const tm = setTimeout(() => ctl.abort(), 4000);
-    const r = await fetch('manifest.webmanifest?ping=' + Date.now(), { cache: 'no-store', signal: ctl.signal });
+    const r = await fetch('manifest.json?ping=' + Date.now(), { cache: 'no-store', signal: ctl.signal });
     clearTimeout(tm);
     if (r.ok) { reallyOff = false; track('online_flag_wrong'); }
   } catch (e) { /* genuinely offline */ }
