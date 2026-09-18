@@ -658,7 +658,14 @@ function parseHeardText(type, raw) {
     .trim();
   const v = {};
   if (type === 'sale') {
-    if (numbers.length >= 2) { v.qty = numbers[0]; v.price = numbers[1]; }
+    if (numbers.length >= 2) {
+      v.qty = numbers[0]; v.price = numbers[1];
+      // "3 bowls of waakye for 60 cedis" / "tres refrescos por 6" is the total
+      // for all of them; "at 120 each" / "a 2 cada uno" is the price of one.
+      const eachSaid = ES ? /\b(cada|c\/u|la unidad|por unidad)\b/i.test(text) : /\b(each|every one|apiece|per\s+\w+)\b/i.test(text);
+      const totalSaid = ES ? new RegExp('\\b(por|en|total)\\s+' + numbers[1] + '\\b', 'i').test(text) : new RegExp('\\b(for|total|all for|altogether)\\s+' + numbers[1] + '\\b', 'i').test(text);
+      if (totalSaid && !eachSaid && v.qty > 0 && numbers[1] % v.qty === 0) v.price = numbers[1] / v.qty;
+    }
     else if (numbers.length === 1) { v.price = numbers[0]; v.qty = 1; }
     v.item = cleaned;
   } else {
@@ -1471,8 +1478,9 @@ async function processVoiceBlob(blob, statusId, recordedMs, bytes, heardText) {
           // activeType branch. Now tried here too before giving up, guessing
           // the entry type from the words actually heard.
           const guessedType = /\bowe(s)?\b/i.test(heard) && /\bi\s+owe\b/i.test(heard) ? 'debt_out'
-            : /\bowe(s)?\b/i.test(heard) ? 'debt_in'
-            : /\b(spent|bought|paid for)\b/i.test(heard) ? 'expense'
+            : /\bowe(s)?\b/i.test(heard) || /\b(dey owe|me debe|fiao|fiado|fi\u00e9|quedo debiendo|qued\u00f3 debiendo|go pay|will pay)\b/i.test(heard) ? 'debt_in'
+            : /\b(spent|bought|paid for|pagu\u00e9|compr\u00e9|gast\u00e9|pague|compre|gaste)\b/i.test(heard) ? 'expense'
+            : /\b(transport|trotro|tro tro|fare|fuel|petrol|diesel|rent|light bill|electricity|water bill|airtime|data|chop money|chop|food money|wages|salary|worker|kayayo|porter|loading|offloading|market toll|toll|tax|levy|ticket|repair|stock|goods|supplies|arriendo|alquiler|luz|agua|gasolina|transporte|pasaje|flete|sueldo|impuesto|mercanc\u00eda|mercancia|surtido)\b/i.test(heard) ? 'expense'
             : 'sale';
           const parsed = parseHeardText(guessedType, heard);
           if (parsed.price) {
