@@ -877,20 +877,36 @@ async function groqTranscribe(audioBytes, audioType, env, lang, country) {
   } catch (err) { console.log('groq stt threw', String(err).slice(0, 120)); return null; }
   finally { clearTimeout(tm); }
 }
-async function groqChat(messages, env, temperature) {
-  if (!env.GROQ_API_KEY) return null;
+// Free-tier limits (read from Groq's own 429s, 18 Sep): ~8,000 tokens a
+// minute per model. Each call is ~1,400 tokens, so a burst of six in a
+// minute trips it; the 120B model has its own bucket, and one short wait
+// covers the rest. Real traffic is nowhere near this; stress tests are.
+async function groqChatOnce(model, messages, env, temperature) {
   const ctl = new AbortController(); const tm = setTimeout(() => ctl.abort(), 20000);
   try {
     const r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST', headers: { Authorization: 'Bearer ' + env.GROQ_API_KEY, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model: 'openai/gpt-oss-20b', messages, temperature, max_tokens: 900, reasoning_effort: 'low' }), signal: ctl.signal
+      body: JSON.stringify({ model, messages, temperature, max_tokens: 900, reasoning_effort: 'low' }), signal: ctl.signal
     });
     const j = await r.json().catch(() => ({}));
-    if (!r.ok) { console.log('groq chat fail', r.status, JSON.stringify(j).slice(0, 200)); return null; }
+    if (!r.ok) { console.log('groq chat fail', model, r.status, JSON.stringify(j).slice(0, 160)); return { status: r.status }; }
     const content = j && j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content;
-    return typeof content === 'string' ? { response: content } : null;
-  } catch (err) { console.log('groq chat threw', String(err).slice(0, 120)); return null; }
+    return typeof content === 'string' ? { response: content } : { status: 0 };
+  } catch (err) { console.log('groq chat threw', String(err).slice(0, 120)); return { status: 0 }; }
   finally { clearTimeout(tm); }
+}
+async function groqChat(messages, env, temperature) {
+  if (!env.GROQ_API_KEY) return null;
+  const models = ['openai/gpt-oss-20b', 'openai/gpt-oss-120b'];
+  for (let attempt = 0; attempt < 2; attempt++) {
+    for (const model of models) {
+      const r = await groqChatOnce(model, messages, env, temperature);
+      if (r && r.response !== undefined) return r;
+      if (r && r.status !== 429) return null; // a real failure: let Cloudflare try
+    }
+    await new Promise(res => setTimeout(res, 2500));
+  }
+  return null;
 }
 
 async function transcribeAudio(audioBytes, audioType, env, lang, country) {
@@ -1048,7 +1064,7 @@ async function handleTranscribe(request, env) {
 // 50 is a transcription/parsing error, not a fabrication) - evidence-checking
 // targets fabrication specifically, not every possible error; the review UI is
 // still what catches a wrong-but-grounded number.
-const WORKER_VERSION = 'w67';
+const WORKER_VERSION = 'w68';
 
 // Spanish (Venezuela) twin of EXTRACT_SYSTEM_PROMPT below: same event types,
 // same {value, evidence} rule, same JSON-only answer. Amounts are bare
