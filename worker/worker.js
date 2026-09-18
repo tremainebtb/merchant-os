@@ -199,7 +199,7 @@ async function handlePing(request, env) {
   // share_shop / shop_created added 16 Sep for the spread-loop numbers.
   // mic_* and iab (17 Sep): one name per voice-failure class, never content.
   if (!['open', 'save', 'share_shop', 'shop_created', 'ask', 'tap', 'install', 'voice_en', 'voice_twi', 'voice_pidgin',
-    'iab', 'iab_auto', 'iab_auto_ios', 'iab_stay', 'iab_escaped', 'iab_escaped_ios', 'iab_mic_ok', 'iab_note', 'mic_denied', 'mic_nomic', 'mic_busy', 'mic_empty', 'mic_silent', 'mic_timeout', 'mic_server', 'mic_network'].includes(eventType)) {
+    'iab', 'stt_browser', 'stt_whisper', 'iab_auto', 'iab_auto_ios', 'iab_stay', 'iab_escaped', 'iab_escaped_ios', 'iab_mic_ok', 'iab_note', 'mic_denied', 'mic_nomic', 'mic_busy', 'mic_empty', 'mic_silent', 'mic_timeout', 'mic_server', 'mic_network'].includes(eventType)) {
     return cors(new Response(JSON.stringify({ error: 'invalid event' }), { status: 400 }));
   }
   const shopHash = (await sha256Hex(shop)).slice(0, 32);
@@ -996,7 +996,7 @@ async function handleTranscribe(request, env) {
 // 50 is a transcription/parsing error, not a fabrication) - evidence-checking
 // targets fabrication specifically, not every possible error; the review UI is
 // still what catches a wrong-but-grounded number.
-const WORKER_VERSION = 'w64';
+const WORKER_VERSION = 'w65';
 
 // Spanish (Venezuela) twin of EXTRACT_SYSTEM_PROMPT below: same event types,
 // same {value, evidence} rule, same JSON-only answer. Amounts are bare
@@ -1936,6 +1936,7 @@ async function handleExtract(request, env) {
   if (!text) return cors(new Response(JSON.stringify({ error: 'no text received' }), { status: 400 }));
   const lang = (body && body.lang) === 'es' ? 'es' : 'en';
   const country = String((body && body.country) || '').toUpperCase().slice(0, 2);
+  text = repairTranscript(text, lang, country);
   if (lang === 'es') { text = spanishPrep(text, country); text = spanishNumbersToDigits(text); if (country === 'CO') text = colombianMoneyToDigits(text); text = spanishPrep(text, country); }
   else text = englishNumbersToDigits(text);
   const result = (lang === 'es' && /^\s*[\u00bf]?\s*(a c[o\u00f3]mo|cu[a\u00e1]nt[oa]s?|qui[e\u00e9]n|qu[e\u00e9])\b/i.test(text) && !/\d/.test(text)) ? { events: [] } : await extractFromText(text, env, lang, country);

@@ -684,7 +684,24 @@ function fillFields(values) {
 // users this app is built for. This hits one combined endpoint
 // (worker.js handleTranscribeAndExtract) that does both AI steps back-to-
 // back on Cloudflare's edge and returns both results together.
-async function transcribeAndExtract(blob) {
+async function transcribeAndExtract(blob, heardText) {
+  // 18 Sep: the phone's own recogniser (Google's on Android Chrome, Apple's
+  // on iPhone) is free and unlimited. When it produced words, only the
+  // cheap text step runs on the server; Whisper is kept for phones without
+  // it and for takes it could not make out.
+  if (heardText) {
+    let res, data;
+    try {
+      ({ res, data } = await postJson('/extract', { text: heardText, lang: LANG, country: COUNTRY }));
+    } catch (err) {
+      const e = new Error(err.name === 'AbortError' ? plainApiError(err, null, null, '') : 'Could not send your voice \u2014 please check your data connection and try again, or type it below.');
+      e.cls = err.name === 'AbortError' ? 'mic_timeout' : 'mic_network'; e.http = err.status || 0;
+      throw e;
+    }
+    if (res.ok) return { text: heardText, events: Array.isArray(data.events) ? data.events : [], via: 'browser' };
+    // the text step failed (quota, hiccup): fall through to the audio path if we have a clip
+    if (!blob || !blob.size) { const e = new Error(plainApiError(null, res, data, 'The server could not read that \u2014 please try again, or type it below.')); e.cls = 'mic_server'; e.http = res.status; throw e; }
+  }
   const ext = blob.type.indexOf('mp4') !== -1 || blob.type.indexOf('m4a') !== -1 ? 'mp4' : (blob.type.indexOf('ogg') !== -1 ? 'ogg' : (blob.type.indexOf('webm') !== -1 || !blob.type ? 'webm' : String(blob.type.split('/')[1] || 'bin').replace(/[^a-z0-9]/gi, '').slice(0, 8)));
   const form = new FormData();
   form.append('audio', blob, `voice.${ext}`);
@@ -709,7 +726,16 @@ async function transcribeAndExtract(blob) {
     e.cls = 'mic_server'; e.http = res.status;
     throw e;
   }
-  return { text: data.text || '', events: Array.isArray(data.events) ? data.events : [] };
+  return { text: data.text || '', events: Array.isArray(data.events) ? data.events : [], via: 'whisper' };
+}
+async function postJson(path, obj) {
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), API_TIMEOUT_MS);
+  try {
+    const res = await fetch(`${API_BASE}${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(obj), signal: ac.signal });
+    const data = await res.json().catch(() => ({}));
+    return { res, data };
+  } finally { clearTimeout(timer); }
 }
 
 // Photo entry, 2 Sep - the picture-shaped twin of transcribeAndExtract():
@@ -1231,6 +1257,43 @@ let micPeak = 0, micSpeechAt = 0, micLastLoudAt = 0, micMeterLive = false;
 // live while that context is actually running; a dead meter never refuses
 // a take and never blocks the stop.
 let micLevelSource = null, micLevelOwnCtx = false;
+// The phone's own speech recogniser, run alongside the recording (18 Sep).
+// Free, no daily cap, and on Android it is the same Google ear the person
+// already uses in WhatsApp. If it fails or is missing, nothing changes:
+// the clip goes to the server as before.
+let bstt = null, bsttText = '', bsttDone = null, bsttResolve = null;
+function browserSttSupported() {
+  return !!(window.SpeechRecognition || window.webkitSpeechRecognition) && !inAppBrowser();
+}
+function browserSttStart() {
+  bsttText = ''; bstt = null; bsttDone = null;
+  if (!browserSttSupported()) return;
+  try {
+    const Rec = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const r = new Rec();
+    r.lang = ES ? (CO ? 'es-CO' : 'es-VE') : 'en-GH';
+    r.continuous = true; r.interimResults = true; r.maxAlternatives = 1;
+    bsttDone = new Promise(res => { bsttResolve = res; });
+    r.onresult = (e) => {
+      let final = '', interim = '';
+      for (let i = 0; i < e.results.length; i++) { const s = e.results[i][0].transcript; if (e.results[i].isFinal) final += s + ' '; else interim += s + ' '; }
+      bsttText = (final || interim).trim();
+    };
+    r.onerror = (e) => { track('stt_browser_error', { code: e.error || '' }); if (bsttResolve) bsttResolve(); };
+    r.onend = () => { if (bsttResolve) bsttResolve(); };
+    r.start();
+    bstt = r;
+  } catch (e) { bstt = null; bsttDone = null; }
+}
+async function browserSttFinish() {
+  if (!bstt) return '';
+  try { bstt.stop(); } catch (e) { /* already stopped */ }
+  // a final result usually lands within a second of stop(); never wait longer than 2.5 s
+  await Promise.race([bsttDone || Promise.resolve(), new Promise(r => setTimeout(r, 2500))]);
+  const text = bsttText.trim();
+  bstt = null;
+  return text.length >= 2 ? text : '';
+}
 function startMicLevelMeter(stream) {
   micPeak = 0; micSpeechAt = 0; micLastLoudAt = 0; micMeterLive = false;
   const meter = document.getElementById('micLevelMeter');
@@ -1278,11 +1341,19 @@ function stopMicLevelMeter() {
 // One path for every clip, however it was captured: the page's own
 // recorder, or (18 Sep) a voice note recorded by the phone's recorder app
 // inside Facebook's browser, where the page cannot use the microphone.
-async function processVoiceBlob(blob, statusId, recordedMs, bytes) {
+async function processVoiceBlob(blob, statusId, recordedMs, bytes, heardText) {
   try {
         setMicStatus(t('Working out what happened\u2026', 'Anotando lo que dijiste\u2026'), null, statusId);
-        const { text: heard, events: heardEvents } = await transcribeAndExtract(blob);
+        let { text: heard, events: heardEvents, via } = await transcribeAndExtract(blob, heardText);
         let events = Array.isArray(heardEvents) ? heardEvents : [];
+        // The phone heard words but the server found no record in them and
+        // no number either (Twi, or a mangled take): one more try with the
+        // audio itself, where Whisper knows the local words.
+        if (via === 'browser' && !events.length && blob && blob.size && !/\d/.test(wordsToNumber(heard || ''))) {
+          track('stt_browser_retry');
+          try { const r2 = await transcribeAndExtract(blob); if (r2.text && r2.text.trim()) { heard = r2.text; events = r2.events; via = 'whisper'; } } catch (e) { /* keep the phone's words */ }
+        }
+        ping(via === 'browser' ? 'stt_browser' : 'stt_whisper');
         if (!heard.trim()) {
           track('mic_error', { reason: 'no_transcript', duration_ms: recordedMs });
           // Real advice, 30 Aug: researched (not guessed) - "please" is the
@@ -1450,6 +1521,7 @@ async function toggleMic(btn, statusId) {
     mediaRecorder.onstop = async () => {
       clearInterval(autoStop);
       const heardPeak = micPeak, meterWasLive = micMeterLive;
+      const browserText = await browserSttFinish();
       stream.getTracks().forEach(t => t.stop());
       stopMicLevelMeter();
       const lbl = btn.querySelector('.home-mic-label'); if (lbl && lbl.dataset.idle) lbl.textContent = lbl.dataset.idle;
@@ -1485,7 +1557,7 @@ async function toggleMic(btn, statusId) {
       // Whisper to find. Give a targeted hint instead of the generic
       // "didn't catch that", which reads as a mysterious black box.
       const recordedMs = Date.now() - recordingStartedAt;
-      await processVoiceBlob(new Blob(recordedChunks, { type: actualMime }), statusId, recordedMs, recordedChunks.reduce((s, c) => s + c.size, 0));
+      await processVoiceBlob(new Blob(recordedChunks, { type: actualMime }), statusId, recordedMs, recordedChunks.reduce((s, c) => s + c.size, 0), browserText);
     };
     // Say "Speak now" BEFORE the recorder starts (it would otherwise record
     // itself), then listen. The clip is prefetched, so this is ~0.7 s.
@@ -1499,6 +1571,7 @@ async function toggleMic(btn, statusId) {
     try { if (navigator.vibrate) navigator.vibrate(40); } catch (e) { /* optional */ }
     mediaRecorder.start();
     recordingStartedAt = Date.now();
+    browserSttStart();
     armAutoStop();
     micArming = false;
     track('mic_start');
