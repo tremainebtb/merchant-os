@@ -613,6 +613,27 @@ const NUMBER_WORD_RE = new RegExp(
   '\\b(?:' + NUMBER_WORD_LIST + ')(?:[\\s-]+(?:and[\\s-]+)?(?:' + NUMBER_WORD_LIST + '))*\\b', 'gi'
 );
 
+// What Google's and Apple's recognisers make of Ghanaian money words and
+// dishes (18 Sep, Bobby's phone: "bowls" and "cedis" both came out wrong).
+// Same map as the server's repairTranscript, so the phone path and the
+// server path hear the same thing.
+function repairHeard(text) {
+  let t = String(text || '');
+  if (ES) {
+    t = t.replace(/\b(bonos|volos|bolo)\b/gi, 'bolos').replace(/\bver(bes|ves)\b/gi, 'verdes').replace(/\b(bi-?es|b\.s\.|bes)\b/gi, 'bs');
+    return t;
+  }
+  t = t.replace(/\b(studies|sities|sadis|sedis|sidis|cedes|ceedis|seedies|seedis|cds|cd|cidis|cities|city's|series|cedi's|cedis)\b/gi, 'cedis');
+  t = t.replace(/\b(\d+)\s*(c|gh|ghc|gh\u20b5|\u20b5)\b/gi, '$1 cedis').replace(/\bGH\s?[C\u20b5]\s?(\d+)/gi, '$1 cedis').replace(/\$\s?(\d+)\b/g, '$1 cedis');
+  t = t.replace(/\b(balls|bowels|bows|boles|bolts)\s+(of\s+)?(waakye|wache|rice|fufu|banku|kenkey|soup|beans|gari|tz|koko|porridge)\b/gi, 'bowls $2$3');
+  t = t.replace(/\b(wache|watchy|walkie|wakye|waky|wacky|watch key|wahkyi)\b/gi, 'waakye');
+  t = t.replace(/\b(fu fu|foo foo)\b/gi, 'fufu').replace(/\b(ban ku|bonku)\b/gi, 'banku').replace(/\b(ken key|kinky|kenkay)\b/gi, 'kenkey');
+  t = t.replace(/\b(job|shop|chap|chob) money\b/gi, 'chop money').replace(/\b(tro tro|trotro|trot row|troto|tractual)\s+(fair|fare|fear)\b/gi, 'trotro fare');
+  t = t.replace(/\b(uma|umo|momu|mumu|mo mo)\b/gi, 'momo').replace(/\b(air time|hair time|our time)\b/gi, 'airtime');
+  t = t.replace(/\b(t shirts?|tee shirts?|teeshirts?)\b/gi, m => /s$/i.test(m) ? 't-shirts' : 't-shirt');
+  t = t.replace(/\by'?all\b/gi, 'Yaw').replace(/\bhigo\s+pay\b/gi, 'he go pay');
+  return t;
+}
 function wordsToNumber(text) {
   return text.replace(NUMBER_WORD_RE, (phrase) => {
     const words = phrase.toLowerCase().split(/[\s-]+/).filter(w => w !== 'and');
@@ -1329,7 +1350,7 @@ async function recognizeWithPhone(btn, statusId, opts) {
   btn.classList.remove('recording');
   if (lbl && lbl.dataset.idle) lbl.textContent = lbl.dataset.idle;
   bars.forEach(bar => bar.style.height = '6px');
-  text = text.trim();
+  text = repairHeard(text.trim());
   if (text.length >= 2) {
     try { localStorage.setItem('kym_stt_fails', '0'); } catch (e) { /* optional */ }
     pendingVoiceSource = 'voice';
