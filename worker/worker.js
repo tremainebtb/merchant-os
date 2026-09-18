@@ -1812,7 +1812,7 @@ async function runExtractionModel(text, env, temperature, lang, country) {
 // the direction from the words actually said. A payment event is
 // {type:'payment', customer, price} and the phone applies it to that
 // person's open debt (or records it as money in if there is none).
-const PAY_EN = /pay\s+(small\s+)?\d+\s+(out\s+of|of\s+the)|\b(paid|pay|payed|don\s+pay)\s+me\b|\bpaid\s+(me\s+)?back\b|\breceived\b[^.]*\bfrom\b|\bmomo\s+(from|received)\b|\b(gave|give|dash|bring|brought|sent|send)\s+me\b|\bsettled?\b|\bhas\s+paid\b|\batua\b|\b[a-z]+\s+(has\s+)?paid\b(?!\s+(for|\d+\s+for))|\bpay\s+small\b|\bwas\s+owing\b/i;
+const PAY_EN = /\bpay\s+(small\s+)?\d+\s+(out\s+of|of\s+the)\b|\b(paid|pay|payed|don\s+pay)\s+me\b|\bpaid\s+(me\s+)?back\b|\breceived\b[^.]*\bfrom\b|\bmomo\s+(from|received)\b|\b(gave|give|dash|bring|brought|sent|send)\s+me\b|\bsettled?\b|\bhas\s+paid\b|\batua\b|\b[a-z]+\s+(has\s+)?paid\b(?!\s+(for|\d+\s+for))|\bpay\s+small\b|\bwas\s+owing\b/i;
 const NOT_PAY_EN = /\b(owes?\s+me|dey\s+owe|owing\s+me|go\s+pay|will\s+pay|pay\s+(me\s+)?(later|tomorrow|next)|on\s+credit|credit|(i|we)\s+(still\s+)?owe|(i|we)\s+(paid|pay|payed)|paid\s+for|pay\s+for|paid\s+\d+\s+for)\b/i;
 const PAY_ES = /\babono\b|\bme\s+pago\b|\bme\s+pagaron\b|\bpago\s+(lo\s+que|la\s+deuda|todo)\b|\bse\s+puso\s+al\s+dia\b|\b(me\s+)?cancelo\b|\bme\s+(trajo|dio|consigno|transfirio|paso|abono)\b|\bsaldo\s+(la|su)\b|\bme\s+devolvio\b/i;
 const NOT_PAY_ES = /\ble\s+fie\b|\bfie\s+a\b|\bdebiendo\b|\bme\s+debe\b|\bcredito\b|\bva\s+a\s+pagar\b|\bme\s+paga\s+(luego|manana|despues|la\s+semana)\b|\ble\s+debo\b|\bdebo\b/i;
