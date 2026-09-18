@@ -512,7 +512,7 @@ function showOpenInChrome(reason) {
     : t('You are inside Facebook\u2019s browser \u2014 the microphone may not work here.', 'Est\u00e1s dentro del navegador de Facebook: puede que el micr\u00f3fono no funcione aqu\u00ed.');
   box.innerHTML = isAndroid()
     ? `<p>${lead}</p><a class="iab-open" href="${chromeIntentUrl()}">${t('Open in Chrome', 'Abrir en Chrome')}</a><p class="iab-sub">${t('Same page, and your voice will work.', 'Es la misma p\u00e1gina, y ah\u00ed s\u00ed funciona la voz.')}</p><label class="iab-note"><input type="file" accept="audio/*" capture id="iabNoteInput">\uD83C\uDF99 ${t('Or record a voice note here', 'O graba una nota de voz aqu\u00ed')}</label>`
-    : `<p>${lead}</p><p class="iab-sub">${t('Tap the three dots <b>\u22ef</b> at the top, then <b>Open in Safari</b> (or Chrome). Or type it below.', 'Toca los tres puntos <b>\u22ef</b> arriba y luego <b>Abrir en Safari</b> (o Chrome). O escr\u00edbelo abajo.')}</p>`;
+    : `<p>${lead}</p><a class="iab-open" href="${window.KYM_SAFARI_URL || ('x-safari-https://' + location.host + location.pathname + '?from=iab')}">${t('Open in Safari', 'Abrir en Safari')}</a><p class="iab-sub">${t('Same page, and your voice will work. If nothing opens: tap <b>\u22ef</b> at the top, then <b>Open in Safari</b>.', 'Es la misma p\u00e1gina, y ah\u00ed s\u00ed funciona la voz. Si no se abre: toca <b>\u22ef</b> arriba y luego <b>Abrir en Safari</b>.')}</p>`;
   box.hidden = false;
   const noteIn = document.getElementById('iabNoteInput');
   if (noteIn && !noteIn.dataset.wired) {
@@ -2843,12 +2843,13 @@ if (ES) {
 if (inAppBrowser()) {
   try {
     ping('iab'); track('iab_open');
-    if (window.KYM_IAB_JUMPED) ping('iab_auto');
+    if (window.KYM_IAB_JUMPED === 'android') ping('iab_auto');
+    if (window.KYM_IAB_JUMPED === 'ios') ping('iab_auto_ios');
     if (window.KYM_IAB_STAY) ping('iab_stay');
     if (isAndroid()) { showOpenInChrome('warn'); showTypedChoices(); }
   } catch (e) { /* never block */ }
 }
-try { if (new URLSearchParams(location.search).get('from') === 'iab') { ping('iab_escaped'); track('iab_escaped'); } } catch (e) { /* optional */ }
+try { if (new URLSearchParams(location.search).get('from') === 'iab' && !inAppBrowser()) { ping(isAndroid() ? 'iab_escaped' : 'iab_escaped_ios'); track('iab_escaped'); } } catch (e) { /* optional */ }
 if (!micSupported()) {
   // No microphone API in this browser (older iOS, some in-app browsers).
   // Say so plainly and open the typed choices, so the page is still usable.

@@ -56,7 +56,7 @@
      app.js?v=. Lets anyone - a reviewer, a tester in Kumasi, a future session -
      answer "which CountMy am I looking at?" from view-source or the console,
      the same way the Worker answers with "wv". -->
-<meta name="countmy-version" content="v111">
+<meta name="countmy-version" content="v112">
 <!-- Real finding, 28 Aug: the bare "CountMy" title carried no keywords at all
      for what people actually search - a free sales/expense ledger for
      Ghanaian shop owners. The <title> tag is the single strongest on-page
@@ -578,15 +578,23 @@ input[type="number"]{-moz-appearance:textfield}
     try {
       var ua = navigator.userAgent || '';
       var inApp = /FBAN|FBAV|FB_IAB|Instagram|Messenger\//i.test(ua);
-      if (!inApp || !/Android/i.test(ua)) return;
+      if (!inApp) return;
       var p = new URLSearchParams(location.search);
       if (p.get('iab') === 'stay') { window.KYM_IAB_STAY = true; return; }
       var q = new URLSearchParams(location.search); q.set('from', 'iab');
       var target = location.host + location.pathname + '?' + q.toString();
-      var fb = new URLSearchParams(location.search); fb.set('iab', 'stay');
-      var fallback = location.protocol + '//' + location.host + location.pathname + '?' + fb.toString();
-      window.KYM_IAB_JUMPED = true;
-      location.href = 'intent://' + target + '#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=' + encodeURIComponent(fallback) + ';end';
+      if (/Android/i.test(ua)) {
+        var fb = new URLSearchParams(location.search); fb.set('iab', 'stay');
+        var fallback = location.protocol + '//' + location.host + location.pathname + '?' + fb.toString();
+        window.KYM_IAB_JUMPED = 'android';
+        location.href = 'intent://' + target + '#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=' + encodeURIComponent(fallback) + ';end';
+      } else if (/iPhone|iPad|iPod/i.test(ua)) {
+        // iPhone: the Safari launch scheme. If the in-app browser refuses it
+        // nothing happens and the page below carries on (the mic is tried).
+        window.KYM_IAB_JUMPED = 'ios';
+        window.KYM_SAFARI_URL = 'x-safari-https://' + target;
+        location.href = window.KYM_SAFARI_URL;
+      }
     } catch (e) { /* never block the page */ }
   })();
 
@@ -1051,7 +1059,7 @@ input[type="number"]{-moz-appearance:textfield}
      string is what forces a fresh script fetch even before any service worker logic
      runs, independent of it. Found live 27 Aug: without this, an already-visited
      browser can keep running old code from plain HTTP cache regardless of SW strategy. -->
-<script src="app.js?v=111"></script>
+<script src="app.js?v=112"></script>
 
 </body>
 </html>
