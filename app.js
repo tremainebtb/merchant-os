@@ -628,7 +628,7 @@ function repairHeard(text) {
   t = t.replace(/\b(balls|bowels|bows|boles|bolts)\s+(of\s+)?(waakye|wache|rice|fufu|banku|kenkey|soup|beans|gari|tz|koko|porridge)\b/gi, 'bowls $2$3');
   t = t.replace(/\b(wache|watchy|walkie|wakye|waky|wacky|watch key|wahkyi)\b/gi, 'waakye');
   t = t.replace(/\b(fu fu|foo foo)\b/gi, 'fufu').replace(/\b(ban ku|bonku)\b/gi, 'banku').replace(/\b(ken key|kinky|kenkay)\b/gi, 'kenkey');
-  t = t.replace(/\b(job|shop|chap|chob) money\b/gi, 'chop money').replace(/\b(tro tro|trotro|trot row|troto|tractual)\s+(fair|fare|fear)\b/gi, 'trotro fare');
+  t = t.replace(/\b(job|shop|chap|chob) money\b/gi, 'chop money').replace(/\b(tro tro|trotro|trot row|troto|tractual|toronto|tortoro|trotter|throw throw|tro-tro)\s+(fair|fare|fear)\b/gi, 'trotro fare');
   t = t.replace(/\b(uma|umo|momu|mumu|mo mo)\b/gi, 'momo').replace(/\b(air time|hair time|our time)\b/gi, 'airtime');
   t = t.replace(/\b(t shirts?|tee shirts?|teeshirts?)\b/gi, m => /s$/i.test(m) ? 't-shirts' : 't-shirt');
   t = t.replace(/\by'?all\b/gi, 'Yaw').replace(/\bhigo\s+pay\b/gi, 'he go pay');

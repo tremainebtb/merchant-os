@@ -1064,7 +1064,7 @@ async function handleTranscribe(request, env) {
 // 50 is a transcription/parsing error, not a fabrication) - evidence-checking
 // targets fabrication specifically, not every possible error; the review UI is
 // still what catches a wrong-but-grounded number.
-const WORKER_VERSION = 'w68';
+const WORKER_VERSION = 'w69';
 
 // Spanish (Venezuela) twin of EXTRACT_SYSTEM_PROMPT below: same event types,
 // same {value, evidence} rule, same JSON-only answer. Amounts are bare
@@ -1719,7 +1719,7 @@ function repairTranscript(text, lang, country) {
     t = t.replace(/\b(job|shop|chap|chob) money\b/gi, 'chop money').replace(/\bchopmoney\b/gi, 'chop money');
     t = t.replace(/\b(blatt|bot|bord|bout|board)\s?stock\b/gi, 'bought stock');
     t = t.replace(/\b(uma|umo|momu|mumu)\s+(received|sent|paid)\b/gi, 'momo $2');
-    t = t.replace(/\b(tractual|tro tro|trotro|trot row|troto)\s+(fair|fare|fear)\b/gi, 'trotro fare');
+    t = t.replace(/\b(tractual|tro tro|trotro|trot row|troto|toronto|tortoro|trotter|throw throw|tro-tro)\s+(fair|fare|fear|fair\.)\b/gi, 'trotro fare');
     t = t.replace(/\bhigo\s+pay\b/gi, 'he go pay').replace(/\bshe go\s+pay\b/gi, 'she go pay');
     t = t.replace(/\bfree\s+(baskets?|bags?|crates?|tins?|yards?|pieces?|bunches?|boxes?)\b/gi, '3 $1');
     t = t.replace(/\b(air time|hair time|our time|airtime)\b/gi, 'airtime');
