@@ -993,9 +993,13 @@ if (ES) {
 // bought to resell and food taken home are different things and guessing
 // between them would put a number in the wrong place.
 const TOOK_HOME_PHRASES = ['chop money', 'took home', 'take home', 'taken home', 'for the house', 'my pocket', 'for myself', 'housekeeping', 'para la casa', 'para mi casa', 'para la comida de la casa', 'para mis gastos', 'para mí', 'me llevé', 'saqué para'];
+const STOCK_PHRASES = ['stock', 'restock', 'goods to sell', 'for sale', 'mercanc\u00eda', 'para vender', 'surtido'];
 function spendKindFromText(text) {
   const t = String(text || '').toLowerCase();
-  return TOOK_HOME_PHRASES.some(p => t.indexOf(p) !== -1) ? 'home' : '';
+  if (TOOK_HOME_PHRASES.some(p => t.indexOf(p) !== -1)) return 'home';
+  // The worker tags goods bought to sell with note 'stock' (w86); a spoken
+  // 'stock' or 'mercanc\u00eda' does the same. Stock never counts as a day's cost.
+  return STOCK_PHRASES.some(p => new RegExp('(^|[^a-z])' + p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '([^a-z]|$)').test(t)) ? 'stock' : '';
 }
 
 function eventToEntry(ev) {

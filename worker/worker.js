@@ -1064,7 +1064,7 @@ async function handleTranscribe(request, env) {
 // 50 is a transcription/parsing error, not a fabrication) - evidence-checking
 // targets fabrication specifically, not every possible error; the review UI is
 // still what catches a wrong-but-grounded number.
-const WORKER_VERSION = 'w85';
+const WORKER_VERSION = 'w86';
 
 // Spanish (Venezuela) twin of EXTRACT_SYSTEM_PROMPT below: same event types,
 // same {value, evidence} rule, same JSON-only answer. Amounts are bare
@@ -1965,7 +1965,7 @@ function finalizeEvents(events, text, lang, country) {
   // Circle 90", "passengers 90", "load 120" are money IN. Deterministic so
   // the model's guess never decides which way the day went.
   if (lang !== 'es') {
-    const DRIVER_OUT = /^(car\s+owner|owner|owner'?s\s+sales|sales\s+to\s+(the\s+)?owner|mate|conductor|station(\s+dues?)?|union(\s+dues?)?|dues|toll|tolls|police|fine|fines|fuel|petrol|diesel|gas|tyre|tyres|tire|tires|servicing|repairs?|mechanic|engine\s+oil|spare\s+parts?|car\s+wash|parking|insurance|road\s*worthy|dvla|chop\s+money|work\s+and\s+pay|weekly\s+payment)$/;
+    const DRIVER_OUT = /^(car\s+owner|owner|owner'?s\s+sales|sales\s+to\s+(the\s+)?owner|mate|conductor|station(\s+dues?)?|union(\s+dues?)?|dues|toll|tolls|police|fine|fines|fuel|petrol|diesel|gas|tyre|tyres|tire|tires|servicing|repairs?|mechanic|engine\s+oil|spare\s+parts?|car\s+wash|parking|insurance|road\s*worthy|dvla|chop\s+money|work\s+and\s+pay|weekly\s+payment|vit(\s+sticker)?|sticker|tax(\s+stamp)?|income\s+tax|gra|permit|licen[cs]e|certificate|medical|feed|chicken\s+feed|vaccines?|vaccination|drugs?|medicine|dewormer|shavings|wood\s+shavings|sawdust|seeds?|seedlings?|fertili[sz]er|weedicide|pesticide|agrochemicals?|labou?r|labou?rers?|by\s*day|tractor|ploughing|plowing|harvesting|drying|bagging|feeding|water\s+bill|electricity|light\s+bill|rent|shop\s+rent|susu|association\s+dues)$/;
     const DRIVER_IN = /^(trip|trips|passengers?|load|full\s+load|fares?|ride|rides)\b/;
     const OWNER_SALES = /\b(sales|money)\s+(to|for)\s+(the\s+)?(car\s+)?owner\b|\bcar\s+owner\b|\bowner'?s\s+sales\b/;
     out = out.map(e => {
@@ -1976,6 +1976,10 @@ function finalizeEvents(events, text, lang, country) {
       if (e.type === 'expense' && /^(my\s+)?commission$/.test(it) && !/paid|pay|gave|charged\s+me/.test(tt)) return Object.assign({}, e, { type: 'sale', qty: e.qty || 1 });
       return e;
     }).map(e => { if (e.qty === undefined) delete e.qty; return e; });
+    // "Bought 50 chicks 1,000", "bought 3 bags of rice 700": goods bought to
+    // sell or raise are stock, not a running cost. The app reads note 'stock'
+    // and keeps it out of the day's expenses (see spendKindFromText).
+    if (/\b(bought|buy|purchased|restock(ed)?|stocked)\b/.test(tt)) out = out.map(e => (e.type === 'expense' && !DRIVER_OUT.test(String(e.item || '').toLowerCase().trim()) && !/\b(fuel|petrol|diesel|airtime|data|credit|food|lunch|water|chop)\b/.test(String(e.item || '').toLowerCase())) ? Object.assign({}, e, { note: (e.note ? e.note + ' ' : '') + 'stock' }) : e);
     // "Trip Madina Circle 90" with no verb: the model files a place name as a
     // cost. One number, the sentence starts with a trip word: it is a sale.
     if (out.length === 1 && nums.length === 1 && out[0].type === 'expense' && /^\s*(trip|trips|passengers?|load|fares?|ride)\b/.test(tt)) out = [{ type: 'sale', item: out[0].item || 'trip', qty: 1, price: out[0].price }];
