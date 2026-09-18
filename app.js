@@ -986,7 +986,7 @@ if (ES) {
 // that. Narrow on purpose - "bought food" is NOT in this list, because food
 // bought to resell and food taken home are different things and guessing
 // between them would put a number in the wrong place.
-const TOOK_HOME_PHRASES = ['chop money', 'took home', 'take home', 'taken home', 'for the house', 'my pocket', 'for myself', 'housekeeping'];
+const TOOK_HOME_PHRASES = ['chop money', 'took home', 'take home', 'taken home', 'for the house', 'my pocket', 'for myself', 'housekeeping', 'para la casa', 'para mi casa', 'para la comida de la casa', 'para mis gastos', 'para mí', 'me llevé', 'saqué para'];
 function spendKindFromText(text) {
   const t = String(text || '').toLowerCase();
   return TOOK_HOME_PHRASES.some(p => t.indexOf(p) !== -1) ? 'home' : '';
