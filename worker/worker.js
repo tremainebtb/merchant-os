@@ -587,6 +587,26 @@ async function handleAdminEntries(request, env) {
 // up front. Same ADMIN_KEY gate as every other /admin/* route - this is
 // exactly as sensitive as it sounds, which is why it exists only behind that
 // key, not as a feature reachable from the app itself.
+// Owner-only: permanently remove everything flagged as test (Bobby's own
+// devices, probes) and datacentre visitors (crawlers, ad reviewers). Same
+// ADMIN_KEY gate as every other /admin/* route; POST only; returns counts.
+async function handleAdminPurgeTest(request, env) {
+  if (!env.COUNTMY_DB) return cors(new Response(JSON.stringify({ error: 'not configured' }), { status: 503 }));
+  const url = new URL(request.url);
+  const key = url.searchParams.get('key') || '';
+  if (!env.ADMIN_KEY || key !== env.ADMIN_KEY) return cors(new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401 }));
+  await ensureTestSchema(env);
+  const before = await env.COUNTMY_DB.prepare('SELECT (SELECT COUNT(*) FROM devices WHERE is_test = 1 OR COALESCE(is_dc, 0) = 1) as devices, (SELECT COUNT(*) FROM events WHERE is_test = 1 OR shop_hash IN (SELECT device_hash FROM devices WHERE COALESCE(is_dc, 0) = 1)) as events, (SELECT COUNT(*) FROM entries WHERE is_test = 1) as entries, (SELECT COUNT(*) FROM shops WHERE is_test = 1) as shops').first();
+  await env.COUNTMY_DB.batch([
+    env.COUNTMY_DB.prepare('DELETE FROM events WHERE is_test = 1 OR shop_hash IN (SELECT device_hash FROM devices WHERE COALESCE(is_dc, 0) = 1)'),
+    env.COUNTMY_DB.prepare('DELETE FROM entries WHERE is_test = 1'),
+    env.COUNTMY_DB.prepare('DELETE FROM shops WHERE is_test = 1'),
+    env.COUNTMY_DB.prepare('DELETE FROM programme_members WHERE shop_hash IN (SELECT device_hash FROM devices WHERE is_test = 1 OR COALESCE(is_dc, 0) = 1)'),
+    env.COUNTMY_DB.prepare('DELETE FROM devices WHERE is_test = 1 OR COALESCE(is_dc, 0) = 1')
+  ]);
+  return cors(new Response(JSON.stringify({ removed: before, wv: WORKER_VERSION }), { headers: { 'Content-Type': 'application/json' } }));
+}
+
 async function handleAdminRecentEntries(request, env) {
   if (!env.COUNTMY_DB) return cors(new Response(JSON.stringify({ error: 'not configured' }), { status: 503 }));
   const url = new URL(request.url);
@@ -976,7 +996,7 @@ async function handleTranscribe(request, env) {
 // 50 is a transcription/parsing error, not a fabrication) - evidence-checking
 // targets fabrication specifically, not every possible error; the review UI is
 // still what catches a wrong-but-grounded number.
-const WORKER_VERSION = 'w63';
+const WORKER_VERSION = 'w64';
 
 // Spanish (Venezuela) twin of EXTRACT_SYSTEM_PROMPT below: same event types,
 // same {value, evidence} rule, same JSON-only answer. Amounts are bare
@@ -2220,6 +2240,7 @@ export default {
       else if (path === '/admin/entries' && request.method === 'GET') adminResp = await handleAdminEntries(request, env);
       else if (path === '/admin/entries/recent' && request.method === 'GET') adminResp = await handleAdminRecentEntries(request, env);
       else if (path === '/admin/programme' && request.method === 'GET') adminResp = await handleProgrammeReport(request, env);
+      else if (path === '/admin/purge-test' && request.method === 'POST') adminResp = await handleAdminPurgeTest(request, env);
       if (adminResp) {
         if (adminResp.status === 401) await bumpAdminFail(env, ip);
         return adminResp;
