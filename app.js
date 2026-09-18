@@ -788,7 +788,7 @@ function localPaymentEvent(text) {
     || /^\s*(?:received|collected|got)\s+(\d+(?:\.\d+)?)\s+from\s+([a-zà-ÿ][a-zà-ÿ' -]{1,30}?)\s*$/i.exec(t);
   if (!m) return null;
   const name = /^\d/.test(m[1]) ? m[2] : m[1], amount = Number(/^\d/.test(m[1]) ? m[1] : m[2]);
-  if (!name || !(amount > 0) || /(for|of)/i.test(name)) return null;
+  if (!name || !(amount > 0) || /(for|of)/i.test(name) || /(for|of)\s+[a-z]/i.test(t.slice(m.index + m[0].length))) return null;
   return { type: 'payment', customer: name.trim(), price: amount };
 }
 function shapeEvents(events) {
