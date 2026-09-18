@@ -731,7 +731,7 @@ async function transcribeAndExtract(blob, heardText) {
       track('extract_unavailable', { http: err.status || 0, why: err.name || 'network' });
       return { text: heardText, events: [], via: 'browser', degraded: true };
     }
-    if (res.ok) return { text: heardText, events: Array.isArray(data.events) ? data.events : [], via: 'browser' };
+    if (res.ok) return { text: heardText, events: shapeEvents(data.events), via: 'browser' };
     // The text step failed (daily quota, hiccup). With a clip, try the audio
     // path; without one, the phone's own parser takes over below.
     track('extract_unavailable', { http: res.status });
@@ -772,7 +772,20 @@ async function transcribeAndExtract(blob, heardText) {
     e.quota = /daily free allocation|quota/i.test(String((data && (data.detail || data.error)) || ''));
     throw e;
   }
-  return { text: data.text || '', events: Array.isArray(data.events) ? data.events : [], via: 'whisper' };
+  return { text: data.text || '', events: shapeEvents(data.events), via: 'whisper' };
+}
+// Real bug, 18 Sep (found by the red-team pass): a debt comes back from the
+// server as {customer} or {supplier}, but every check on the phone looked
+// for {item}, so a spoken "Esi dey owe me 40" was never auto-saved and the
+// voice said "I heard an amount but not what it was for". The person's name
+// is the item of a debt; the original field is kept for payments.
+function shapeEvents(events) {
+  if (!Array.isArray(events)) return [];
+  return events.map(ev => {
+    if (!ev || typeof ev !== 'object') return ev;
+    if (!ev.item && (ev.customer || ev.supplier)) ev.item = String(ev.customer || ev.supplier).trim();
+    return ev;
+  });
 }
 async function postJson(path, obj) {
   const ac = new AbortController();
