@@ -729,13 +729,14 @@ async function transcribeAndExtract(blob, heardText) {
       // Server unreachable: the phone heard the words, so the phone makes
       // the record itself (parseHeardText) rather than failing the person.
       track('extract_unavailable', { http: err.status || 0, why: err.name || 'network' });
-      return { text: heardText, events: [], via: 'browser', degraded: true };
+      const lp = ES ? null : localPaymentEvent(heardText);
+      return { text: heardText, events: lp ? [lp] : [], via: 'browser', degraded: true };
     }
     if (res.ok) return { text: heardText, events: shapeEvents(data.events), via: 'browser' };
     // The text step failed (daily quota, hiccup). With a clip, try the audio
     // path; without one, the phone's own parser takes over below.
     track('extract_unavailable', { http: res.status });
-    if (!blob || !blob.size) return { text: heardText, events: [], via: 'browser', degraded: true };
+    if (!blob || !blob.size) { const lp = ES ? null : localPaymentEvent(heardText); return { text: heardText, events: lp ? [lp] : [], via: 'browser', degraded: true }; }
   }
   const ext = blob.type.indexOf('mp4') !== -1 || blob.type.indexOf('m4a') !== -1 ? 'mp4' : (blob.type.indexOf('ogg') !== -1 ? 'ogg' : (blob.type.indexOf('webm') !== -1 || !blob.type ? 'webm' : String(blob.type.split('/')[1] || 'bin').replace(/[^a-z0-9]/gi, '').slice(0, 8)));
   const form = new FormData();
@@ -779,6 +780,17 @@ async function transcribeAndExtract(blob, heardText) {
 // for {item}, so a spoken "Esi dey owe me 40" was never auto-saved and the
 // voice said "I heard an amount but not what it was for". The person's name
 // is the item of a debt; the original field is kept for payments.
+// The phone's own reading of "Ama paid me 20" / "Kofi don pay 50" / "Ama
+// pay me back 30" when the server cannot help: a payment, never a sale.
+function localPaymentEvent(text) {
+  const t = wordsToNumber(String(text || ''));
+  const m = /^\s*([a-zà-ÿ][a-zà-ÿ' -]{1,30}?)\s+(?:has\s+|don\s+|dey\s+)?(?:paid|pay|payed)\s+(?:me\s+)?(?:back\s+)?(?:small\s+)?(\d+(?:\.\d+)?)/i.exec(t)
+    || /^\s*(?:received|collected|got)\s+(\d+(?:\.\d+)?)\s+from\s+([a-zà-ÿ][a-zà-ÿ' -]{1,30}?)\s*$/i.exec(t);
+  if (!m) return null;
+  const name = /^\d/.test(m[1]) ? m[2] : m[1], amount = Number(/^\d/.test(m[1]) ? m[1] : m[2]);
+  if (!name || !(amount > 0) || /(for|of)/i.test(name)) return null;
+  return { type: 'payment', customer: name.trim(), price: amount };
+}
 function shapeEvents(events) {
   if (!Array.isArray(events)) return [];
   return events.map(ev => {
