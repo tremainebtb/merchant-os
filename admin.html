@@ -147,6 +147,12 @@ footer a{color:var(--muted)}
   </div>
 
   <div class="panel">
+    <h3>This week: what people actually did</h3>
+    <p class="note">Each line is how many different people did that thing in the last 7 days. Read top to bottom: it is the path from opening the page to saving a record, and where it stops.</p>
+    <div id="weekEvents" class="empty-note">Nothing yet this week.</div>
+  </div>
+
+  <div class="panel">
     <h3>Last 30 days, day by day</h3><p class="note">The last dot is today so far.</p>
     <div class="legend">
       <span><i style="background:var(--leaf)"></i>New people</span>
@@ -239,7 +245,28 @@ function sourceName(src) {
   return tail ? base + ' - ' + (tails[tail] || tail) : base;
 }
 
+const EVENT_WORDS = {
+  open: 'opened the page', iab: 'were inside the Facebook or Instagram browser (microphone blocked there)',
+  tap: 'tapped Tell CountMy', mic_denied: 'said no to the microphone', nomic: 'have no microphone in that browser',
+  mic_silent: 'tapped but nothing was heard', mic_timeout: 'waited too long for the voice server', mic_server: 'hit a voice server error',
+  mic_network: 'lost the connection mid-voice', busy: 'tapped while it was already working', empty: 'recorded nothing', silent: 'recorded silence',
+  timeout: 'timed out', server: 'server error', network: 'network error', save: 'saved a record', ask: 'asked a question',
+  sheet: 'opened a typed form', share_shop: 'shared a business page', voice_en: 'spoke English', voice_twi: 'spoke Twi', voice_pidgin: 'spoke Pidgin',
+  remind: 'sent a WhatsApp reminder', install: 'installed it to the home screen', backup: 'backed up'
+};
+const EVENT_ORDER = ['open', 'iab', 'tap', 'nomic', 'mic_denied', 'mic_silent', 'busy', 'mic_timeout', 'mic_server', 'mic_network', 'voice_en', 'voice_twi', 'voice_pidgin', 'sheet', 'save', 'ask', 'remind', 'share_shop', 'install', 'backup'];
+function renderWeekEvents() {
+  const el = document.getElementById('weekEvents'); if (!el) return;
+  const rows = (statsData.weekEvents || []).filter(r => r.devices > 0);
+  if (!rows.length) { el.className = 'empty-note'; el.textContent = 'Nothing yet this week.'; return; }
+  const opened = (rows.find(r => r.event === 'open') || {}).devices || 0;
+  rows.sort((x, y) => { const ix = EVENT_ORDER.indexOf(x.event), iy = EVENT_ORDER.indexOf(y.event); return (ix < 0 ? 99 : ix) - (iy < 0 ? 99 : iy) || y.devices - x.devices; });
+  el.className = 'tw';
+  el.innerHTML = '<table><thead><tr><th>People</th><th>What they did</th><th>Share of openers</th></tr></thead><tbody>' + rows.map(r =>
+    `<tr><td>${fmtInt(r.devices)}</td><td>${esc(EVENT_WORDS[r.event] || r.event)}</td><td>${opened ? Math.round(100 * r.devices / opened) + '%' : ''}</td></tr>`).join('') + '</tbody></table>';
+}
 function renderKpis() {
+  renderWeekEvents();
   const p = (statsData.periods && statsData.periods[currentPeriod]) || { signups: 0, active: 0, entries: 0 };
   const L = statsData.loop || {};
   const label = PERIOD_LABEL[currentPeriod];

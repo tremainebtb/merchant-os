@@ -505,7 +505,7 @@ function showOpenInChrome(reason) {
     box.id = 'iabBanner';
     box.className = 'iab-banner';
     const btn = document.getElementById('homeMicBtn');
-    if (btn && btn.parentNode) btn.parentNode.insertBefore(box, btn.nextSibling); else return;
+    if (btn && btn.parentNode) btn.parentNode.insertBefore(box, btn); else return;
   }
   const lead = reason === 'failed'
     ? t('Facebook\u2019s browser cannot use the microphone.', 'El navegador de Facebook no puede usar el micr\u00f3fono.')
@@ -1832,6 +1832,7 @@ async function render() {
   document.getElementById('planPill').hidden = firstUse;
   document.getElementById('homeMicBtn').classList.toggle('first-use', firstUse);
   document.getElementById('whatIs').hidden = !firstUse;
+  const strip = document.getElementById('todayStrip'); if (strip) strip.hidden = firstUse;
   document.getElementById('exampleChat').hidden = true;
   document.getElementById('trustLine').hidden = !firstUse;
   if (typeof renderInstallBanner === 'function') renderInstallBanner();
@@ -2508,8 +2509,17 @@ function maybeShowEodPrompt() {
   });
 }
 
-function updateOfflineBadge() {
-  document.getElementById('offlineBadge').classList.toggle('show', !navigator.onLine);
+async function updateOfflineBadge() {
+  const badge = document.getElementById('offlineBadge');
+  if (navigator.onLine) { badge.classList.remove('show'); return; }
+  let reallyOff = true;
+  try {
+    const ctl = new AbortController(); const tm = setTimeout(() => ctl.abort(), 4000);
+    const r = await fetch('manifest.webmanifest?ping=' + Date.now(), { cache: 'no-store', signal: ctl.signal });
+    clearTimeout(tm);
+    if (r.ok) { reallyOff = false; track('online_flag_wrong'); }
+  } catch (e) { /* genuinely offline */ }
+  badge.classList.toggle('show', reallyOff);
 }
 
 // [data-type] only - the photo button (#snapBtn) shares .act-btn for its
@@ -2815,7 +2825,7 @@ if (ES) {
 }
 if (inAppBrowser()) {
   // Ad traffic lands here. Offer the way out before the first tap fails.
-  try { showOpenInChrome('warn'); ping('iab'); track('iab_open'); } catch (e) { /* never block */ }
+  try { showOpenInChrome('warn'); ping('iab'); track('iab_open'); showTypedChoices(); } catch (e) { /* never block */ }
 }
 if (!micSupported()) {
   // No microphone API in this browser (older iOS, some in-app browsers).

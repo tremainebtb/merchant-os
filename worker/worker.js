@@ -762,6 +762,7 @@ async function handleAdminStats(request, env) {
   // Spoken language per voice entry, and how long a real person takes from
   // opening to the first tap and to the first record (the "30 seconds" test).
   stmts.push(env.COUNTMY_DB.prepare("SELECT event_type, COUNT(*) as n, COUNT(DISTINCT shop_hash) as devices FROM live_events WHERE event_type IN ('voice_en', 'voice_twi', 'voice_pidgin') GROUP BY event_type"));
+  stmts.push(env.COUNTMY_DB.prepare('SELECT event_type, COUNT(DISTINCT shop_hash) as devices, COUNT(*) as n FROM live_events WHERE ts >= ? GROUP BY event_type ORDER BY devices DESC').bind(now - 7 * DAY));
   stmts.push(env.COUNTMY_DB.prepare('SELECT tapped_ts - first_ts as ms FROM people_devices WHERE tapped_ts IS NOT NULL AND tapped_ts >= first_ts ORDER BY ms LIMIT 500'));
   stmts.push(env.COUNTMY_DB.prepare('SELECT saved_ts - first_ts as ms FROM people_devices WHERE saved_ts IS NOT NULL AND saved_ts >= first_ts ORDER BY ms LIMIT 500'));
   stmts.push(env.COUNTMY_DB.prepare('SELECT (SELECT COUNT(*) FROM devices WHERE is_test = 1) as devices, (SELECT COUNT(*) FROM events WHERE is_test = 1) as events, (SELECT COUNT(*) FROM entries WHERE is_test = 1) as entries, (SELECT COUNT(*) FROM shops WHERE is_test = 1) as shops'));
@@ -798,6 +799,7 @@ async function handleAdminStats(request, env) {
   out.datacentre = (results[i++].results || []).map(r => ({ org: r.asn_org || '', devices: r.n || 0, gh: r.gh || 0 }));
   out.languages = (results[i++].results || []).map(r => ({ lang: r.lang || '(none)', devices: r.n || 0 }));
   out.spoken = (results[i++].results || []).map(r => ({ lang: String(r.event_type).replace('voice_', ''), entries: r.n || 0, devices: r.devices || 0 }));
+  out.weekEvents = (results[i++].results || []).map(r => ({ event: String(r.event_type || ''), devices: r.devices || 0, n: r.n || 0 }));
   const median = rows => { const v = rows.map(r => Number(r.ms)).filter(x => x >= 0); if (!v.length) return null; const m = Math.floor(v.length / 2); return v.length % 2 ? v[m] : (v[m - 1] + v[m]) / 2; };
   const tapRows = results[i++].results || [], recRows = results[i++].results || [];
   out.timing = { tapMedianMs: median(tapRows), tapN: tapRows.length, recordMedianMs: median(recRows), recordN: recRows.length };
@@ -974,7 +976,7 @@ async function handleTranscribe(request, env) {
 // 50 is a transcription/parsing error, not a fabrication) - evidence-checking
 // targets fabrication specifically, not every possible error; the review UI is
 // still what catches a wrong-but-grounded number.
-const WORKER_VERSION = 'w60';
+const WORKER_VERSION = 'w61';
 
 // Spanish (Venezuela) twin of EXTRACT_SYSTEM_PROMPT below: same event types,
 // same {value, evidence} rule, same JSON-only answer. Amounts are bare
@@ -1619,7 +1621,7 @@ function repairTranscript(text, lang, country) {
     t = t.replace(/\blucas?\b/gi, m => m.toLowerCase());
     t = t.replace(/\b(quedo|qued\u00f3)\s+de\s+viendo\b/gi, 'qued\u00f3 debiendo');
     t = t.replace(/\b(bi-?es|b\.s\.|bes)\b/gi, 'bs');
-    t = t.replace(/(^|[^a-z])me\s+pararon\b/gi, '$1me pagaron');
+    t = t.replace(/(^|[^a-z])(me)\s+pararon\b/gi, '$1$2 pagaron');
     t = t.replace(/\b(daste|gaste|gasté)\s+(\d)/gi, 'gast\u00e9 $2');
     // a trailing "a" / "a." after an amount is the voice's own breath, not a word
     t = t.replace(/(\d)\s+a\s*\.?\s*$/i, '$1');
