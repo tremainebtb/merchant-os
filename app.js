@@ -694,13 +694,16 @@ async function transcribeAndExtract(blob, heardText) {
     try {
       ({ res, data } = await postJson('/extract', { text: heardText, lang: LANG, country: COUNTRY }));
     } catch (err) {
-      const e = new Error(err.name === 'AbortError' ? plainApiError(err, null, null, '') : 'Could not send your voice \u2014 please check your data connection and try again, or type it below.');
-      e.cls = err.name === 'AbortError' ? 'mic_timeout' : 'mic_network'; e.http = err.status || 0;
-      throw e;
+      // Server unreachable: the phone heard the words, so the phone makes
+      // the record itself (parseHeardText) rather than failing the person.
+      track('extract_unavailable', { http: err.status || 0, why: err.name || 'network' });
+      return { text: heardText, events: [], via: 'browser', degraded: true };
     }
     if (res.ok) return { text: heardText, events: Array.isArray(data.events) ? data.events : [], via: 'browser' };
-    // the text step failed (quota, hiccup): fall through to the audio path if we have a clip
-    if (!blob || !blob.size) { const e = new Error(plainApiError(null, res, data, 'The server could not read that \u2014 please try again, or type it below.')); e.cls = 'mic_server'; e.http = res.status; throw e; }
+    // The text step failed (daily quota, hiccup). With a clip, try the audio
+    // path; without one, the phone's own parser takes over below.
+    track('extract_unavailable', { http: res.status });
+    if (!blob || !blob.size) return { text: heardText, events: [], via: 'browser', degraded: true };
   }
   const ext = blob.type.indexOf('mp4') !== -1 || blob.type.indexOf('m4a') !== -1 ? 'mp4' : (blob.type.indexOf('ogg') !== -1 ? 'ogg' : (blob.type.indexOf('webm') !== -1 || !blob.type ? 'webm' : String(blob.type.split('/')[1] || 'bin').replace(/[^a-z0-9]/gi, '').slice(0, 8)));
   const form = new FormData();
