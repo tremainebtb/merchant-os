@@ -3183,10 +3183,20 @@ if (ES) {
 if (inAppBrowser()) {
   try {
     ping('iab'); track('iab_open');
-    if (window.KYM_IAB_JUMPED === 'android') ping('iab_auto');
-    if (window.KYM_IAB_JUMPED === 'ios') ping('iab_auto_ios');
     if (window.KYM_IAB_STAY) ping('iab_stay');
-    if (isAndroid()) { showOpenInChrome('warn'); showTypedChoices(); }
+    // The first thing on the screen inside Facebook's / WhatsApp's browser:
+    // one big button that opens Chrome (or Safari). Tapped, not automatic -
+    // see the note in index.html. Everything else stays usable below it.
+    const top = document.createElement('div');
+    top.className = 'iab-top'; top.id = 'iabTop';
+    const android = isAndroid();
+    top.innerHTML = `<p>${t('Tap once to open CountMy in ' + (android ? 'Chrome' : 'Safari') + ' \u2014 your voice works there.', 'Toca una vez para abrir CountMy en ' + (android ? 'Chrome' : 'Safari') + ': ah\u00ed s\u00ed funciona la voz.')}</p>`
+      + `<a class="iab-open" id="iabTopBtn" href="${android ? (window.KYM_CHROME_URL || chromeIntentUrl()) : (window.KYM_SAFARI_URL || '#')}">${android ? t('Open in Chrome', 'Abrir en Chrome') : t('Open in Safari', 'Abrir en Safari')}</a>`
+      + `<p class="iab-sub">${android ? t('Same page. Free. No signup.', 'La misma p\u00e1gina. Gratis. Sin registro.') : t('If nothing opens: tap <b>\u22ef</b> at the top right, then <b>Open in Safari</b>.', 'Si no se abre: toca <b>\u22ef</b> arriba a la derecha y luego <b>Abrir en Safari</b>.')}</p>`;
+    const first = document.querySelector('.pitch') || document.getElementById('homeGreeting');
+    if (first && first.parentNode) first.parentNode.insertBefore(top, first.nextSibling);
+    document.getElementById('iabTopBtn').addEventListener('click', () => { ping(android ? 'iab_tap' : 'iab_tap_ios'); track('iab_tap'); });
+    showTypedChoices();
   } catch (e) { /* never block */ }
 }
 try { if (new URLSearchParams(location.search).get('from') === 'iab' && !inAppBrowser()) { ping(isAndroid() ? 'iab_escaped' : 'iab_escaped_ios'); track('iab_escaped'); } } catch (e) { /* optional */ }

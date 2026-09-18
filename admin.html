@@ -247,6 +247,7 @@ function sourceName(src) {
 
 const EVENT_WORDS = {
   open: 'opened the page', iab: 'were inside the Facebook or Instagram browser',
+  iab_tap: 'tapped Open in Chrome (Android)', iab_tap_ios: 'tapped Open in Safari (iPhone)',
   iab_auto: 'were sent to Chrome automatically (Android)', iab_escaped: 'arrived in Chrome from the Facebook browser (Android)', iab_stay: 'stayed in the Facebook browser (Android jump refused)',
   iab_auto_ios: 'were sent to Safari automatically (iPhone)', iab_escaped_ios: 'arrived in Safari from the Facebook browser (iPhone)',
   iab_mic_ok: 'microphone worked inside the Facebook browser', stt_browser: 'were heard by the phone\u2019s own recogniser (free)', stt_whisper: 'were heard by the server (Whisper, costs quota)', iab_note: 'recorded a voice note inside the Facebook browser',
@@ -257,7 +258,7 @@ const EVENT_WORDS = {
   sheet: 'opened a typed form', share_shop: 'shared a business page', voice_en: 'spoke English', voice_twi: 'spoke Twi', voice_pidgin: 'spoke Pidgin',
   remind: 'sent a WhatsApp reminder', install: 'installed it to the home screen', backup: 'backed up'
 };
-const EVENT_ORDER = ['open', 'iab', 'iab_auto', 'iab_escaped', 'iab_stay', 'iab_auto_ios', 'iab_escaped_ios', 'iab_mic_ok', 'iab_note', 'tap', 'stt_browser', 'stt_whisper', 'nomic', 'mic_denied', 'mic_silent', 'busy', 'mic_timeout', 'mic_server', 'mic_network', 'voice_en', 'voice_twi', 'voice_pidgin', 'sheet', 'save', 'ask', 'remind', 'share_shop', 'install', 'backup'];
+const EVENT_ORDER = ['open', 'iab', 'iab_tap', 'iab_tap_ios', 'iab_auto', 'iab_escaped', 'iab_stay', 'iab_auto_ios', 'iab_escaped_ios', 'iab_mic_ok', 'iab_note', 'tap', 'stt_browser', 'stt_whisper', 'nomic', 'mic_denied', 'mic_silent', 'busy', 'mic_timeout', 'mic_server', 'mic_network', 'voice_en', 'voice_twi', 'voice_pidgin', 'sheet', 'save', 'ask', 'remind', 'share_shop', 'install', 'backup'];
 function renderWeekEvents() {
   const el = document.getElementById('weekEvents'); if (!el) return;
   const rows = (statsData.weekEvents || []).filter(r => r.devices > 0);

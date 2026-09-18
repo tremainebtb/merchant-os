@@ -56,7 +56,7 @@
      app.js?v=. Lets anyone - a reviewer, a tester in Kumasi, a future session -
      answer "which CountMy am I looking at?" from view-source or the console,
      the same way the Worker answers with "wv". -->
-<meta name="countmy-version" content="v135">
+<meta name="countmy-version" content="v136">
 <!-- Real finding, 28 Aug: the bare "CountMy" title carried no keywords at all
      for what people actually search - a free sales/expense ledger for
      Ghanaian shop owners. The <title> tag is the single strongest on-page
@@ -481,6 +481,10 @@ input[type="number"]{-moz-appearance:textfield}
 .iab-banner .iab-sub{font-size:.88rem;font-weight:400;color:var(--ink-soft);margin:6px 0 0}
 .iab-open{display:block;background:var(--flame);color:#fff;text-decoration:none;font-weight:800;font-size:1.1rem;border-radius:14px;padding:14px 16px}
 .iab-note{display:block;margin:10px 0 0;background:var(--leaf-soft);color:var(--leaf-deep);font-weight:800;font-size:1.05rem;border-radius:14px;padding:13px 16px;cursor:pointer}
+.iab-top{background:var(--navy);color:#fff;border-radius:18px;padding:16px;margin:0 0 16px;text-align:center}
+.iab-top p{margin:0 0 10px;font-size:1.05rem;font-weight:700;color:#fff}
+.iab-top .iab-open{background:var(--flame);font-size:1.25rem;padding:18px 16px}
+.iab-top .iab-sub{color:rgba(255,255,255,.85);margin:10px 0 0;font-size:.9rem}
 .iab-note input{display:none}
 .home-mic-status.heard{color:var(--leaf-deep);font-weight:600}
 .home-mic-status.err{color:var(--brick);font-weight:600}
@@ -584,18 +588,15 @@ input[type="number"]{-moz-appearance:textfield}
       if (p.get('iab') === 'stay') { window.KYM_IAB_STAY = true; return; }
       var q = new URLSearchParams(location.search); q.set('from', 'iab');
       var target = location.host + location.pathname + '?' + q.toString();
-      if (/Android/i.test(ua)) {
-        var fb = new URLSearchParams(location.search); fb.set('iab', 'stay');
-        var fallback = location.protocol + '//' + location.host + location.pathname + '?' + fb.toString();
-        window.KYM_IAB_JUMPED = 'android';
-        location.href = 'intent://' + target + '#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=' + encodeURIComponent(fallback) + ';end';
-      } else if (/iPhone|iPad|iPod/i.test(ua)) {
-        // iPhone: the Safari launch scheme. If the in-app browser refuses it
-        // nothing happens and the page below carries on (the mic is tried).
-        window.KYM_IAB_JUMPED = 'ios';
-        window.KYM_SAFARI_URL = 'x-safari-https://' + target;
-        location.href = window.KYM_SAFARI_URL;
-      }
+      // 18 Sep, 17:50, from a Clarity recording of a real Facebook visitor:
+      // an automatic jump to Chrome on load does NOT open Chrome inside
+      // Facebook's Android browser - it leaves a blank page (nine minutes of
+      // nothing, then gone). So no automatic navigation any more. The page
+      // renders, and the very first thing on it is one big button that
+      // opens Chrome / Safari on a tap, which those browsers do honour.
+      window.KYM_IAB = /Android/i.test(ua) ? 'android' : (/iPhone|iPad|iPod/i.test(ua) ? 'ios' : 'other');
+      window.KYM_CHROME_URL = 'intent://' + target + '#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=' + encodeURIComponent(location.protocol + '//' + location.host + location.pathname + '?' + q.toString()) + ';end';
+      window.KYM_SAFARI_URL = 'x-safari-https://' + target;
     } catch (e) { /* never block the page */ }
   })();
 
@@ -1060,7 +1061,7 @@ input[type="number"]{-moz-appearance:textfield}
      string is what forces a fresh script fetch even before any service worker logic
      runs, independent of it. Found live 27 Aug: without this, an already-visited
      browser can keep running old code from plain HTTP cache regardless of SW strategy. -->
-<script src="app.js?v=135"></script>
+<script src="app.js?v=136"></script>
 
 </body>
 </html>
