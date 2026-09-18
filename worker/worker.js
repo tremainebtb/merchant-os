@@ -1064,7 +1064,7 @@ async function handleTranscribe(request, env) {
 // 50 is a transcription/parsing error, not a fabrication) - evidence-checking
 // targets fabrication specifically, not every possible error; the review UI is
 // still what catches a wrong-but-grounded number.
-const WORKER_VERSION = 'w76';
+const WORKER_VERSION = 'w77';
 
 // Spanish (Venezuela) twin of EXTRACT_SYSTEM_PROMPT below: same event types,
 // same {value, evidence} rule, same JSON-only answer. Amounts are bare
@@ -1918,6 +1918,7 @@ function finalizeEvents(events, text, lang, country) {
     // every amount must have been said (or be qty x each): a debt that copied
     // the sale total is re-read from "quedó debiendo N"
     const saidNums = new Set(nums.map(Number));
+    nums.forEach(x => nums.forEach(y => { if (x !== y) saidNums.add(Number(x) * Number(y)); })); // "3 cervezas a 2" = 6
     out.forEach(e => {
       if (!e.price || e.type === 'sale') return;
       if (saidNums.has(Number(e.price))) return;
