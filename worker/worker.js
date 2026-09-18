@@ -1064,7 +1064,7 @@ async function handleTranscribe(request, env) {
 // 50 is a transcription/parsing error, not a fabrication) - evidence-checking
 // targets fabrication specifically, not every possible error; the review UI is
 // still what catches a wrong-but-grounded number.
-const WORKER_VERSION = 'w83';
+const WORKER_VERSION = 'w84';
 
 // Spanish (Venezuela) twin of EXTRACT_SYSTEM_PROMPT below: same event types,
 // same {value, evidence} rule, same JSON-only answer. Amounts are bare
@@ -2557,7 +2557,7 @@ async function waHandleMessage(env, msg, contactName) {
   const seen = await env.COUNTMY_DB.prepare('INSERT OR IGNORE INTO wa_seen (msg_id, ts) VALUES (?, ?)').bind(msgId, Date.now()).run();
   if (!seen.meta || !seen.meta.changes) return; // Meta redelivered it; already handled
   const loc = waLocale(from);
-  const phoneHash = await sha256Hex('wa:' + from + ':' + (env.WHATSAPP_VERIFY_TOKEN || ''));
+  const phoneHash = await sha256Hex('wa:' + from + ':' + (env.ADMIN_KEY || ''));
   await waMarkRead(env, msgId);
   let heard = '';
   let engine = '';

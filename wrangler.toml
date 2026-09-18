@@ -15,6 +15,13 @@ routes = [
   { pattern = "b.countmy.app", custom_domain = true }
 ]
 
+# WhatsApp Cloud API (19 Sep). Plain vars: the phone number id is not a secret
+# and the verify token only gates Meta's one-time GET handshake. The access
+# token (WHATSAPP_TOKEN) is a dashboard secret and never lives here.
+[vars]
+WHATSAPP_PHONE_ID = "1373693199154891"
+WHATSAPP_VERIFY_TOKEN = "countmy-wa-c6f660c7e91fc60aecc69c22"
+
 [ai]
 binding = "AI"
 
