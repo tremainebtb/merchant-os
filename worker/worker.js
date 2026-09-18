@@ -846,8 +846,57 @@ async function handleAdminStats(request, env) {
 // of extra round trip that hurts most on the weak mobile connections this
 // app is built to tolerate. handleTranscribe below still works standalone
 // (nothing that already calls /transcribe breaks).
+// Groq (18 Sep): the same Whisper large-v3-turbo, on Groq's free tier
+// (no card, ~8 hours of audio a day), used first whenever a GROQ_API_KEY
+// secret is set on the Worker. Cloudflare's own Whisper stays as the
+// fallback, so a Groq hiccup costs nothing but a second try.
+const GROQ_PROMPT_EN = 'Shop records: pepper 25 cedis, chop money 20 cedis, bought stock 400 cedis, Kofi 200, Ama owes me 120 cedis, sold 4 bags of rice 120 each, transport 15, momo 50, Adwoa dey owe me 50, I sell kenkey and fish twenty cedis, Yaw come take oil 25 he go pay tomorrow, I owe Mensah 400, airtime 50, Kofi paid me 200.';
+async function groqTranscribe(audioBytes, audioType, env, lang, country) {
+  if (!env.GROQ_API_KEY) return null;
+  const type = audioType || 'audio/webm';
+  const ext = /mp4|m4a/.test(type) ? 'm4a' : /mpeg|mp3/.test(type) ? 'mp3' : /ogg/.test(type) ? 'ogg' : /wav/.test(type) ? 'wav' : /flac/.test(type) ? 'flac' : 'webm';
+  const form = new FormData();
+  form.append('file', new Blob([audioBytes], { type }), 'voice.' + ext);
+  form.append('model', 'whisper-large-v3-turbo');
+  form.append('response_format', 'json');
+  form.append('temperature', '0');
+  if (lang === 'es') {
+    form.append('language', 'es');
+    form.append('prompt', country === 'CO'
+      ? 'Cuentas de la tienda: vendí cinco camisas de a diez mil pesos, Juan me quedó debiendo veinte lucas, pagué doscientos mil de arriendo, le fié a doña Marta quince mil, me pagaron por Nequi, tres libras de tomate a dos quinientos, Yorbelis abonó treinta mil.'
+      : 'Cuentas de la bodega: vendí tres refrescos a dos dólares, María me quedó debiendo veinte verdes, pagué la luz cuarenta bolos, caramelos tres verdes, le fié a Yusmary, me pagó por pago móvil, mil quinientos bolívares, fiao, abonó diez dólares.');
+  } else {
+    form.append('prompt', GROQ_PROMPT_EN);
+  }
+  const ctl = new AbortController(); const tm = setTimeout(() => ctl.abort(), 25000);
+  try {
+    const r = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', { method: 'POST', headers: { Authorization: 'Bearer ' + env.GROQ_API_KEY }, body: form, signal: ctl.signal });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) { console.log('groq stt fail', r.status, JSON.stringify(j).slice(0, 200)); return null; }
+    return { text: String(j.text || '') };
+  } catch (err) { console.log('groq stt threw', String(err).slice(0, 120)); return null; }
+  finally { clearTimeout(tm); }
+}
+async function groqChat(messages, env, temperature) {
+  if (!env.GROQ_API_KEY) return null;
+  const ctl = new AbortController(); const tm = setTimeout(() => ctl.abort(), 20000);
+  try {
+    const r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST', headers: { Authorization: 'Bearer ' + env.GROQ_API_KEY, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: 'llama-3.1-8b-instant', messages, temperature, max_tokens: 700 }), signal: ctl.signal
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) { console.log('groq chat fail', r.status, JSON.stringify(j).slice(0, 200)); return null; }
+    const content = j && j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content;
+    return typeof content === 'string' ? { response: content } : null;
+  } catch (err) { console.log('groq chat threw', String(err).slice(0, 120)); return null; }
+  finally { clearTimeout(tm); }
+}
+
 async function transcribeAudio(audioBytes, audioType, env, lang, country) {
   if (audioBytes.length === 0) return { text: '', error: 'no audio received' };
+  const viaGroq = await groqTranscribe(audioBytes, audioType, env, lang, country);
+  if (viaGroq) return { text: await khayaFallback(viaGroq.text, audioBytes, audioType, env), engine: 'groq' };
 
   // whisper-large-v3-turbo's input schema wants 'audio' as an array of raw byte
   // values OR base64 - live-tested 27 Aug: passing a plain JS array (Array.from a
@@ -924,6 +973,10 @@ async function transcribeAudio(audioBytes, audioType, env, lang, country) {
   // the single best bet with a one-shot budget. If real usage shows people
   // need Ga/Fante/Ewe specifically, that needs either a paid Khaya tier or
   // a way to ask which language once, not silently multiply API calls.
+  text = await khayaFallback(text, audioBytes, audioType, env);
+  return { text, engine: 'cf' };
+}
+async function khayaFallback(text, audioBytes, audioType, env) {
   if (!text.trim() && env.KHAYA_API_KEY) {
     try {
       const khayaRes = await fetch('https://translation-api.ghananlp.org/asr/v3/transcribe?language=twi', {
@@ -947,8 +1000,7 @@ async function transcribeAudio(audioBytes, audioType, env, lang, country) {
       // break the existing English/Pidgin experience.
     }
   }
-
-  return { text };
+  return text;
 }
 
 // Thin wrapper kept for backward compatibility - anything still calling
@@ -996,7 +1048,7 @@ async function handleTranscribe(request, env) {
 // 50 is a transcription/parsing error, not a fabrication) - evidence-checking
 // targets fabrication specifically, not every possible error; the review UI is
 // still what catches a wrong-but-grounded number.
-const WORKER_VERSION = 'w65';
+const WORKER_VERSION = 'w66';
 
 // Spanish (Venezuela) twin of EXTRACT_SYSTEM_PROMPT below: same event types,
 // same {value, evidence} rule, same JSON-only answer. Amounts are bare
@@ -1674,13 +1726,16 @@ function mentionsANumber(text) {
 }
 
 async function runExtractionModel(text, env, temperature, lang, country) {
-  // Spanish gets the 8B model (fp8-fast: cheaper than the plain 8B and far
-  // better than 3B on two-event sentences); English keeps the tested 3B path.
+  const messages = [
+    { role: 'system', content: lang === 'es' ? (country === 'CO' ? EXTRACT_SYSTEM_PROMPT_ES_CO : EXTRACT_SYSTEM_PROMPT_ES) : EXTRACT_SYSTEM_PROMPT },
+    { role: 'user', content: text }
+  ];
+  // Groq's free tier first (18 Sep), Cloudflare's own model when Groq is
+  // absent or fails - same prompt, same shape of answer either way.
+  const viaGroq = await groqChat(messages, env, temperature);
+  if (viaGroq) return viaGroq;
   return env.AI.run('@cf/meta/llama-3.1-8b-instruct-fp8-fast', {
-    messages: [
-      { role: 'system', content: lang === 'es' ? (country === 'CO' ? EXTRACT_SYSTEM_PROMPT_ES_CO : EXTRACT_SYSTEM_PROMPT_ES) : EXTRACT_SYSTEM_PROMPT },
-      { role: 'user', content: text }
-    ],
+    messages,
     max_tokens: 700,
     // Real bug, measured live 4 Sep: with no temperature set, the model
     // samples at its default and the SAME sentence gives different answers on

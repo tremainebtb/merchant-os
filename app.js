@@ -2929,6 +2929,17 @@ document.querySelectorAll('.ts-tile').forEach(tile => tile.addEventListener('cli
   const ex = !ES ? '\u201cI sold 3 bowls of waakye for 60 cedis.\u201d' : (CO ? '\u201cVend\u00ed cinco camisas de a diez mil.\u201d' : '\u201cVend\u00ed tres refrescos a dos d\u00f3lares.\u201d');
   el.textContent = ex;
 })();
+// One tap between English and Spanish (18 Sep): a test link with ?lang=es
+// left Bobby's own phone in Spanish with no way back but the address bar.
+(function langSwitch() {
+  const b = document.getElementById('langSwitch'); if (!b) return;
+  b.textContent = ES ? 'English' : 'Español';
+  b.addEventListener('click', () => {
+    try { localStorage.setItem('kym_lang', ES ? 'en' : 'es'); } catch (e) { /* optional */ }
+    track('lang_switch', { to: ES ? 'en' : 'es' });
+    const u = new URL(location.href); u.searchParams.set('lang', ES ? 'en' : 'es'); location.href = u.toString();
+  });
+})();
 document.getElementById('homeMicBtn').addEventListener('click', () => {
   track('open_sheet', { type: 'home_mic' });
   ping('tap'); // funnel step between 'opened' and 'recorded' (16 Sep)
