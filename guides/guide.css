@@ -1,0 +1,39 @@
+/* CountMy guides (18 Sep 2026). Same tokens as the app, built to be read:
+   cedi numbers first, short sections, tables not prose, one action repeated. */
+:root{--paper:#F8F3EC;--surface:#FFFFFF;--ink:#221A12;--ink-soft:#5C5142;--muted:#6E6353;--rule:#E7DDCD;--flame:#D9541A;--flame-deep:#A83F12;--flame-soft:#FBE3D2;--leaf:#1B7A43;--leaf-deep:#125C32;--leaf-soft:#E1F2E7;--navy:#1E2F55;--steel-soft:#E1EAF6}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--paper:#121417;--surface:#1B1E23;--ink:#F2F1EE;--ink-soft:#C7C9CE;--muted:#8B8F97;--rule:#2E323A;--flame:#F0713A;--flame-deep:#F79764;--flame-soft:#2E2119;--leaf:#4CC585;--leaf-deep:#6FD79E;--leaf-soft:#152420;--navy:#D6DEF2;--steel-soft:#1F2A3D}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:"Work Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:1.02rem;line-height:1.55}
+.wrap{max-width:720px;margin:0 auto;padding:16px 18px 60px}
+.top{display:flex;align-items:center;gap:10px;padding:6px 0 14px}
+.top a{color:var(--navy);font-family:"Manrope",sans-serif;font-weight:800;font-size:1.25rem;text-decoration:none}
+.top .my{color:var(--flame)}
+h1{font-family:"Manrope",sans-serif;font-weight:800;font-size:1.75rem;line-height:1.15;margin:6px 0 10px;color:var(--navy);text-wrap:balance}
+h2{font-family:"Manrope",sans-serif;font-weight:800;font-size:1.25rem;margin:30px 0 8px;color:var(--ink)}
+h3{font-family:"Manrope",sans-serif;font-weight:700;font-size:1.05rem;margin:20px 0 6px}
+p{margin:0 0 12px}
+.lead{font-size:1.1rem;color:var(--ink-soft)}
+.stamp{font-size:.85rem;color:var(--muted);margin:0 0 18px}
+.big{background:var(--surface);border:1px solid var(--rule);border-radius:16px;padding:14px 16px;margin:0 0 18px}
+.big .n{font-family:"Manrope",sans-serif;font-weight:800;font-size:1.6rem;color:var(--leaf-deep)}
+.tw{overflow-x:auto;margin:0 0 14px}
+table{border-collapse:collapse;width:100%;font-size:.95rem;background:var(--surface);border-radius:12px;overflow:hidden}
+th,td{padding:9px 10px;border-bottom:1px solid var(--rule);text-align:left;vertical-align:top}
+th{background:var(--steel-soft);color:var(--navy);font-weight:700}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.say{background:var(--leaf-soft);border-radius:14px;padding:12px 14px;margin:14px 0}
+.say b{color:var(--leaf-deep)}
+.cta{display:flex;align-items:center;justify-content:center;gap:10px;background:var(--flame);color:#fff;text-decoration:none;font-family:"Manrope",sans-serif;font-weight:800;font-size:1.15rem;border-radius:16px;padding:16px 18px;margin:18px 0}
+.cta svg{width:26px;height:26px}
+.cta:active{background:var(--flame-deep)}
+.cta-sub{text-align:center;color:var(--muted);font-size:.88rem;margin:-10px 0 18px}
+.twi{color:var(--ink-soft);font-style:italic}
+ul,ol{padding-left:20px;margin:0 0 12px}
+li{margin:0 0 6px}
+.faq h3{margin-top:16px}
+.links{margin:30px 0 0;padding:14px 16px;background:var(--surface);border:1px solid var(--rule);border-radius:14px}
+.links a{color:var(--navy);font-weight:700}
+.foot{color:var(--muted);font-size:.85rem;margin-top:30px}
+.foot a{color:var(--muted)}
+.jump{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 16px}
+.jump a{background:var(--surface);border:1px solid var(--rule);border-radius:100px;padding:6px 12px;font-size:.88rem;color:var(--navy);text-decoration:none;font-weight:600}
