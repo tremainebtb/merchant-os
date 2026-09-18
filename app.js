@@ -495,7 +495,14 @@ function micSupported() {
 // offer Chrome (Android intent link keeps the same page and ad tracking),
 // and put the typed choices right there.
 function inAppBrowser() {
-  return /FBAN|FBAV|FB_IAB|Instagram|Messenger\/|Line\/|MicroMessenger/i.test(navigator.userAgent || '');
+  const ua = navigator.userAgent || '';
+  if (/FBAN|FBAV|FB_IAB|Instagram|Messenger\/|Line\/|MicroMessenger|WhatsApp|Telegram|Snapchat|TikTok|GSA\//i.test(ua)) return true;
+  // Any other app's built-in browser (WhatsApp, Gmail, Telegram open links
+  // inside themselves): Android WebView says "; wv)"; an iPhone WKWebView
+  // has no "Safari/" token and is not Chrome or Firefox for iOS.
+  if (/Android/i.test(ua) && /;\s*wv\)/.test(ua)) return true;
+  if (/iPhone|iPad|iPod/i.test(ua) && !/Safari\//i.test(ua) && !/CriOS|FxiOS|EdgiOS/i.test(ua)) return true;
+  return false;
 }
 function isAndroid() { return /Android/i.test(navigator.userAgent || ''); }
 function chromeIntentUrl() {
