@@ -1064,7 +1064,7 @@ async function handleTranscribe(request, env) {
 // 50 is a transcription/parsing error, not a fabrication) - evidence-checking
 // targets fabrication specifically, not every possible error; the review UI is
 // still what catches a wrong-but-grounded number.
-const WORKER_VERSION = 'w80';
+const WORKER_VERSION = 'w81';
 
 // Spanish (Venezuela) twin of EXTRACT_SYSTEM_PROMPT below: same event types,
 // same {value, evidence} rule, same JSON-only answer. Amounts are bare
@@ -1539,7 +1539,7 @@ function spanishPrep(text, country) {
   t = t.replace(/\b(al|a la|el|la)\s+de\s+(la|el|los|las)\s+/gi, '');
   t = t.replace(/\b(un|1)\s+(dolar|d\u00f3lar)(c)?ito\s+de\s+(\w+)/gi, '$4 1 d\u00f3lar').replace(/\b(un|1)\s+(dolar|d\u00f3lar)(c)?ito\b/gi, '1 d\u00f3lar').replace(/\b(\d+)\s+(dolar|d\u00f3lar)(c)?itos\b/gi, '$1 d\u00f3lares').replace(/\bbolitos?\b/gi, 'bol\u00edvares');
   t = t.replace(/\b(por|con|en)\s+(nequi|daviplata|bancolombia|pago\s+m[o\u00f3]vil|zelle|transferencia|efectivo|binance|usdt)\b/gi, '');
-  t = t.replace(/\b(un|una)\s+(d[o\u00f3]lar|bolo|bol[i\u00ed]var|peso|real|verde|luca)\b/gi, '1 $2');
+  t = t.replace(/\b(un|una)\s+(d[o\u00f3]lar(?:es)?|bolos?|bol[i\u00ed]var(?:es)?|pesos?|real(?:es)?|verdes?|lucas?)\b/gi, '1 $2');
   t = t.replace(/\s*,?\s*y\s+me\s+pag(o|\u00f3)\s*\.?\s*$/i, '');
   return t;
 }
