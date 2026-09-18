@@ -2194,6 +2194,18 @@ async function render() {
   document.getElementById('shopPageBtn').hidden = firstUse;
   document.getElementById('planPill').hidden = firstUse;
   document.getElementById('homeMicBtn').classList.toggle('first-use', firstUse);
+  // 18 Sep red team: a brand name is not an instruction. First-timers get
+  // "Press and talk"; the two buttons that can do nothing yet are hidden;
+  // the language promise moves under the mic where the decision is made.
+  const micLbl = document.querySelector('#homeMicBtn .home-mic-label');
+  if (micLbl && !document.getElementById('homeMicBtn').classList.contains('recording')) {
+    const want = firstUse ? t('Press and talk', 'Toca y habla') : t('Tell CountMy', 'Cu\u00e9ntale a CountMy');
+    micLbl.textContent = want; micLbl.dataset.idle = want;
+  }
+  const secondRow = document.querySelector('.second-row'); if (secondRow) secondRow.hidden = firstUse;
+  const langLine = document.querySelector('.mic-lang-line'); if (langLine) langLine.hidden = firstUse;
+  const person = document.getElementById('personLine'); if (person) person.hidden = !firstUse || ES;
+  if (firstUse) { const st = document.getElementById('homeMicStatus'); if (st && !st.textContent) st.textContent = t('Talk Twi, Pidgin or English.', 'Habla en espa\u00f1ol, como t\u00fa hablas.'); }
   document.getElementById('whatIs').hidden = !firstUse;
   const strip = document.getElementById('todayStrip'); if (strip) strip.hidden = firstUse;
   document.getElementById('exampleChat').hidden = true;
@@ -2496,6 +2508,7 @@ function reminderMessage(name, amount, note, cur) {
 }
 
 function shareFooter(campaign) {
+  if (campaign === 'backup') return t('\n\nTomorrow, press this: https://countmy.app/?r=wa\nFree. Made by Bobby in Ghana.', '\n\nMa\u00f1ana toca aqu\u00ed: https://countmy.app/?lang=es&r=wa');
   return t('\n\nI keep my business money with CountMy. It is free: https://countmy.app/?utm_source=whatsapp&utm_medium=share&utm_campaign=' + campaign,
     '\n\nLlevo las cuentas de mi negocio con CountMy. Es gratis: https://countmy.app/?lang=es&utm_source=whatsapp&utm_medium=share&utm_campaign=' + campaign);
 }
@@ -2737,6 +2750,19 @@ async function afterEntrySaved(entry) {
   try {
     if (entry && entry.type === 'debt_in') { showDebtReminder(entry); return; }
     const all = await getAllEntries();
+    // 18 Sep: zero returning visitors in a week because there is no route
+    // back. The first save offers a WhatsApp message to herself with the
+    // link at the bottom: tomorrow she finds CountMy where she looks every day.
+    if (all.length === 1 && !ES) {
+      const box = document.getElementById('milestone');
+      if (box) {
+        clearOtherPrompts('milestone');
+        box.innerHTML = `${escapeHtml(t('Saved. Send it to your own WhatsApp, so you find CountMy again tomorrow?', ''))} <button type="button" class="remind-btn" id="firstWaBtn">${t('Send to my WhatsApp', '')}</button>`;
+        box.hidden = false;
+        document.getElementById('firstWaBtn').addEventListener('click', () => { track('first_wa_send'); exportBackup(); });
+        return;
+      }
+    }
     if (all.length <= FIRST_ENTRIES_TARGET) showEntryMilestone(all.length);
   } catch (e) { /* never let a nicety break a save */ }
 }
@@ -3135,6 +3161,8 @@ document.querySelectorAll('.ts-tile').forEach(tile => tile.addEventListener('cli
 // left Bobby's own phone in Spanish with no way back but the address bar.
 (function langSwitch() {
   const b = document.getElementById('langSwitch'); if (!b) return;
+  let chosen = false; try { chosen = !!localStorage.getItem('kym_lang') || new URLSearchParams(location.search).has('lang'); } catch (e) { /* optional */ }
+  if (!chosen && !ES) { b.hidden = true; }
   b.textContent = ES ? 'English' : 'Español';
   b.addEventListener('click', () => {
     try { localStorage.setItem('kym_lang', ES ? 'en' : 'es'); } catch (e) { /* optional */ }
@@ -3219,10 +3247,16 @@ if (inAppBrowser()) {
       // Facebook's Android browser has no microphone permission at all
       // (Meta developer thread, 2024-25): the tap is unavoidable, so it is
       // the whole first screen. Fallback link for phones without Chrome.
-      top.innerHTML = `<p>${t('Tap once to open CountMy in Chrome \u2014 your voice works there.', 'Toca una vez para abrir CountMy en Chrome: ah\u00ed s\u00ed funciona la voz.')}</p>`
-        + `<a class="iab-open" id="iabTopBtn" href="${window.KYM_CHROME_URL || chromeIntentUrl()}">${t('Open in Chrome', 'Abrir en Chrome')}</a>`
-        + `<p class="iab-sub">${t('Same page. Free. No signup.', 'La misma p\u00e1gina. Gratis. Sin registro.')}</p>`
+      top.innerHTML = `<p>${t('Facebook does not allow talking here. Press once, then you can talk.', 'Facebook no deja hablar aqu\u00ed. Toca una vez y podr\u00e1s hablar.')}</p>`
+        + (ES ? '' : `<p class="iab-pidgin">Facebook no dey allow talking. Press here, then you go talk.</p>`)
+        + `<a class="iab-open" id="iabTopBtn" href="${window.KYM_CHROME_URL || chromeIntentUrl()}"><svg class="chrome-ball" viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="22" fill="#fff"/><path d="M24 2a22 22 0 0 1 19.05 11H24a11 11 0 0 0-9.53 5.5L7.2 6.3A21.94 21.94 0 0 1 24 2z" fill="#EA4335"/><path d="M43.05 13A22 22 0 0 1 24 46l7.4-12.83A11 11 0 0 0 33.5 13z" fill="#FBBC04"/><path d="M14.47 18.5A11 11 0 0 0 24 35l-7.4 12.82A22 22 0 0 1 7.2 6.3z" fill="#34A853"/><circle cx="24" cy="24" r="8.5" fill="#4285F4"/></svg><span>${t('Open in Chrome', 'Abrir en Chrome')}</span></a>`
+        + `<p class="iab-sub">${t('Free. It will not ask for your MoMo PIN or password.', 'Gratis. No te pide clave ni PIN.')}</p>`
         + `<a class="iab-alt" id="iabAltBtn" href="${window.KYM_ANYBROWSER_URL || '#'}">${t('No Chrome? Open in another browser', '\u00bfSin Chrome? Abrir en otro navegador')}</a>`;
+      document.body.classList.add('iab-first');
+      // every other tap on this screen also goes to Chrome - the mic cannot work here
+      const go = (ev) => { ev.preventDefault(); ping('iab_tap'); track('iab_tap', { via: 'other' }); location.href = window.KYM_CHROME_URL || chromeIntentUrl(); };
+      ['homeMicBtn', 'askBtn', 'seeBtn'].forEach(id => { const el = document.getElementById(id); if (el) el.addEventListener('click', go, true); });
+      document.querySelectorAll('.ts-tile').forEach(el => el.addEventListener('click', go, true));
     } else if (iosApp === 'instagram') {
       top.innerHTML = `<p>${t('Tap once to open CountMy in Safari \u2014 your voice works best there.', 'Toca una vez para abrir CountMy en Safari: ah\u00ed la voz funciona mejor.')}</p>`
         + `<a class="iab-open" id="iabTopBtn" href="${window.KYM_IG_URL || '#'}">${t('Open in Safari', 'Abrir en Safari')}</a>`
@@ -3236,9 +3270,25 @@ if (inAppBrowser()) {
     if (first && first.parentNode) first.parentNode.insertBefore(top, first.nextSibling);
     const tb = document.getElementById('iabTopBtn'); if (tb) tb.addEventListener('click', () => { ping(android ? 'iab_tap' : 'iab_tap_ios'); track('iab_tap'); });
     const ab = document.getElementById('iabAltBtn'); if (ab) ab.addEventListener('click', () => { ping('iab_tap'); track('iab_tap_any'); });
-    if (android) showTypedChoices();
   } catch (e) { /* never block */ }
 }
+// 3. Arrival in Chrome from Facebook: say so, and point at the one button.
+try {
+  if (new URLSearchParams(location.search).get('from') === 'iab' && !inAppBrowser()) {
+    const st = document.getElementById('homeMicStatus');
+    if (st) { st.textContent = t('You are in Chrome now. Press the orange button and talk.', 'Ya est\u00e1s en Chrome. Toca el bot\u00f3n naranja y habla.'); st.classList.add('heard'); }
+    const mic = document.getElementById('homeMicBtn'); if (mic) { mic.classList.add('demo-pulse'); setTimeout(() => mic.classList.remove('demo-pulse'), 4000); }
+  }
+} catch (e) { /* optional */ }
+// "Hear it": the example spoken, the only demonstration a non-reader can take in
+(function hearExample() {
+  const b = document.getElementById('hearExample'); if (!b) return;
+  b.addEventListener('click', () => {
+    track('example_play');
+    const ex = (document.getElementById('tryExample') || {}).textContent || '';
+    say(ex.replace(/[\u201c\u201d"]/g, ''));
+  });
+})();
 try { if (new URLSearchParams(location.search).get('from') === 'iab' && !inAppBrowser()) { ping(isAndroid() ? 'iab_escaped' : 'iab_escaped_ios'); track('iab_escaped'); } } catch (e) { /* optional */ }
 if (!micSupported()) {
   // No microphone API in this browser (older iOS, some in-app browsers).
@@ -3448,6 +3498,7 @@ function bumpVisitCount() {
       const u = new URLSearchParams(location.search);
       const clean = s => String(s || '').toLowerCase().replace(/[^a-z0-9_.:-]/g, '').slice(0, 40);
       let src = clean(u.get('utm_source'));
+      if (!src && u.get('r') === 'wa') src = 'whatsapp-self';
       const camp = clean(u.get('utm_campaign'));
       if (!src && u.get('p')) src = 'partner';
       if (!src && document.referrer) {
