@@ -56,7 +56,7 @@
      app.js?v=. Lets anyone - a reviewer, a tester in Kumasi, a future session -
      answer "which CountMy am I looking at?" from view-source or the console,
      the same way the Worker answers with "wv". -->
-<meta name="countmy-version" content="v110">
+<meta name="countmy-version" content="v111">
 <!-- Real finding, 28 Aug: the bare "CountMy" title carried no keywords at all
      for what people actually search - a free sales/expense ledger for
      Ghanaian shop owners. The <title> tag is the single strongest on-page
@@ -479,6 +479,8 @@ input[type="number"]{-moz-appearance:textfield}
 .iab-banner p{margin:0 0 8px;font-size:1rem;font-weight:600;color:var(--ink)}
 .iab-banner .iab-sub{font-size:.88rem;font-weight:400;color:var(--ink-soft);margin:6px 0 0}
 .iab-open{display:block;background:var(--flame);color:#fff;text-decoration:none;font-weight:800;font-size:1.1rem;border-radius:14px;padding:14px 16px}
+.iab-note{display:block;margin:10px 0 0;background:var(--leaf-soft);color:var(--leaf-deep);font-weight:800;font-size:1.05rem;border-radius:14px;padding:13px 16px;cursor:pointer}
+.iab-note input{display:none}
 .home-mic-status.heard{color:var(--leaf-deep);font-weight:600}
 .home-mic-status.err{color:var(--brick);font-weight:600}
 .or-row{display:flex;align-items:center;gap:10px;margin:0 0 14px;color:var(--muted);font-size:.85rem;font-weight:700}
@@ -565,6 +567,28 @@ input[type="number"]{-moz-appearance:textfield}
     if (params.get('owner') === '1') localStorage.setItem('kym_owner_device', '1');
   })();
   window.KYM_IS_OWNER_DEVICE = localStorage.getItem('kym_owner_device') === '1';
+
+  // 18 Sep: 56% of last week's real visitors arrived inside Facebook's or
+  // Instagram's own browser, where the microphone cannot work on Android.
+  // Nobody will find "open in Chrome" in a menu, so on Android the page
+  // jumps to Chrome by itself the instant it loads - the person taps the
+  // ad and CountMy opens in Chrome. If the jump is refused, the fallback
+  // URL brings this same page back with ?iab=stay and nothing repeats.
+  (function() {
+    try {
+      var ua = navigator.userAgent || '';
+      var inApp = /FBAN|FBAV|FB_IAB|Instagram|Messenger\//i.test(ua);
+      if (!inApp || !/Android/i.test(ua)) return;
+      var p = new URLSearchParams(location.search);
+      if (p.get('iab') === 'stay') { window.KYM_IAB_STAY = true; return; }
+      var q = new URLSearchParams(location.search); q.set('from', 'iab');
+      var target = location.host + location.pathname + '?' + q.toString();
+      var fb = new URLSearchParams(location.search); fb.set('iab', 'stay');
+      var fallback = location.protocol + '//' + location.host + location.pathname + '?' + fb.toString();
+      window.KYM_IAB_JUMPED = true;
+      location.href = 'intent://' + target + '#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=' + encodeURIComponent(fallback) + ';end';
+    } catch (e) { /* never block the page */ }
+  })();
 
   // The only two lines that need editing once Bobby sends the real IDs.
   window.GA4_ID = 'G-YJW9J53BL9';
@@ -1027,7 +1051,7 @@ input[type="number"]{-moz-appearance:textfield}
      string is what forces a fresh script fetch even before any service worker logic
      runs, independent of it. Found live 27 Aug: without this, an already-visited
      browser can keep running old code from plain HTTP cache regardless of SW strategy. -->
-<script src="app.js?v=110"></script>
+<script src="app.js?v=111"></script>
 
 </body>
 </html>

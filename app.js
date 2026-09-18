@@ -511,9 +511,21 @@ function showOpenInChrome(reason) {
     ? t('Facebook\u2019s browser cannot use the microphone.', 'El navegador de Facebook no puede usar el micr\u00f3fono.')
     : t('You are inside Facebook\u2019s browser \u2014 the microphone may not work here.', 'Est\u00e1s dentro del navegador de Facebook: puede que el micr\u00f3fono no funcione aqu\u00ed.');
   box.innerHTML = isAndroid()
-    ? `<p>${lead}</p><a class="iab-open" href="${chromeIntentUrl()}">${t('Open in Chrome', 'Abrir en Chrome')}</a><p class="iab-sub">${t('Same page, and your voice will work.', 'Es la misma p\u00e1gina, y ah\u00ed s\u00ed funciona la voz.')}</p>`
+    ? `<p>${lead}</p><a class="iab-open" href="${chromeIntentUrl()}">${t('Open in Chrome', 'Abrir en Chrome')}</a><p class="iab-sub">${t('Same page, and your voice will work.', 'Es la misma p\u00e1gina, y ah\u00ed s\u00ed funciona la voz.')}</p><label class="iab-note"><input type="file" accept="audio/*" capture id="iabNoteInput">\uD83C\uDF99 ${t('Or record a voice note here', 'O graba una nota de voz aqu\u00ed')}</label>`
     : `<p>${lead}</p><p class="iab-sub">${t('Tap the three dots <b>\u22ef</b> at the top, then <b>Open in Safari</b> (or Chrome). Or type it below.', 'Toca los tres puntos <b>\u22ef</b> arriba y luego <b>Abrir en Safari</b> (o Chrome). O escr\u00edbelo abajo.')}</p>`;
   box.hidden = false;
+  const noteIn = document.getElementById('iabNoteInput');
+  if (noteIn && !noteIn.dataset.wired) {
+    noteIn.dataset.wired = '1';
+    noteIn.addEventListener('change', async () => {
+      const f = noteIn.files && noteIn.files[0]; if (!f) return;
+      ping('iab_note'); track('iab_note', { bytes: f.size, type: f.type });
+      pendingVoiceSource = 'voice';
+      setMicStatus(t('Listening to your voice note\u2026', 'Escuchando tu nota de voz\u2026'), null, 'homeMicStatus');
+      await processVoiceBlob(f, 'homeMicStatus', 0, f.size);
+      noteIn.value = '';
+    });
+  }
 }
 function showTypedChoices() {
   try {
@@ -673,7 +685,7 @@ function fillFields(values) {
 // (worker.js handleTranscribeAndExtract) that does both AI steps back-to-
 // back on Cloudflare's edge and returns both results together.
 async function transcribeAndExtract(blob) {
-  const ext = blob.type.indexOf('mp4') !== -1 ? 'mp4' : (blob.type.indexOf('ogg') !== -1 ? 'ogg' : 'webm');
+  const ext = blob.type.indexOf('mp4') !== -1 || blob.type.indexOf('m4a') !== -1 ? 'mp4' : (blob.type.indexOf('ogg') !== -1 ? 'ogg' : (blob.type.indexOf('webm') !== -1 || !blob.type ? 'webm' : String(blob.type.split('/')[1] || 'bin').replace(/[^a-z0-9]/gi, '').slice(0, 8)));
   const form = new FormData();
   form.append('audio', blob, `voice.${ext}`);
   form.append('lang', LANG);
@@ -1248,98 +1260,11 @@ function stopMicLevelMeter() {
   if (meter) meter.querySelectorAll('span').forEach(bar => bar.style.height = '6px');
 }
 
-let micArming = false;
-let askMode = false;
-async function toggleMic(btn, statusId) {
-  if (micArming) return; // a second tap while "Speak now" is playing
-  if (!micSupported()) {
-    if (inAppBrowser()) showOpenInChrome('failed');
-    micFail(window.isSecureContext === false ? t('Please open https://countmy.app for voice to work.', 'Abre https://countmy.app para que funcione la voz.') : t('Voice isn\u2019t available on this phone/browser \u2014 please type instead.', 'La voz no est\u00e1 disponible en este tel\u00e9fono o navegador. Mejor escr\u00edbelo.'), 'mic_nomic', statusId);
-    return;
-  }
-  if (mediaRecorder && mediaRecorder.state === 'recording') {
-    mediaRecorder.stop();
-    return;
-  }
-  micArming = true;
-  pendingHeard = null;
+// One path for every clip, however it was captured: the page's own
+// recorder, or (18 Sep) a voice note recorded by the phone's recorder app
+// inside Facebook's browser, where the page cannot use the microphone.
+async function processVoiceBlob(blob, statusId, recordedMs, bytes) {
   try {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    recordedChunks = [];
-    startMicLevelMeter(stream);
-    // Real bug, found by testing the live transcription endpoint directly
-    // with real audio and confirming the server side works correctly: the
-    // recorded blob was always hardcoded to 'audio/webm' regardless of what
-    // the browser actually recorded. Chrome/Android really does produce
-    // webm, but Safari/iOS never has - it records audio/mp4 - so every
-    // recording from an iPhone was being mislabeled before it was ever sent
-    // anywhere, independent of anything Whisper does. Ask the browser what
-    // it actually supports and use that, both for the recorder itself and
-    // for how the resulting blob is labeled.
-    const mimeCandidates = ['audio/webm', 'audio/mp4', 'audio/ogg'];
-    const supportedMime = mimeCandidates.find(m => window.MediaRecorder.isTypeSupported && window.MediaRecorder.isTypeSupported(m));
-    mediaRecorder = supportedMime ? new MediaRecorder(stream, { mimeType: supportedMime }) : new MediaRecorder(stream);
-    const actualMime = mediaRecorder.mimeType || supportedMime || 'audio/webm';
-    let recordingStartedAt = Date.now();
-    mediaRecorder.onstart = () => {
-      recordingStartedAt = Date.now();
-      // The "Speak now" prompt moved the meter; only the person counts.
-      micPeak = 0; micSpeechAt = 0; micLastLoudAt = 0;
-      micArming = false;
-    };
-    mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) recordedChunks.push(e.data); };
-    // Auto-stop (17 Sep): nobody reads "tap again when you're done", and a
-    // recording that never ends is the exact "it can't hear me". Stop 1.8 s
-    // after the person goes quiet (once they have spoken), or at 12 s flat.
-    const MAX_MS = 12000, QUIET_MS = 1800;
-    const autoStop = setInterval(() => {
-      if (!mediaRecorder || mediaRecorder.state !== 'recording') { clearInterval(autoStop); return; }
-      const t = Date.now();
-      if (t - recordingStartedAt >= MAX_MS || (micSpeechAt && t - micSpeechAt >= 700 && t - micLastLoudAt >= QUIET_MS)) {
-        clearInterval(autoStop);
-        try { mediaRecorder.stop(); } catch (e) { /* already stopped */ }
-      }
-    }, 150);
-    mediaRecorder.onstop = async () => {
-      clearInterval(autoStop);
-      const heardPeak = micPeak, meterWasLive = micMeterLive;
-      stream.getTracks().forEach(t => t.stop());
-      stopMicLevelMeter();
-      const lbl = btn.querySelector('.home-mic-label'); if (lbl && lbl.dataset.idle) lbl.textContent = lbl.dataset.idle;
-      btn.classList.remove('recording');
-      pendingVoiceSource = 'voice';
-      setMicStatus(t('Listening to what you said\u2026', 'Escuchando lo que dijiste\u2026'), null, statusId);
-      // If nothing was actually captured (mic muted at the OS level, a
-      // permission edge case, or the recording stopped instantly) the old
-      // code sent an empty file to be transcribed and got back nothing,
-      // with no way to tell that apart from "transcription heard silence."
-      // This catches it before a network call and says exactly what
-      // happened instead.
-      if (!recordedChunks.length || recordedChunks.reduce((s, c) => s + c.size, 0) === 0) {
-        track('mic_error', { reason: 'empty_recording' });
-        if (inAppBrowser()) showOpenInChrome('failed');
-        micFail(t('No sound was recorded \u2014 please check your phone isn\u2019t muted, then try again.', 'No se grab\u00f3 ning\u00fan sonido. Revisa que el celular no est\u00e9 en silencio e int\u00e9ntalo otra vez.'), 'mic_empty', statusId);
-        return;
-      }
-      // The meter never moved: the phone gave us a stream with no voice in it
-      // (in-app browsers and muted mics do exactly this). Say so now instead
-      // of uploading silence and waiting up to a minute for nothing.
-      if (meterWasLive && heardPeak < 10) {
-        track('mic_error', { reason: 'silent_take' });
-        if (inAppBrowser()) showOpenInChrome('failed');
-        micFail(t('I could not hear you. Please hold the phone close to your mouth and try again, or type it below.', 'No te escuch\u00e9. Acerca el celular a la boca e int\u00e9ntalo otra vez, o escr\u00edbelo abajo.'), 'mic_silent', statusId);
-        return;
-      }
-      // Real reported symptom, 28 Aug: recordings that DO have bytes (so the
-      // guard above doesn't fire) but transcribe to empty text every time,
-      // consistently, across three different devices - the exact fingerprint
-      // of tapping stop before actually finishing a full word, since a
-      // fraction-of-a-second clip has audio energy but no complete speech for
-      // Whisper to find. Give a targeted hint instead of the generic
-      // "didn't catch that", which reads as a mysterious black box.
-      const recordedMs = Date.now() - recordingStartedAt;
-      try {
-        const blob = new Blob(recordedChunks, { type: actualMime });
         setMicStatus(t('Working out what happened\u2026', 'Anotando lo que dijiste\u2026'), null, statusId);
         const { text: heard, events: heardEvents } = await transcribeAndExtract(blob);
         let events = Array.isArray(heardEvents) ? heardEvents : [];
@@ -1442,9 +1367,102 @@ async function toggleMic(btn, statusId) {
           }
         }
       } catch (err) {
-        track('mic_error', { reason: err.cls || 'transcribe_failed', http: err.http || 0, ms: recordedMs, bytes: recordedChunks.reduce((s, c) => s + c.size, 0) });
+        track('mic_error', { reason: err.cls || 'transcribe_failed', http: err.http || 0, ms: recordedMs, bytes });
         micFail(err.message || t('Could not hear that \u2014 please try again, or type it below.', 'No te escuch\u00e9 bien. Int\u00e9ntalo otra vez, o escr\u00edbelo abajo.'), err.cls || 'mic_server', statusId);
+  }
+}
+let micArming = false;
+let askMode = false;
+async function toggleMic(btn, statusId) {
+  if (micArming) return; // a second tap while "Speak now" is playing
+  if (!micSupported()) {
+    if (inAppBrowser()) showOpenInChrome('failed');
+    micFail(window.isSecureContext === false ? t('Please open https://countmy.app for voice to work.', 'Abre https://countmy.app para que funcione la voz.') : t('Voice isn\u2019t available on this phone/browser \u2014 please type instead.', 'La voz no est\u00e1 disponible en este tel\u00e9fono o navegador. Mejor escr\u00edbelo.'), 'mic_nomic', statusId);
+    return;
+  }
+  if (mediaRecorder && mediaRecorder.state === 'recording') {
+    mediaRecorder.stop();
+    return;
+  }
+  micArming = true;
+  pendingHeard = null;
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    if (inAppBrowser() && !window.KYM_IAB_MIC_OK) { window.KYM_IAB_MIC_OK = true; ping('iab_mic_ok'); }
+    recordedChunks = [];
+    startMicLevelMeter(stream);
+    // Real bug, found by testing the live transcription endpoint directly
+    // with real audio and confirming the server side works correctly: the
+    // recorded blob was always hardcoded to 'audio/webm' regardless of what
+    // the browser actually recorded. Chrome/Android really does produce
+    // webm, but Safari/iOS never has - it records audio/mp4 - so every
+    // recording from an iPhone was being mislabeled before it was ever sent
+    // anywhere, independent of anything Whisper does. Ask the browser what
+    // it actually supports and use that, both for the recorder itself and
+    // for how the resulting blob is labeled.
+    const mimeCandidates = ['audio/webm', 'audio/mp4', 'audio/ogg'];
+    const supportedMime = mimeCandidates.find(m => window.MediaRecorder.isTypeSupported && window.MediaRecorder.isTypeSupported(m));
+    mediaRecorder = supportedMime ? new MediaRecorder(stream, { mimeType: supportedMime }) : new MediaRecorder(stream);
+    const actualMime = mediaRecorder.mimeType || supportedMime || 'audio/webm';
+    let recordingStartedAt = Date.now();
+    mediaRecorder.onstart = () => {
+      recordingStartedAt = Date.now();
+      // The "Speak now" prompt moved the meter; only the person counts.
+      micPeak = 0; micSpeechAt = 0; micLastLoudAt = 0;
+      micArming = false;
+    };
+    mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) recordedChunks.push(e.data); };
+    // Auto-stop (17 Sep): nobody reads "tap again when you're done", and a
+    // recording that never ends is the exact "it can't hear me". Stop 1.8 s
+    // after the person goes quiet (once they have spoken), or at 12 s flat.
+    const MAX_MS = 12000, QUIET_MS = 1800;
+    const autoStop = setInterval(() => {
+      if (!mediaRecorder || mediaRecorder.state !== 'recording') { clearInterval(autoStop); return; }
+      const t = Date.now();
+      if (t - recordingStartedAt >= MAX_MS || (micSpeechAt && t - micSpeechAt >= 700 && t - micLastLoudAt >= QUIET_MS)) {
+        clearInterval(autoStop);
+        try { mediaRecorder.stop(); } catch (e) { /* already stopped */ }
       }
+    }, 150);
+    mediaRecorder.onstop = async () => {
+      clearInterval(autoStop);
+      const heardPeak = micPeak, meterWasLive = micMeterLive;
+      stream.getTracks().forEach(t => t.stop());
+      stopMicLevelMeter();
+      const lbl = btn.querySelector('.home-mic-label'); if (lbl && lbl.dataset.idle) lbl.textContent = lbl.dataset.idle;
+      btn.classList.remove('recording');
+      pendingVoiceSource = 'voice';
+      setMicStatus(t('Listening to what you said\u2026', 'Escuchando lo que dijiste\u2026'), null, statusId);
+      // If nothing was actually captured (mic muted at the OS level, a
+      // permission edge case, or the recording stopped instantly) the old
+      // code sent an empty file to be transcribed and got back nothing,
+      // with no way to tell that apart from "transcription heard silence."
+      // This catches it before a network call and says exactly what
+      // happened instead.
+      if (!recordedChunks.length || recordedChunks.reduce((s, c) => s + c.size, 0) === 0) {
+        track('mic_error', { reason: 'empty_recording' });
+        if (inAppBrowser()) showOpenInChrome('failed');
+        micFail(t('No sound was recorded \u2014 please check your phone isn\u2019t muted, then try again.', 'No se grab\u00f3 ning\u00fan sonido. Revisa que el celular no est\u00e9 en silencio e int\u00e9ntalo otra vez.'), 'mic_empty', statusId);
+        return;
+      }
+      // The meter never moved: the phone gave us a stream with no voice in it
+      // (in-app browsers and muted mics do exactly this). Say so now instead
+      // of uploading silence and waiting up to a minute for nothing.
+      if (meterWasLive && heardPeak < 10) {
+        track('mic_error', { reason: 'silent_take' });
+        if (inAppBrowser()) showOpenInChrome('failed');
+        micFail(t('I could not hear you. Please hold the phone close to your mouth and try again, or type it below.', 'No te escuch\u00e9. Acerca el celular a la boca e int\u00e9ntalo otra vez, o escr\u00edbelo abajo.'), 'mic_silent', statusId);
+        return;
+      }
+      // Real reported symptom, 28 Aug: recordings that DO have bytes (so the
+      // guard above doesn't fire) but transcribe to empty text every time,
+      // consistently, across three different devices - the exact fingerprint
+      // of tapping stop before actually finishing a full word, since a
+      // fraction-of-a-second clip has audio energy but no complete speech for
+      // Whisper to find. Give a targeted hint instead of the generic
+      // "didn't catch that", which reads as a mysterious black box.
+      const recordedMs = Date.now() - recordingStartedAt;
+      await processVoiceBlob(new Blob(recordedChunks, { type: actualMime }), statusId, recordedMs, recordedChunks.reduce((s, c) => s + c.size, 0));
     };
     // Say "Speak now" BEFORE the recorder starts (it would otherwise record
     // itself), then listen. The clip is prefetched, so this is ~0.7 s.
@@ -1559,7 +1577,6 @@ function ping(eventType) {
   try {
     if (window.KYM_IS_OWNER_DEVICE) return; // see the ?owner=1 flag set in index.html
     const shop = getShopId() || getDeviceId();
-    if (!navigator.onLine) return;
     fetch(`${API_BASE}/ping`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -2824,9 +2841,14 @@ if (ES) {
   } catch (e) { /* never block the app */ }
 }
 if (inAppBrowser()) {
-  // Ad traffic lands here. Offer the way out before the first tap fails.
-  try { showOpenInChrome('warn'); ping('iab'); track('iab_open'); showTypedChoices(); } catch (e) { /* never block */ }
+  try {
+    ping('iab'); track('iab_open');
+    if (window.KYM_IAB_JUMPED) ping('iab_auto');
+    if (window.KYM_IAB_STAY) ping('iab_stay');
+    if (isAndroid()) { showOpenInChrome('warn'); showTypedChoices(); }
+  } catch (e) { /* never block */ }
 }
+try { if (new URLSearchParams(location.search).get('from') === 'iab') { ping('iab_escaped'); track('iab_escaped'); } } catch (e) { /* optional */ }
 if (!micSupported()) {
   // No microphone API in this browser (older iOS, some in-app browsers).
   // Say so plainly and open the typed choices, so the page is still usable.
