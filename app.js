@@ -633,7 +633,7 @@ function wordsToNumber(text) {
 // garbled tokens, which are meaningless leftovers, not real words. Strip both
 // before showing the owner anything, since neither belongs in an item name.
 const DISFLUENCY = /\b(um+|uh+|erm+|ehm+|hmm+|like|actually|basically|so|yeah|yep|okay|ok|please|thanks|thank you|hello|hi|today|i think|i mean|you know|kind of|sort of)\b/gi;
-const FILLER = /\b(a|an|the|for|of|on|to|me|i|owe|owes|he|she|they|it|at|each|cedis|cedi|ghs|cds|cd|sold|spent|bought|paid|is|was|and)\b/gi;
+const FILLER = /\b(a|an|the|for|of|on|to|me|i|owe|owes|owing|dey|de|go|pay|will|later|tomorrow|today|he|she|they|it|at|each|cedis|cedi|ghs|cds|cd|sold|sell|spent|bought|buy|paid|is|was|and|momo|cash|from|come|take|took|still)\b/gi;
 
 // Spanish filler for the typed fields. (?<![\w\u00c0-\u00ff]) instead of \b: JS
 // word boundaries are ASCII-only, so "\ba\b" used to eat the "a" in "mercancía".
