@@ -1064,7 +1064,7 @@ async function handleTranscribe(request, env) {
 // 50 is a transcription/parsing error, not a fabrication) - evidence-checking
 // targets fabrication specifically, not every possible error; the review UI is
 // still what catches a wrong-but-grounded number.
-const WORKER_VERSION = 'w79';
+const WORKER_VERSION = 'w80';
 
 // Spanish (Venezuela) twin of EXTRACT_SYSTEM_PROMPT below: same event types,
 // same {value, evidence} rule, same JSON-only answer. Amounts are bare
@@ -1931,6 +1931,13 @@ function finalizeEvents(events, text, lang, country) {
       if (fd) e.price = Number(String(fd[2]).replace(',', '.'));
     });
     // second clause after "y": what was taken on credit, or how much was paid of it
+    {
+      const who = /^\s*(?:(?:don|dona|do\u00f1a|la\s+senora|la\s+se\u00f1ora|el\s+senor|el\s+se\u00f1or)\s+)?([a-z\u00e1\u00e9\u00ed\u00f3\u00fa\u00f1]+)\s+(?:pago|se\s+llevo|compro|abono|me\s+quedo)/.exec(tt);
+      const fiao = /\by\s+se\s+llevo\s+(?:(?:una?|unos?|unas?|\d+)\s+)?([a-z\u00e1\u00e9\u00ed\u00f3\u00fa\u00f1]+)\s+fia[od]o?\s*,?\s*(\d+(?:[.,]\d+)?)/.exec(tt);
+      const existing = out.find(e => e.type === 'debt_in');
+      // "y se llevó un pan fiao, 1 dólar": that number IS the debt, whatever the model copied
+      if (fiao && existing) { existing.price = Number(fiao[2].replace(',', '.')); if (!existing.note) existing.note = fiao[1]; }
+    }
     if (!out.some(e => e.type === 'debt_in')) {
       const who = /^\s*(?:(?:don|dona|do\u00f1a|la\s+senora|la\s+se\u00f1ora|el\s+senor|el\s+se\u00f1or)\s+)?([a-z\u00e1\u00e9\u00ed\u00f3\u00fa\u00f1]+)\s+(?:pago|se\s+llevo|compro|abono|me\s+quedo)/.exec(tt);
       const fiao = /\by\s+se\s+llevo\s+(?:(?:una?|unos?|unas?|\d+)\s+)?([a-z\u00e1\u00e9\u00ed\u00f3\u00fa\u00f1]+)\s+fia[od]o?\s*,?\s*(\d+(?:[.,]\d+)?)/.exec(tt);
