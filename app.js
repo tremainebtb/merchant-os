@@ -540,7 +540,17 @@ function showTypedChoices() {
 // Every voice failure ends here: said out loud (the audience does not read),
 // written under the button, counted on the owner dashboard by class only
 // (never the words), and the typed choices opened so the page still works.
+// Owner phones (Bobby's and his family's, marked with ?owner=1): each step
+// of a voice attempt is written to the server log so a test can be read
+// without being there. Other phones never send this.
+function ownerLog(step, info) {
+  try {
+    if (!window.KYM_IS_OWNER_DEVICE) return;
+    fetch(`${API_BASE}/owner-log`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ step, info: String(info || '').slice(0, 300), ver: window.KYM_VERSION || '' }), keepalive: true }).catch(() => {});
+  } catch (e) { /* never block */ }
+}
 function micFail(msg, pingName, statusId) {
+  ownerLog('fail', (pingName || '') + ' | ' + msg);
   setMicStatus(msg, 'err', statusId);
   speakShort(msg);
   if (pingName) ping(pingName);
@@ -1397,6 +1407,7 @@ async function recognizeWithPhone(btn, statusId, opts) {
   stopSpeaking();
   try { if (navigator.vibrate) navigator.vibrate(40); } catch (e) { /* optional */ }
   try { r.start(); bstt = r; } catch (e) { errCode = 'start'; }
+  ownerLog('phone-ear', `lang=${r.lang} started=${!errCode}`);
   micArming = false;
   track('mic_start', { via: 'browser' });
   const cap = setTimeout(() => { try { r.stop(); } catch (e) { /* already stopped */ } }, 12000);
@@ -1488,6 +1499,7 @@ async function processVoiceBlobInner(blob, statusId, recordedMs, bytes, heardTex
         setMicStatus(t('Working out what happened\u2026', 'Anotando lo que dijiste\u2026'), null, statusId);
         let { text: heard, events: heardEvents, via } = await transcribeAndExtract(blob, heardText);
         let events = Array.isArray(heardEvents) ? heardEvents : [];
+        ownerLog('result', `via=${via} heard=${JSON.stringify(heard).slice(0, 160)} events=${JSON.stringify(events).slice(0, 120)}`);
         // The phone heard words but the server found no record in them and
         // no number either (Twi, or a mangled take): one more try with the
         // audio itself, where Whisper knows the local words.
@@ -1612,6 +1624,7 @@ async function processVoiceBlobInner(blob, statusId, recordedMs, bytes, heardTex
 let micArming = false;
 let askMode = false;
 async function toggleMic(btn, statusId, opts) {
+  ownerLog('tap', `mic=${micSupported()} secure=${window.isSecureContext} iab=${inAppBrowser()} phoneEar=${phoneSttPreferred()} arming=${micArming} busy=${voiceBusy} rec=${mediaRecorder ? mediaRecorder.state : 'none'} opts=${JSON.stringify(opts || {})}`);
   if (micArming) { askMode = false; return; } // a second tap while "Speak now" is playing
   if (bstt) { sttCancelled = true; try { bstt.stop(); } catch (e) { /* fine */ } askMode = false; return; }
   if (voiceBusy) { askMode = false; speakShort(t('One moment.', 'Un momento.')); return; } // F4: a tap while the last take is still being worked out
@@ -1719,6 +1732,7 @@ async function toggleMic(btn, statusId, opts) {
       // Whisper to find. Give a targeted hint instead of the generic
       // "didn't catch that", which reads as a mysterious black box.
       const recordedMs = Date.now() - recordingStartedAt;
+      ownerLog('stopped', `ms=${recordedMs} bytes=${recordedChunks.reduce((s, c) => s + c.size, 0)} peak=${Math.round(heardPeak)} meterLive=${meterWasLive}`);
       await processVoiceBlob(new Blob(recordedChunks, { type: actualMime }), statusId, recordedMs, recordedChunks.reduce((s, c) => s + c.size, 0));
     };
     // Say "Speak now" BEFORE the recorder starts (it would otherwise record
@@ -1733,6 +1747,7 @@ async function toggleMic(btn, statusId, opts) {
     try { if (navigator.vibrate) navigator.vibrate(40); } catch (e) { /* optional */ }
     mediaRecorder.start();
     recordingStartedAt = Date.now();
+    ownerLog('recording', `mime=${actualMime} meter=${micMeterLive} ctx=${micLevelCtx ? micLevelCtx.state : 'none'}`);
     armAutoStop();
     micArming = false;
     track('mic_start');

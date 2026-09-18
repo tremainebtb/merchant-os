@@ -1064,7 +1064,7 @@ async function handleTranscribe(request, env) {
 // 50 is a transcription/parsing error, not a fabrication) - evidence-checking
 // targets fabrication specifically, not every possible error; the review UI is
 // still what catches a wrong-but-grounded number.
-const WORKER_VERSION = 'w73';
+const WORKER_VERSION = 'w74';
 
 // Spanish (Venezuela) twin of EXTRACT_SYSTEM_PROMPT below: same event types,
 // same {value, evidence} rule, same JSON-only answer. Amounts are bare
@@ -2380,7 +2380,7 @@ export default {
       const path = url.pathname;
       const isAiRoute = path === '/transcribe' || path === '/extract' || path === '/transcribe-and-extract' || path === '/extract-from-image';
       const isSayRoute = path === '/say' && request.method === 'GET';
-      const isWriteRoute = path === '/ping' || path === '/sync' || path === '/shop';
+      const isWriteRoute = path === '/ping' || path === '/sync' || path === '/shop' || path === '/owner-log';
       const isAdminRoute = path.startsWith('/admin/');
       const ip = clientIp(request);
       if ((isAiRoute && request.method === 'POST') || isSayRoute) {
@@ -2401,6 +2401,13 @@ export default {
       if (path === '/transcribe-and-extract' && request.method === 'POST') return withLimitHeader(await handleTranscribeAndExtract(request, env));
       if (path === '/extract-from-image' && request.method === 'POST') return withLimitHeader(await handleExtractFromImage(request, env));
       if (path === '/ping' && request.method === 'POST') return withLimitHeader(await handlePing(request, env));
+      // Owner phones only (18 Sep): every tap and every failure, as one log
+      // line, so a family test can be read step by step. Never content.
+      if (path === '/owner-log' && request.method === 'POST') {
+        let b = {}; try { b = await request.json(); } catch (e) { /* ignore */ }
+        console.log('OWNER-STEP', JSON.stringify({ step: String(b.step || '').slice(0, 40), info: String(b.info || '').slice(0, 300), ver: String(b.ver || '').slice(0, 8), ua: (request.headers.get('user-agent') || '').slice(0, 90), country: (request.cf && request.cf.country) || '' }));
+        return cors(new Response('{"ok":true}', { headers: { 'Content-Type': 'application/json' } }));
+      }
       if (path === '/sync' && request.method === 'POST') return withLimitHeader(await handleSync(request, env));
       if (path === '/shop' && request.method === 'POST') return withLimitHeader(await handleShopUpsert(request, env));
       if (path.startsWith('/shop/') && request.method === 'GET') return withLimitHeader(await handleShopJson(env, path.slice(6).toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, 44)));
