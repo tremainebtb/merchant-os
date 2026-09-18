@@ -119,6 +119,18 @@ function fmtSay(n, cur) {
 // offline, or slow to fail, the phone's own voice speaks the same words -
 // the words never go missing, only the quality changes.
 // ---------------------------------------------------------------------------
+// Real bug, 18 Sep, from a Samsung tablet in Ghana on Android 11: the
+// page recorded and the server heard, then the phone said "Something went
+// wrong" - its Chrome had no crypto.randomUUID (added in Chrome 92). Every
+// id now falls back to random bytes, and older phones keep working.
+function newId() {
+  try { if (window.crypto && typeof crypto.randomUUID === 'function') return crypto.randomUUID(); } catch (e) { /* fall through */ }
+  const b = new Uint8Array(16);
+  try { crypto.getRandomValues(b); } catch (e) { for (let i = 0; i < 16; i++) b[i] = Math.floor(Math.random() * 256); }
+  b[6] = (b[6] & 0x0f) | 0x40; b[8] = (b[8] & 0x3f) | 0x80;
+  const h = Array.from(b, x => x.toString(16).padStart(2, '0')).join('');
+  return h.slice(0, 8) + '-' + h.slice(8, 12) + '-' + h.slice(12, 16) + '-' + h.slice(16, 20) + '-' + h.slice(20);
+}
 let ttsCtx = null, ttsCurrent = null, ttsFailedAt = 0;
 const ttsMem = new Map();
 function ttsUnlock() {
@@ -303,7 +315,7 @@ function syncNotSaved(entryLike) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       shop,
-      entry: { id: crypto.randomUUID(), ...entryLike, status: 'not_saved' },
+      entry: { id: newId(), ...entryLike, status: 'not_saved' },
       deleted: false
     })
   }).catch(() => {});
@@ -558,6 +570,7 @@ function ownerLog(step, info) {
 }
 function micFail(msg, pingName, statusId) {
   ownerLog('fail', (pingName || '') + ' | ' + msg);
+  if (!pingName || pingName === 'mic_server') ownerLog('lastError', window.__lastVoiceError || '');
   setMicStatus(msg, 'err', statusId);
   speakShort(msg);
   if (pingName) ping(pingName);
@@ -1138,7 +1151,7 @@ async function applyVoicePayment(p) {
   if (!matches.length) {
     const ts = Date.now();
     const item = placeholder ? t('payment received', 'pago recibido') : t(`payment from ${name}`, `pago de ${name}`);
-    const record = { id: crypto.randomUUID(), type: 'sale', item, note: '', qty: 1, price: amount, kind: '', paid: 0, amount, source: pendingVoiceSource, day: todayKey(ts), ts };
+    const record = { id: newId(), type: 'sale', item, note: '', qty: 1, price: amount, kind: '', paid: 0, amount, source: pendingVoiceSource, day: todayKey(ts), ts };
     if (cur) record.cur = cur;
     try { await addEntry(record); track('save_entry', { type: 'payment_as_sale', input_method: pendingVoiceSource }); ping('save'); } catch (err) { track('save_error', { where: 'voice_payment', reason: (err && err.name) || 'unknown' }); }
     return placeholder
@@ -1160,7 +1173,7 @@ async function applyVoicePayment(p) {
   if (left > 0) {
     // paid more than was owed: the extra is money in, said out loud
     const ts = Date.now();
-    const record = { id: crypto.randomUUID(), type: 'sale', item: t(`extra from ${spoken}`, `extra de ${spoken}`), note: '', qty: 1, price: left, kind: '', paid: 0, amount: left, source: pendingVoiceSource, day: todayKey(ts), ts };
+    const record = { id: newId(), type: 'sale', item: t(`extra from ${spoken}`, `extra de ${spoken}`), note: '', qty: 1, price: left, kind: '', paid: 0, amount: left, source: pendingVoiceSource, day: todayKey(ts), ts };
     if (cur) record.cur = cur;
     try { await addEntry(record); } catch (err) { /* the debt itself is already settled */ }
     return t(`${spoken} paid ${fmtSay(amount, cur)}. That clears the debt, with ${fmtSay(left, cur)} extra saved as money in.`, `${spoken} pag\u00f3 ${fmtSay(amount, cur)}. Con eso queda saldado, y ${fmtSay(left, cur)} de m\u00e1s lo guard\u00e9 como dinero que entr\u00f3.`);
@@ -1177,7 +1190,7 @@ async function autoSaveReadyEvents(events) {
     if (ev._savedId || !voiceEventComplete(ev) || looksGarbled(ev.item)) continue;
     const entry = eventToEntry(ev);
     const ts = Date.now();
-    const id = crypto.randomUUID();
+    const id = newId();
     const record = { id, type: entry.type, item: entry.item, note: entry.note, qty: entry.qty, price: entry.price, kind: entry.kind || '', paid: 0, amount: entry.amount, source: pendingVoiceSource, day: todayKey(ts), ts };
     // Independent v63 review (5 Sep): a rejected save used to throw straight
     // out of this loop into the recording handler's catch, which reported it
@@ -1287,7 +1300,7 @@ function renderVoiceReview() {
     try {
       const entry = eventToEntry(ev);
       const ts = Date.now();
-      const id = crypto.randomUUID();
+      const id = newId();
       const record = { id, type: entry.type, item: entry.item, note: entry.note, qty: entry.qty, price: entry.price, kind: entry.kind || '', paid: 0, amount: entry.amount, source: pendingVoiceSource, day: todayKey(ts), ts };
       try {
         await addEntry(record);
@@ -1623,6 +1636,7 @@ async function processVoiceBlobInner(blob, statusId, recordedMs, bytes, heardTex
           const btn = document.getElementById('homeMicBtn');
           if (btn) { await recognizeWithPhone(btn, statusId, { again: true }); return; }
         }
+        try { window.__lastVoiceError = String(err && (err.stack || err.message || err)).slice(0, 280); } catch (e) { /* optional */ }
         track('mic_error', { reason: err.cls || 'app_error', http: err.http || 0, ms: recordedMs, bytes });
         // F7: only our own error texts are spoken; anything else is an app fault, never read aloud
         micFail(err.cls ? (err.message || t('Could not hear that \u2014 please try again, or type it below.', 'No te escuch\u00e9 bien. Int\u00e9ntalo otra vez, o escr\u00edbelo abajo.')) : t('Something went wrong on the phone \u2014 please check the list below, or try again.', 'Algo fall\u00f3 en el celular. Revisa la lista abajo, o int\u00e9ntalo otra vez.'), err.cls || 'mic_server', statusId);
@@ -1832,7 +1846,7 @@ function track(event, params) {
 function getDeviceId() {
   let id = localStorage.getItem('kym_device_id');
   if (!id) {
-    id = 'anon-' + crypto.randomUUID();
+    id = 'anon-' + newId();
     localStorage.setItem('kym_device_id', id);
   }
   return id;
@@ -2002,7 +2016,7 @@ async function saveEntry() {
         edited = true;
       } else {
         const ts = Date.now();
-        const id = crypto.randomUUID();
+        const id = newId();
         record = {
           id,
           type: activeType,
