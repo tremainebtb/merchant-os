@@ -1064,7 +1064,7 @@ async function handleTranscribe(request, env) {
 // 50 is a transcription/parsing error, not a fabrication) - evidence-checking
 // targets fabrication specifically, not every possible error; the review UI is
 // still what catches a wrong-but-grounded number.
-const WORKER_VERSION = 'w82';
+const WORKER_VERSION = 'w83';
 
 // Spanish (Venezuela) twin of EXTRACT_SYSTEM_PROMPT below: same event types,
 // same {value, evidence} rule, same JSON-only answer. Amounts are bare
@@ -1958,6 +1958,27 @@ function finalizeEvents(events, text, lang, country) {
     const e = out[0];
     const m = new RegExp('\\b' + esc(e.item) + '\\s+and\\s+([a-z]+)\\b').exec(tt);
     if (m && !/^\d/.test(m[1]) && !COUNT_WORDS.test(m[1]) && !/^(i|he|she|we|they|then|also|momo|cash|the|a|some)$/.test(m[1]) && !/\bsold\b.*\band\b.*\bsold\b/.test(tt)) e.item = String(e.item) + ' and ' + m[1];
+  }
+  // Drivers (18 Sep, from the drivers guide): the words a trotro, taxi or
+  // ride-hailing driver says are not shop words. "Car owner 350", "mate
+  // 150", "sales 350" (the owner's daily fee) are money OUT; "trip Madina
+  // Circle 90", "passengers 90", "load 120" are money IN. Deterministic so
+  // the model's guess never decides which way the day went.
+  if (lang !== 'es') {
+    const DRIVER_OUT = /^(car\s+owner|owner|owner'?s\s+sales|sales\s+to\s+(the\s+)?owner|mate|conductor|station(\s+dues?)?|union(\s+dues?)?|dues|toll|tolls|police|fine|fines|fuel|petrol|diesel|gas|tyre|tyres|tire|tires|servicing|repairs?|mechanic|engine\s+oil|spare\s+parts?|car\s+wash|parking|insurance|road\s*worthy|dvla|chop\s+money|work\s+and\s+pay|weekly\s+payment)$/;
+    const DRIVER_IN = /^(trip|trips|passengers?|load|full\s+load|fares?|ride|rides)\b/;
+    const OWNER_SALES = /\b(sales|money)\s+(to|for)\s+(the\s+)?(car\s+)?owner\b|\bcar\s+owner\b|\bowner'?s\s+sales\b/;
+    out = out.map(e => {
+      const it = String(e.item || '').toLowerCase().trim();
+      if (e.type === 'sale' && !/\bsold\b|\bsell\b/.test(tt) && (DRIVER_OUT.test(it) || (OWNER_SALES.test(tt) && nums.length === 1))) return Object.assign({}, e, { type: 'expense', item: OWNER_SALES.test(tt) ? 'car owner' : e.item, qty: undefined });
+      if (e.type === 'expense' && DRIVER_IN.test(it)) return Object.assign({}, e, { type: 'sale', qty: e.qty || 1 });
+      // MoMo agents: "commission 5" is money earned unless a paying verb says otherwise.
+      if (e.type === 'expense' && /^(my\s+)?commission$/.test(it) && !/paid|pay|gave|charged\s+me/.test(tt)) return Object.assign({}, e, { type: 'sale', qty: e.qty || 1 });
+      return e;
+    }).map(e => { if (e.qty === undefined) delete e.qty; return e; });
+    // "Trip Madina Circle 90" with no verb: the model files a place name as a
+    // cost. One number, the sentence starts with a trip word: it is a sale.
+    if (out.length === 1 && nums.length === 1 && out[0].type === 'expense' && /^\s*(trip|trips|passengers?|load|fares?|ride)\b/.test(tt)) out = [{ type: 'sale', item: out[0].item || 'trip', qty: 1, price: out[0].price }];
   }
   return out;
 }
