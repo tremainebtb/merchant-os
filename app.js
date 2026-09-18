@@ -1441,7 +1441,7 @@ async function toggleMic(btn, statusId) {
       autoStop = setInterval(() => {
         if (!mediaRecorder || mediaRecorder.state !== 'recording') { clearInterval(autoStop); return; }
         const t = Date.now();
-        if (t - recordingStartedAt >= MAX_MS || (!micMeterLive && t - recordingStartedAt >= 7000) || (micSpeechAt && t - micSpeechAt >= 700 && t - micLastLoudAt >= QUIET_MS)) {
+        if (t - recordingStartedAt >= MAX_MS || (!micMeterLive && t - recordingStartedAt >= 7000) || (t - recordingStartedAt >= 3000 && micSpeechAt && micSpeechAt - recordingStartedAt >= 300 && t - micSpeechAt >= 700 && t - micLastLoudAt >= QUIET_MS)) {
           clearInterval(autoStop);
           try { mediaRecorder.stop(); } catch (e) { /* already stopped */ }
         }
