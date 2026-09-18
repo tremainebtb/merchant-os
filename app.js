@@ -1257,42 +1257,84 @@ let micPeak = 0, micSpeechAt = 0, micLastLoudAt = 0, micMeterLive = false;
 // live while that context is actually running; a dead meter never refuses
 // a take and never blocks the stop.
 let micLevelSource = null, micLevelOwnCtx = false;
-// The phone's own speech recogniser, run alongside the recording (18 Sep).
-// Free, no daily cap, and on Android it is the same Google ear the person
-// already uses in WhatsApp. If it fails or is missing, nothing changes:
-// the clip goes to the server as before.
-let bstt = null, bsttText = '', bsttDone = null, bsttResolve = null;
+// The phone's own speech recogniser (18 Sep). Free, no daily cap, and on
+// Android it is the same Google ear the person already uses in WhatsApp.
+// It cannot share the microphone with the recorder (Chrome hands the mic to
+// whichever started last), so it listens ALONE; if it comes back with
+// nothing, the app says "Say it again" and records for the server. A phone
+// that fails twice in a row is remembered and goes straight to the server
+// for a week.
+let bstt = null;
 function browserSttSupported() {
   return !!(window.SpeechRecognition || window.webkitSpeechRecognition) && !inAppBrowser();
 }
-function browserSttStart() {
-  bsttText = ''; bstt = null; bsttDone = null;
-  if (!browserSttSupported()) return;
-  try {
-    const Rec = window.SpeechRecognition || window.webkitSpeechRecognition;
-    const r = new Rec();
-    r.lang = ES ? (CO ? 'es-CO' : 'es-VE') : 'en-GH';
-    r.continuous = true; r.interimResults = true; r.maxAlternatives = 1;
-    bsttDone = new Promise(res => { bsttResolve = res; });
-    r.onresult = (e) => {
-      let final = '', interim = '';
-      for (let i = 0; i < e.results.length; i++) { const s = e.results[i][0].transcript; if (e.results[i].isFinal) final += s + ' '; else interim += s + ' '; }
-      bsttText = (final || interim).trim();
-    };
-    r.onerror = (e) => { track('stt_browser_error', { code: e.error || '' }); if (bsttResolve) bsttResolve(); };
-    r.onend = () => { if (bsttResolve) bsttResolve(); };
-    r.start();
-    bstt = r;
-  } catch (e) { bstt = null; bsttDone = null; }
+function phoneSttPreferred() {
+  if (!browserSttSupported()) return false;
+  try { const until = Number(localStorage.getItem('kym_stt_server_until') || 0); if (until > Date.now()) return false; } catch (e) { /* optional */ }
+  return true;
 }
-async function browserSttFinish() {
-  if (!bstt) return '';
-  try { bstt.stop(); } catch (e) { /* already stopped */ }
-  // a final result usually lands within a second of stop(); never wait longer than 2.5 s
-  await Promise.race([bsttDone || Promise.resolve(), new Promise(r => setTimeout(r, 2500))]);
-  const text = bsttText.trim();
+function noteBrowserSttFailure() {
+  try {
+    const n = Number(localStorage.getItem('kym_stt_fails') || 0) + 1;
+    localStorage.setItem('kym_stt_fails', String(n));
+    if (n >= 2) { localStorage.setItem('kym_stt_server_until', String(Date.now() + 7 * 86400000)); localStorage.setItem('kym_stt_fails', '0'); track('stt_prefer_server'); }
+  } catch (e) { /* optional */ }
+}
+async function recognizeWithPhone(btn, statusId, opts) {
+  micArming = true; pendingHeard = null;
+  const Rec = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const r = new Rec();
+  r.lang = ES ? (CO ? 'es-CO' : 'es-VE') : 'en-GH';
+  r.continuous = false; r.interimResults = true; r.maxAlternatives = 1;
+  let text = '', errCode = '', heardAt = 0;
+  const meter = document.getElementById('micLevelMeter');
+  const bars = meter ? meter.querySelectorAll('span') : [];
+  const pulse = () => bars.forEach((bar, i) => { bar.style.height = (8 + Math.round(Math.random() * 12) + (i % 3) * 2) + 'px'; });
+  const done = new Promise(res => {
+    r.onend = () => res();
+    r.onerror = (e) => { errCode = (e && e.error) || 'error'; res(); };
+  });
+  r.onresult = (e) => {
+    let final = '', interim = '';
+    for (let i = 0; i < e.results.length; i++) { const s = e.results[i][0].transcript; if (e.results[i].isFinal) final += s + ' '; else interim += s + ' '; }
+    text = (final || interim).trim(); heardAt = Date.now(); pulse();
+  };
+  const lbl = btn.querySelector('.home-mic-label');
+  if (lbl) { if (!lbl.dataset.idle) lbl.dataset.idle = lbl.textContent; lbl.textContent = t('Speak now\u2026', 'Habla ahora\u2026'); }
+  btn.classList.add('recording');
+  setMicStatus(t('Speak now. It stops by itself when you finish.', 'Habla ahora. Cuando termines, se apaga solo.'), null, statusId);
+  await Promise.race([say(askMode ? t('Ask me.', 'Preg\u00fantame.') : t('Speak now.', 'Habla ahora.')), new Promise(res => setTimeout(res, 1800))]);
+  askMode = false;
+  stopSpeaking();
+  try { if (navigator.vibrate) navigator.vibrate(40); } catch (e) { /* optional */ }
+  try { r.start(); bstt = r; } catch (e) { errCode = 'start'; }
+  micArming = false;
+  track('mic_start', { via: 'browser' });
+  const cap = setTimeout(() => { try { r.stop(); } catch (e) { /* already stopped */ } }, 12000);
+  // interim words keep the bars moving; a pause after words ends the take
+  const tick = setInterval(() => { if (heardAt && Date.now() - heardAt > 1800) { try { r.stop(); } catch (e) { /* fine */ } } }, 200);
+  if (!errCode) await done;
+  clearTimeout(cap); clearInterval(tick);
   bstt = null;
-  return text.length >= 2 ? text : '';
+  btn.classList.remove('recording');
+  if (lbl && lbl.dataset.idle) lbl.textContent = lbl.dataset.idle;
+  bars.forEach(bar => bar.style.height = '6px');
+  text = text.trim();
+  if (text.length >= 2) {
+    try { localStorage.setItem('kym_stt_fails', '0'); } catch (e) { /* optional */ }
+    pendingVoiceSource = 'voice';
+    setMicStatus(t('Listening to what you said\u2026', 'Escuchando lo que dijiste\u2026'), null, statusId);
+    await processVoiceBlob(null, statusId, 0, 0, text);
+    return;
+  }
+  track('stt_browser_empty', { code: errCode || 'no_words' });
+  if (errCode === 'not-allowed' || errCode === 'service-not-allowed') {
+    micFail(t('This phone said no to the microphone. Please go to your phone\u2019s Settings, find your browser, and turn the microphone on. Or type it below.', `El celular no dio permiso al micr\u00f3fono. Ve a ${tc('Configuraci\u00f3n', 'Ajustes')}, busca tu navegador y prende el micr\u00f3fono. O escr\u00edbelo abajo.`), 'mic_denied', statusId);
+    return;
+  }
+  noteBrowserSttFailure();
+  // second ear, same tap: record the words for the server
+  await toggleMic(btn, statusId, { recorder: true, again: true });
 }
 function startMicLevelMeter(stream) {
   micPeak = 0; micSpeechAt = 0; micLastLoudAt = 0; micMeterLive = false;
@@ -1459,8 +1501,10 @@ async function processVoiceBlob(blob, statusId, recordedMs, bytes, heardText) {
 }
 let micArming = false;
 let askMode = false;
-async function toggleMic(btn, statusId) {
+async function toggleMic(btn, statusId, opts) {
   if (micArming) return; // a second tap while "Speak now" is playing
+  if (bstt) { try { bstt.stop(); } catch (e) { /* fine */ } return; }
+  if (!(opts && opts.recorder) && phoneSttPreferred()) return recognizeWithPhone(btn, statusId, opts);
   if (!micSupported()) {
     if (inAppBrowser()) showOpenInChrome('failed');
     micFail(window.isSecureContext === false ? t('Please open https://countmy.app for voice to work.', 'Abre https://countmy.app para que funcione la voz.') : t('Voice isn\u2019t available on this phone/browser \u2014 please type instead.', 'La voz no est\u00e1 disponible en este tel\u00e9fono o navegador. Mejor escr\u00edbelo.'), 'mic_nomic', statusId);
@@ -1521,7 +1565,6 @@ async function toggleMic(btn, statusId) {
     mediaRecorder.onstop = async () => {
       clearInterval(autoStop);
       const heardPeak = micPeak, meterWasLive = micMeterLive;
-      const browserText = await browserSttFinish();
       stream.getTracks().forEach(t => t.stop());
       stopMicLevelMeter();
       const lbl = btn.querySelector('.home-mic-label'); if (lbl && lbl.dataset.idle) lbl.textContent = lbl.dataset.idle;
@@ -1557,7 +1600,7 @@ async function toggleMic(btn, statusId) {
       // Whisper to find. Give a targeted hint instead of the generic
       // "didn't catch that", which reads as a mysterious black box.
       const recordedMs = Date.now() - recordingStartedAt;
-      await processVoiceBlob(new Blob(recordedChunks, { type: actualMime }), statusId, recordedMs, recordedChunks.reduce((s, c) => s + c.size, 0), browserText);
+      await processVoiceBlob(new Blob(recordedChunks, { type: actualMime }), statusId, recordedMs, recordedChunks.reduce((s, c) => s + c.size, 0));
     };
     // Say "Speak now" BEFORE the recorder starts (it would otherwise record
     // itself), then listen. The clip is prefetched, so this is ~0.7 s.
@@ -1565,13 +1608,12 @@ async function toggleMic(btn, statusId) {
     const lbl = btn.querySelector('.home-mic-label');
     if (lbl) { if (!lbl.dataset.idle) lbl.dataset.idle = lbl.textContent; lbl.textContent = t('Speak now\u2026', 'Habla ahora\u2026'); }
     setMicStatus(t('Speak now. It stops by itself when you finish.', 'Habla ahora. Cuando termines, se apaga solo.'), null, statusId);
-    await Promise.race([say(askMode ? t('Ask me.', 'Preg\u00fantame.') : t('Speak now.', 'Habla ahora.')), new Promise(r => setTimeout(r, 1800))]);
+    await Promise.race([say(opts && opts.again ? t('Say it again.', 'Dilo otra vez.') : askMode ? t('Ask me.', 'Preg\u00fantame.') : t('Speak now.', 'Habla ahora.')), new Promise(r => setTimeout(r, 1800))]);
     askMode = false;
     stopSpeaking(); // never let the prompt run into the recording
     try { if (navigator.vibrate) navigator.vibrate(40); } catch (e) { /* optional */ }
     mediaRecorder.start();
     recordingStartedAt = Date.now();
-    browserSttStart();
     armAutoStop();
     micArming = false;
     track('mic_start');
