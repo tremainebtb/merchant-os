@@ -1064,7 +1064,7 @@ async function handleTranscribe(request, env) {
 // 50 is a transcription/parsing error, not a fabrication) - evidence-checking
 // targets fabrication specifically, not every possible error; the review UI is
 // still what catches a wrong-but-grounded number.
-const WORKER_VERSION = 'w77';
+const WORKER_VERSION = 'w78';
 
 // Spanish (Venezuela) twin of EXTRACT_SYSTEM_PROMPT below: same event types,
 // same {value, evidence} rule, same JSON-only answer. Amounts are bare
@@ -1920,10 +1920,13 @@ function finalizeEvents(events, text, lang, country) {
     const saidNums = new Set(nums.map(Number));
     nums.forEach(x => nums.forEach(y => { if (x !== y) saidNums.add(Number(x) * Number(y)); })); // "3 cervezas a 2" = 6
     out.forEach(e => {
-      if (!e.price || e.type === 'sale') return;
+      if (!e.price || e.type !== 'debt_in') return;
+      // "quedó debiendo 4" names the debt outright; otherwise the amount must have been said
+      const qd = /\b(quedo|queda|quede)\s+debiendo\s+(\d+(?:[.,]\d+)?)/.exec(tt);
+      if (qd) { e.price = Number(String(qd[2]).replace(',', '.')); return; }
       if (saidNums.has(Number(e.price))) return;
-      const qd = /\b(quedo|queda|quede)\s+debiendo\s+(\d+(?:[.,]\d+)?)/.exec(tt) || /\b(fio|fie|fiado|fiao)\b[^\d]{0,30}(\d+(?:[.,]\d+)?)/.exec(tt);
-      if (qd) e.price = Number(String(qd[2]).replace(',', '.'));
+      const fd = /\b(fio|fie|fiado|fiao)\b[^\d]{0,30}(\d+(?:[.,]\d+)?)/.exec(tt);
+      if (fd) e.price = Number(String(fd[2]).replace(',', '.'));
     });
     // second clause after "y": what was taken on credit, or how much was paid of it
     if (!out.some(e => e.type === 'debt_in')) {
