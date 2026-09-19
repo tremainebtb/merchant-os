@@ -56,7 +56,7 @@
      app.js?v=. Lets anyone - a reviewer, a tester in Kumasi, a future session -
      answer "which CountMy am I looking at?" from view-source or the console,
      the same way the Worker answers with "wv". -->
-<meta name="countmy-version" content="v147">
+<meta name="countmy-version" content="v148">
 <!-- Real finding, 28 Aug: the bare "CountMy" title carried no keywords at all
      for what people actually search - a free sales/expense ledger for
      Ghanaian shop owners. The <title> tag is the single strongest on-page
@@ -488,12 +488,19 @@ input[type="number"]{-moz-appearance:textfield}
 .iab-top .iab-alt{display:inline-block;margin-top:8px;color:#fff;font-size:.9rem;text-decoration:underline}
 .iab-top .iab-pidgin{font-size:.95rem;font-weight:600;color:rgba(255,255,255,.9);margin:-4px 0 10px}
 .iab-top .iab-open{display:flex;align-items:center;justify-content:center;gap:12px}
-.chrome-ball{width:34px;height:34px;flex:none}
+.chrome-ball{width:26px;height:26px;flex:none}
+.iab-type{display:flex;gap:8px;margin:4px 0 8px}
+.iab-type input{flex:1;min-width:0;font:inherit;font-size:1.05rem;padding:14px 12px;border:none;border-radius:12px;background:#fff;color:#221A12}
+.iab-type input::placeholder{color:#7a6f63}
+.iab-save{font:inherit;font-weight:800;font-size:1.05rem;padding:14px 18px;border:none;border-radius:12px;background:var(--flame);color:#fff;cursor:pointer}
+.iab-example{display:inline-block;font:inherit;font-weight:700;font-size:.92rem;padding:8px 14px;border:1.5px solid rgba(255,255,255,.7);border-radius:100px;background:transparent;color:#fff;margin:0 0 6px;cursor:pointer}
+.iab-or{font-size:.9rem;color:rgba(255,255,255,.85);margin:8px 0 6px !important;font-weight:600 !important}
+.iab-top .iab-open-small{font-size:1rem;padding:12px 14px}
 .person-line{text-align:center;font-size:.92rem;color:var(--ink-soft);margin:-4px 0 14px}
 .person-line a{color:var(--leaf-deep);font-weight:700}
 .try-line.as-btn{cursor:pointer}
 .hear-example{display:inline-block;margin-left:6px;background:var(--leaf-soft);color:var(--leaf-deep);border:none;border-radius:100px;padding:5px 12px;font:inherit;font-size:.85rem;font-weight:700;cursor:pointer}
-body.iab-first .home-greeting, body.iab-first .what-is, body.iab-first .ask-line, body.iab-first .try-line, body.iab-first .second-row, body.iab-first .mic-lang-line, body.iab-first #homeMicStatus, body.iab-first #demoBtn, body.iab-first .trust-line, body.iab-first .person-line{display:none !important}
+body.iab-first .home-greeting, body.iab-first .what-is, body.iab-first .ask-line, body.iab-first .try-line, body.iab-first .second-row, body.iab-first .mic-lang-line, body.iab-first #demoBtn, body.iab-first .trust-line, body.iab-first .person-line{display:none !important}
 body.iab-first .home-mic-btn{opacity:.55}
 .iab-note input{display:none}
 .home-mic-status.heard{color:var(--leaf-deep);font-weight:600}
@@ -1084,7 +1091,7 @@ body.iab-first .home-mic-btn{opacity:.55}
      string is what forces a fresh script fetch even before any service worker logic
      runs, independent of it. Found live 27 Aug: without this, an already-visited
      browser can keep running old code from plain HTTP cache regardless of SW strategy. -->
-<script src="app.js?v=147"></script>
+<script src="app.js?v=148"></script>
 
 </body>
 </html>

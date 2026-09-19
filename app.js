@@ -531,6 +531,8 @@ function micSupported() {
 // and put the typed choices right there.
 function inAppBrowser() {
   const ua = navigator.userAgent || '';
+  // Test hook: ?iabtest=android renders the in-app screen in a normal browser (used with ?owner=1 so nothing is counted).
+  try { if (/[?&]iabtest=/.test(location.search)) return true; } catch (e) { /* optional */ }
   if (/FBAN|FBAV|FB_IAB|Instagram|Messenger\/|Line\/|MicroMessenger|WhatsApp|Telegram|Snapchat|TikTok|GSA\//i.test(ua)) return true;
   // Any other app's built-in browser (WhatsApp, Gmail, Telegram open links
   // inside themselves): Android WebView says "; wv)"; an iPhone WKWebView
@@ -539,7 +541,7 @@ function inAppBrowser() {
   if (/iPhone|iPad|iPod/i.test(ua) && !/Safari\//i.test(ua) && !/CriOS|FxiOS|EdgiOS/i.test(ua)) return true;
   return false;
 }
-function isAndroid() { return /Android/i.test(navigator.userAgent || ''); }
+function isAndroid() { try { if (/[?&]iabtest=android/.test(location.search)) return true; } catch (e) { /* optional */ } return /Android/i.test(navigator.userAgent || ''); }
 function chromeIntentUrl() {
   const bare = location.href.replace(/^https?:\/\//, '');
   return 'intent://' + bare + '#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=' + encodeURIComponent(location.href) + ';end';
@@ -3259,10 +3261,16 @@ if (inAppBrowser()) {
       // Facebook's Android browser has no microphone permission at all
       // (Meta developer thread, 2024-25): the tap is unavoidable, so it is
       // the whole first screen. Fallback link for phones without Chrome.
-      top.innerHTML = `<p>${t('Facebook does not allow talking here. Press once, then you can talk.', 'Facebook no deja hablar aqu\u00ed. Toca una vez y podr\u00e1s hablar.')}</p>`
-        + (ES ? '' : `<p class="iab-pidgin">Facebook no dey allow talking. Press here, then you go talk.</p>`)
-        + `<a class="iab-open" id="iabTopBtn" href="${window.KYM_CHROME_URL || chromeIntentUrl()}"><svg class="chrome-ball" viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="22" fill="#fff"/><path d="M24 2a22 22 0 0 1 19.05 11H24a11 11 0 0 0-9.53 5.5L7.2 6.3A21.94 21.94 0 0 1 24 2z" fill="#EA4335"/><path d="M43.05 13A22 22 0 0 1 24 46l7.4-12.83A11 11 0 0 0 33.5 13z" fill="#FBBC04"/><path d="M14.47 18.5A11 11 0 0 0 24 35l-7.4 12.82A22 22 0 0 1 7.2 6.3z" fill="#34A853"/><circle cx="24" cy="24" r="8.5" fill="#4285F4"/></svg><span>${t('Open in Chrome', 'Abrir en Chrome')}</span></a>`
+      // 19 Sep, from the week's numbers: 88 of 122 opens were inside this
+      // browser and 3 of the 88 pressed the Chrome button. The wall is the
+      // button. So the first screen here is a typing box that works where
+      // the person already is; Chrome is the second offer, not the gate.
+      top.innerHTML = `<p>${t('Type what happened. It keeps the record.', 'Escribe qu\u00e9 pas\u00f3. \u00c9l guarda la cuenta.')}</p>`
+        + `<form class="iab-type" id="iabTypeForm" autocomplete="off"><input id="iabTypeIn" type="text" inputmode="text" enterkeyhint="done" placeholder="${t('Sold 3 bowls of waakye, 60 cedis', 'Vend\u00ed 3 arepas a 2 d\u00f3lares')}" aria-label="${t('What happened?', '\u00bfQu\u00e9 pas\u00f3?')}"><button type="submit" class="iab-save">${t('Save', 'Guardar')}</button></form>`
+        + `<button type="button" class="iab-example" id="iabExample">${t('Try the example', 'Probar el ejemplo')}</button>`
         + `<p class="iab-sub">${t('Free. It will not ask for your MoMo PIN or password.', 'Gratis. No te pide clave ni PIN.')}</p>`
+        + `<p class="iab-or">${t('Want to talk instead?', '\u00bfPrefieres hablar?')}</p>`
+        + `<a class="iab-open iab-open-small" id="iabTopBtn" href="${window.KYM_CHROME_URL || chromeIntentUrl()}"><svg class="chrome-ball" viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="22" fill="#fff"/><path d="M24 2a22 22 0 0 1 19.05 11H24a11 11 0 0 0-9.53 5.5L7.2 6.3A21.94 21.94 0 0 1 24 2z" fill="#EA4335"/><path d="M43.05 13A22 22 0 0 1 24 46l7.4-12.83A11 11 0 0 0 33.5 13z" fill="#FBBC04"/><path d="M14.47 18.5A11 11 0 0 0 24 35l-7.4 12.82A22 22 0 0 1 7.2 6.3z" fill="#34A853"/><circle cx="24" cy="24" r="8.5" fill="#4285F4"/></svg><span>${t('Open in Chrome', 'Abrir en Chrome')}</span></a>`
         + `<a class="iab-alt" id="iabAltBtn" href="${window.KYM_ANYBROWSER_URL || '#'}">${t('No Chrome? Open in another browser', '\u00bfSin Chrome? Abrir en otro navegador')}</a>`;
       document.body.classList.add('iab-first');
       // every other tap on this screen also goes to Chrome - the mic cannot work here
@@ -3281,6 +3289,23 @@ if (inAppBrowser()) {
     const first = document.querySelector('.pitch') || document.getElementById('homeGreeting');
     if (first && first.parentNode) first.parentNode.insertBefore(top, first.nextSibling);
     const tb = document.getElementById('iabTopBtn'); if (tb) tb.addEventListener('click', () => { ping(android ? 'iab_tap' : 'iab_tap_ios'); track('iab_tap'); });
+    // Typed record inside the in-app browser: the same server step the mic
+    // uses (evidence-checked, auto-saved), minus the microphone.
+    const tf = document.getElementById('iabTypeForm'); const ti = document.getElementById('iabTypeIn'); const tx = document.getElementById('iabExample');
+    if (tf && ti) {
+      const submitTyped = async () => {
+        const v = String(ti.value || '').trim();
+        if (!v) { ti.focus(); return; }
+        if (voiceBusy) return;
+        ping('iab_typed'); track('iab_typed', { len: v.length });
+        pendingVoiceSource = 'typed';
+        const st = document.getElementById('homeMicStatus'); if (st) st.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        await processVoiceBlob(null, 'homeMicStatus', 3000, 0, v);
+        ti.value = '';
+      };
+      tf.addEventListener('submit', (ev) => { ev.preventDefault(); submitTyped(); });
+      if (tx) tx.addEventListener('click', () => { ti.value = ti.placeholder; ping('iab_example'); track('iab_example'); submitTyped(); });
+    }
     const ab = document.getElementById('iabAltBtn'); if (ab) ab.addEventListener('click', () => { ping('iab_tap'); track('iab_tap_any'); });
   } catch (e) { /* never block */ }
 }
