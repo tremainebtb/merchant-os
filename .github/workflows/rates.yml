@@ -1,0 +1,31 @@
+name: Refresh cedi rate pages
+
+# Every morning (05:40 UTC, after the rate feed's midnight update) regenerate
+# rates/*.html and sitemap-rates.xml from the live mid-market rate and commit.
+# GitHub Pages then serves the new numbers; every page carries today's date.
+on:
+  schedule:
+    - cron: "40 5 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Generate pages
+        run: python tools/gen_rates.py
+      - name: Commit if changed
+        run: |
+          git config user.name "countmy-rates"
+          git config user.email "rates@countmy.app"
+          git add rates sitemap-rates.xml
+          if git diff --cached --quiet; then echo "no change"; exit 0; fi
+          git commit -m "rates: $(date -u +%Y-%m-%d) mid-market refresh"
+          git push
