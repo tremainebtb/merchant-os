@@ -850,7 +850,7 @@ async function handleAdminStats(request, env) {
 // (no card, ~8 hours of audio a day), used first whenever a GROQ_API_KEY
 // secret is set on the Worker. Cloudflare's own Whisper stays as the
 // fallback, so a Groq hiccup costs nothing but a second try.
-const GROQ_PROMPT_EN = 'Ghana shop records in cedis: I sold 3 bowls of waakye 60 cedis, 2 plantain 10 cedis, kelewele, banku and tilapia, fufu, jollof, red red, kenkey and fish, koko, bofrot, gari, shito, kontomire, garden eggs, okro, yam, cassava, tomatoes, onions, pepper, palm oil, groundnut, sachet water, minerals, bread, eggs, indomie, charcoal, ntoma, slippers. chop money 20, bought stock 400, transport 15, trotro fare 5, momo 50, airtime 50, Kofi 200, Ama owes me 120 cedis, Adwoa dey owe me 50, Yaw come take oil 25 he go pay tomorrow, I owe Mensah 400, Kofi paid me 200. Meton bayere mmiako mmiako aduonu, meton bankye, kwadu, borodee, mako, gyeene, nkatea, nkuruma, kosua, obi tua sika, boɔ yɛ sɛn. Meto bankye aduasa, obi de me ka aduonum, hwan na ɔde me ka?';
+const GROQ_PROMPT_EN = 'Ghana shop records in cedis: I sold 3 bowls of waakye 60 cedis, 2 plantain 10 cedis, kelewele, banku and tilapia, fufu, jollof, red red, kenkey and fish, koko, bofrot, gari, shito, kontomire, garden eggs, okro, yam, cassava, tomatoes, onions, pepper, palm oil, groundnut, sachet water, minerals, bread, eggs, indomie, charcoal, ntoma, slippers. chop money 20, bought stock 400, transport 15, trotro fare 5, momo 50, airtime 50, Kofi 200, Ama owes me 120 cedis, Adwoa dey owe me 50, Yaw come take oil 25 he go pay tomorrow, I owe Mensah 400, Kofi paid me 200. Meton bayere mmiako mmiako aduonu, meton bankye, kwadu, borodee, mako, gyeene, nkatea, nkuruma, kosua, obi tua sika, boɔ yɛ sɛn. Meto bankye aduasa, obi de me ka aduonum, hwan na ɔde me ka? Bokiti, kenten, adaka, olonka, kotoku, galɔn. Ma me sika, gye wo sika, fa kɔ fie.';
 async function groqTranscribe(audioBytes, audioType, env, lang, country) {
   if (!env.GROQ_API_KEY) return null;
   const type = audioType || 'audio/webm';
@@ -1064,7 +1064,7 @@ async function handleTranscribe(request, env) {
 // 50 is a transcription/parsing error, not a fabrication) - evidence-checking
 // targets fabrication specifically, not every possible error; the review UI is
 // still what catches a wrong-but-grounded number.
-const WORKER_VERSION = 'w91';
+const WORKER_VERSION = 'w92';
 
 // Spanish (Venezuela) twin of EXTRACT_SYSTEM_PROMPT below: same event types,
 // same {value, evidence} rule, same JSON-only answer. Amounts are bare
@@ -1232,7 +1232,10 @@ const TWI_NUMBERS = {
   ahawotwe: 800, ahakron: 900, apem: 1000,
   // nkenne.com alternate spellings for 50/60/70/80/90 (disagree with
   // learnakan.com's aduo- forms above; kept defensively, not preferred).
-  aduenum: 50, adunsia: 60, adunson: 70, adunwotwe: 80, adunkron: 90
+  aduenum: 50, adunsia: 60, adunson: 70, adunwotwe: 80, adunkron: 90,
+  // \u0254pepem (million) - Wikivoyage's Twi phrasebook, learnakan.com and
+  // learnakandictionary.com's compound entries all agree (3 sources).
+  opepem: 1000000
 };
 function twiNumberCandidates(transcriptNorm) {
   const out = new Set();
@@ -1749,6 +1752,17 @@ function twiPrep(text) {
   // lesson page that turned out to have no table. Also the word Bobby's
   // mother's own recording opens with ("Enne meko me shop...").
   t = t.replace(/\b([e\u025b]nn[e\u025b]|nn[e\u025b])\b/gi, 'today');
+  // Twi day names, for "will pay [day]" - confirmed against 5+
+  // independent sources each (learnakan.com, nkenne.com, Harvard's
+  // ELIAS Twi course, Wikivoyage, twikasa.net); Saturday has a genuine,
+  // sourced spelling split (Memeneda vs Memenda) - both kept.
+  t = t.replace(/\bkwasiada\b/gi, 'sunday').replace(/\b[e\u025b]?dwoada\b/gi, 'monday').replace(/\b[e\u025b]?benada\b/gi, 'tuesday')
+    .replace(/\bwukuada\b/gi, 'wednesday').replace(/\byaw[ou]ada\b/gi, 'thursday').replace(/\b[e\u025b]?fiada\b/gi, 'friday')
+    .replace(/\bmemene?da\b/gi, 'saturday');
+  // "dap\u025bn a \u025breba" (next week) - Harvard's ELIAS days/months lesson,
+  // a real sentence: "M\u025bk\u0254 New York dap\u025bn a \u025breba yi" = "I will go to New
+  // York next week."
+  t = t.replace(/\bdap[e\u025b]n\s+a\s+[e\u025b]reba(\s+yi)?\b/gi, 'next week');
   return t;
 }
 function englishNumbersToDigits(text) {

@@ -678,7 +678,7 @@ const NUMBER_WORD_RE = new RegExp(
 // server path hear the same thing.
 // The phone's own Twi (18 Sep): numerals and the few debt words, the same
 // table the server uses, for the moments the server cannot answer.
-const TWI_NUM = { baako: 1, koro: 1, mmienu: 2, mienu: 2, abien: 2, mmiensa: 3, miensa: 3, abiesa: 3, enan: 4, anan: 4, nan: 4, anum: 5, enum: 5, num: 5, nsia: 6, asia: 6, nson: 7, ason: 7, nwotwe: 8, awotwe: 8, nkron: 9, akron: 9, du: 10, edu: 10, dubaako: 11, dummienu: 12, dumienu: 12, dumiensa: 13, dunan: 14, dunum: 15, dunsia: 16, dunson: 17, dunwotwe: 18, dunkron: 19, aduonu: 20, aduasa: 30, aduanan: 40, aduonum: 50, aduosia: 60, aduoson: 70, aduowotwe: 80, aduokron: 90, oha: 100, ha: 100, ahanu: 200, ahaanu: 200, ahasa: 300, ahanan: 400, ahanum: 500, ahasia: 600, ahason: 700, ahawotwe: 800, ahakron: 900, apem: 1000 , aduenum: 50, adunsia: 60, adunson: 70, adunwotwe: 80, adunkron: 90 };
+const TWI_NUM = { baako: 1, koro: 1, mmienu: 2, mienu: 2, abien: 2, mmiensa: 3, miensa: 3, abiesa: 3, enan: 4, anan: 4, nan: 4, anum: 5, enum: 5, num: 5, nsia: 6, asia: 6, nson: 7, ason: 7, nwotwe: 8, awotwe: 8, nkron: 9, akron: 9, du: 10, edu: 10, dubaako: 11, dummienu: 12, dumienu: 12, dumiensa: 13, dunan: 14, dunum: 15, dunsia: 16, dunson: 17, dunwotwe: 18, dunkron: 19, aduonu: 20, aduasa: 30, aduanan: 40, aduonum: 50, aduosia: 60, aduoson: 70, aduowotwe: 80, aduokron: 90, oha: 100, ha: 100, ahanu: 200, ahaanu: 200, ahasa: 300, ahanan: 400, ahanum: 500, ahasia: 600, ahason: 700, ahawotwe: 800, ahakron: 900, apem: 1000, aduenum: 50, adunsia: 60, adunson: 70, adunwotwe: 80, adunkron: 90, opepem: 1000000 };
 function twiToEnglish(text) {
   let t = String(text || '');
   const fold = w => w.toLowerCase().replace(/\u0254/g, 'o').replace(/\u025b/g, 'e');
@@ -709,6 +709,10 @@ function twiToEnglish(text) {
   t = t.replace(/\banwummer[e\u025b]\b/gi, 'evening').replace(/\bawiaber[e\u025b]\b/gi, 'afternoon').replace(/\ban[o\u0254]pa\b/gi, 'morning');
   t = t.replace(/\b[e\u025b]nnora\b/gi, 'yesterday');
   t = t.replace(/\b([e\u025b]nn[e\u025b]|nn[e\u025b])\b/gi, 'today');
+  t = t.replace(/\bkwasiada\b/gi, 'sunday').replace(/\b[e\u025b]?dwoada\b/gi, 'monday').replace(/\b[e\u025b]?benada\b/gi, 'tuesday')
+    .replace(/\bwukuada\b/gi, 'wednesday').replace(/\byaw[ou]ada\b/gi, 'thursday').replace(/\b[e\u025b]?fiada\b/gi, 'friday')
+    .replace(/\bmemene?da\b/gi, 'saturday');
+  t = t.replace(/\bdap[e\u025b]n\s+a\s+[e\u025b]reba(\s+yi)?\b/gi, 'next week');
   return t;
 }
 function repairHeard(text) {
