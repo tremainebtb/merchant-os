@@ -678,7 +678,7 @@ const NUMBER_WORD_RE = new RegExp(
 // server path hear the same thing.
 // The phone's own Twi (18 Sep): numerals and the few debt words, the same
 // table the server uses, for the moments the server cannot answer.
-const TWI_NUM = { baako: 1, koro: 1, mmienu: 2, mienu: 2, abien: 2, mmiensa: 3, miensa: 3, abiesa: 3, enan: 4, anan: 4, nan: 4, anum: 5, enum: 5, num: 5, nsia: 6, asia: 6, nson: 7, ason: 7, nwotwe: 8, awotwe: 8, nkron: 9, akron: 9, du: 10, edu: 10, dubaako: 11, dummienu: 12, dumienu: 12, dumiensa: 13, dunan: 14, dunum: 15, dunsia: 16, dunson: 17, dunwotwe: 18, dunkron: 19, aduonu: 20, aduasa: 30, aduanan: 40, aduonum: 50, aduosia: 60, aduoson: 70, aduowotwe: 80, aduokron: 90, oha: 100, ha: 100, ahanu: 200, ahaanu: 200, ahasa: 300, ahanan: 400, ahanum: 500, ahasia: 600, ahason: 700, ahawotwe: 800, ahakron: 900, apem: 1000 };
+const TWI_NUM = { baako: 1, koro: 1, mmienu: 2, mienu: 2, abien: 2, mmiensa: 3, miensa: 3, abiesa: 3, enan: 4, anan: 4, nan: 4, anum: 5, enum: 5, num: 5, nsia: 6, asia: 6, nson: 7, ason: 7, nwotwe: 8, awotwe: 8, nkron: 9, akron: 9, du: 10, edu: 10, dubaako: 11, dummienu: 12, dumienu: 12, dumiensa: 13, dunan: 14, dunum: 15, dunsia: 16, dunson: 17, dunwotwe: 18, dunkron: 19, aduonu: 20, aduasa: 30, aduanan: 40, aduonum: 50, aduosia: 60, aduoson: 70, aduowotwe: 80, aduokron: 90, oha: 100, ha: 100, ahanu: 200, ahaanu: 200, ahasa: 300, ahanan: 400, ahanum: 500, ahasia: 600, ahason: 700, ahawotwe: 800, ahakron: 900, apem: 1000 , aduenum: 50, adunsia: 60, adunson: 70, adunwotwe: 80, adunkron: 90 };
 function twiToEnglish(text) {
   let t = String(text || '');
   const fold = w => w.toLowerCase().replace(/\u0254/g, 'o').replace(/\u025b/g, 'e');
@@ -699,6 +699,8 @@ function twiToEnglish(text) {
   t = out.join('');
   t = t.replace(/\b(\w+)\s+(a?tuaa?|tua)\s+(ne\s+)?(ka|sika)\b/gi, '$1 paid');
   t = t.replace(/\bme\s+de\s+([A-Za-z]+)\s+ka\b/gi, 'I owe $1').replace(/\b([A-Za-z]+)\s+de\s+me\s+ka\b/gi, '$1 owes me');
+  t = t.replace(/\bobi\b/gi, 'customer');
+  t = t.replace(/\b(hwan|hena)\s+na\s+[o\u0254]?de\s+me\s+ka\b/gi, 'who owes me');
   t = t.replace(/\b(obetua|\u0254b\u025btua)\s+(okyena|\u0254ky\u025bna)\b/gi, 'will pay tomorrow').replace(/\b(obetua|\u0254b\u025btua)\b/gi, 'will pay').replace(/\b(okyena|\u0254ky\u025bna)\b/gi, 'tomorrow');
   t = t.replace(/\bme\s+t[o\u0254]n\b/gi, 'I sold').replace(/\bme\s+t[o\u0254]\b/gi, 'I bought').replace(/\b(don|done)\s+pay\b/gi, 'paid');
   // Kept in step with twiPrep in the worker - see the comment there (19 Sep).

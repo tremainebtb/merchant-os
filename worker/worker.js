@@ -850,7 +850,7 @@ async function handleAdminStats(request, env) {
 // (no card, ~8 hours of audio a day), used first whenever a GROQ_API_KEY
 // secret is set on the Worker. Cloudflare's own Whisper stays as the
 // fallback, so a Groq hiccup costs nothing but a second try.
-const GROQ_PROMPT_EN = 'Ghana shop records in cedis: I sold 3 bowls of waakye 60 cedis, 2 plantain 10 cedis, kelewele, banku and tilapia, fufu, jollof, red red, kenkey and fish, koko, bofrot, gari, shito, kontomire, garden eggs, okro, yam, cassava, tomatoes, onions, pepper, palm oil, groundnut, sachet water, minerals, bread, eggs, indomie, charcoal, ntoma, slippers. chop money 20, bought stock 400, transport 15, trotro fare 5, momo 50, airtime 50, Kofi 200, Ama owes me 120 cedis, Adwoa dey owe me 50, Yaw come take oil 25 he go pay tomorrow, I owe Mensah 400, Kofi paid me 200. Meton bayere mmiako mmiako aduonu, meton bankye, kwadu, borodee, mako, gyeene, nkatea, nkuruma, kosua, obi tua sika, boɔ yɛ sɛn.';
+const GROQ_PROMPT_EN = 'Ghana shop records in cedis: I sold 3 bowls of waakye 60 cedis, 2 plantain 10 cedis, kelewele, banku and tilapia, fufu, jollof, red red, kenkey and fish, koko, bofrot, gari, shito, kontomire, garden eggs, okro, yam, cassava, tomatoes, onions, pepper, palm oil, groundnut, sachet water, minerals, bread, eggs, indomie, charcoal, ntoma, slippers. chop money 20, bought stock 400, transport 15, trotro fare 5, momo 50, airtime 50, Kofi 200, Ama owes me 120 cedis, Adwoa dey owe me 50, Yaw come take oil 25 he go pay tomorrow, I owe Mensah 400, Kofi paid me 200. Meton bayere mmiako mmiako aduonu, meton bankye, kwadu, borodee, mako, gyeene, nkatea, nkuruma, kosua, obi tua sika, boɔ yɛ sɛn. Meto bankye aduasa, obi de me ka aduonum, hwan na ɔde me ka?';
 async function groqTranscribe(audioBytes, audioType, env, lang, country) {
   if (!env.GROQ_API_KEY) return null;
   const type = audioType || 'audio/webm';
@@ -1064,7 +1064,7 @@ async function handleTranscribe(request, env) {
 // 50 is a transcription/parsing error, not a fabrication) - evidence-checking
 // targets fabrication specifically, not every possible error; the review UI is
 // still what catches a wrong-but-grounded number.
-const WORKER_VERSION = 'w88';
+const WORKER_VERSION = 'w89';
 
 // Spanish (Venezuela) twin of EXTRACT_SYSTEM_PROMPT below: same event types,
 // same {value, evidence} rule, same JSON-only answer. Amounts are bare
@@ -1229,7 +1229,10 @@ const TWI_NUMBERS = {
   dunson: 17, dunwotwe: 18, dunkron: 19,
   aduonu: 20, aduasa: 30, aduanan: 40, aduonum: 50, aduosia: 60, aduoson: 70, aduowotwe: 80, aduokron: 90,
   oha: 100, ha: 100, ahanu: 200, ahaanu: 200, ahasa: 300, ahanan: 400, ahanum: 500, ahasia: 600, ahason: 700,
-  ahawotwe: 800, ahakron: 900, apem: 1000
+  ahawotwe: 800, ahakron: 900, apem: 1000,
+  // nkenne.com alternate spellings for 50/60/70/80/90 (disagree with
+  // learnakan.com's aduo- forms above; kept defensively, not preferred).
+  aduenum: 50, adunsia: 60, adunson: 70, adunwotwe: 80, adunkron: 90
 };
 function twiNumberCandidates(transcriptNorm) {
   const out = new Set();
@@ -1702,10 +1705,20 @@ function twiPrep(text) {
     i = j - 1;
   }
   t = out.join('');
+  // "obi" (someone/somebody, learnakan.com) marks an UNNAMED
+  // customer - the same case the model prompt already handles for the
+  // English "a customer owes me"; converting it here feeds that same path
+  // instead of inventing a customer literally called "Obi".
+  t = t.replace(/\bobi\b/gi, 'customer');
   // debt and payment words
   t = t.replace(/\b(\w+)\s+(a?tuaa?|tua)\s+(ne\s+)?(ka|sika)\b/gi, '$1 paid');
   t = t.replace(/\bme\s+de\s+([A-Za-z]+)\s+ka\b/gi, 'I owe $1');
   t = t.replace(/\b([A-Za-z]+)\s+de\s+me\s+ka\b/gi, '$1 owes me');
+  // "Who owes me" in Twi - this codebase's own WhatsApp channel has
+  // trusted this exact phrase since 18 Sep (see waIsQuestion); the voice
+  // app itself never had it, so the question was filed as a failed sale
+  // instead of being answered. hwan/hena are dialect variants of "who".
+  t = t.replace(/\b(hwan|hena)\s+na\s+[o\u0254]?de\s+me\s+ka\b/gi, 'who owes me');
   t = t.replace(/\b([oɔ]b[eɛ]tua|obetua)\s+([oɔ]ky[eɛ]na|okyena)\b/gi, 'will pay tomorrow').replace(/\b([oɔ]b[eɛ]tua|obetua)\b/gi, 'will pay').replace(/\b([oɔ]ky[eɛ]na|okyena)\b/gi, 'tomorrow');
   t = t.replace(/\bme\s+t[oɔ]n\b/gi, 'I sold').replace(/\bme\s+t[oɔ]\b/gi, 'I bought');
   // Pidgin tense markers
