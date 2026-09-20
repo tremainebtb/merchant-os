@@ -701,6 +701,9 @@ function twiToEnglish(text) {
   t = t.replace(/\bme\s+de\s+([A-Za-z]+)\s+ka\b/gi, 'I owe $1').replace(/\b([A-Za-z]+)\s+de\s+me\s+ka\b/gi, '$1 owes me');
   t = t.replace(/\b(obetua|\u0254b\u025btua)\s+(okyena|\u0254ky\u025bna)\b/gi, 'will pay tomorrow').replace(/\b(obetua|\u0254b\u025btua)\b/gi, 'will pay').replace(/\b(okyena|\u0254ky\u025bna)\b/gi, 'tomorrow');
   t = t.replace(/\bme\s+t[o\u0254]n\b/gi, 'I sold').replace(/\bme\s+t[o\u0254]\b/gi, 'I bought').replace(/\b(don|done)\s+pay\b/gi, 'paid');
+  // Kept in step with twiPrep in the worker - see the comment there (19 Sep).
+  t = t.replace(/\b(mm?iako|maku|makuo)\s+(mm?iako|maku|makuo)\b/gi, 'each');
+  t = t.replace(/\b(mbaire|bayire)\b/gi, 'bayere');
   return t;
 }
 function repairHeard(text) {

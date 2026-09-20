@@ -850,7 +850,7 @@ async function handleAdminStats(request, env) {
 // (no card, ~8 hours of audio a day), used first whenever a GROQ_API_KEY
 // secret is set on the Worker. Cloudflare's own Whisper stays as the
 // fallback, so a Groq hiccup costs nothing but a second try.
-const GROQ_PROMPT_EN = 'Ghana shop records in cedis: I sold 3 bowls of waakye 60 cedis, 2 plantain 10 cedis, kelewele, banku and tilapia, fufu, jollof, red red, kenkey and fish, koko, bofrot, gari, shito, kontomire, garden eggs, okro, yam, cassava, tomatoes, onions, pepper, palm oil, groundnut, sachet water, minerals, bread, eggs, indomie, charcoal, ntoma, slippers. chop money 20, bought stock 400, transport 15, trotro fare 5, momo 50, airtime 50, Kofi 200, Ama owes me 120 cedis, Adwoa dey owe me 50, Yaw come take oil 25 he go pay tomorrow, I owe Mensah 400, Kofi paid me 200.';
+const GROQ_PROMPT_EN = 'Ghana shop records in cedis: I sold 3 bowls of waakye 60 cedis, 2 plantain 10 cedis, kelewele, banku and tilapia, fufu, jollof, red red, kenkey and fish, koko, bofrot, gari, shito, kontomire, garden eggs, okro, yam, cassava, tomatoes, onions, pepper, palm oil, groundnut, sachet water, minerals, bread, eggs, indomie, charcoal, ntoma, slippers. chop money 20, bought stock 400, transport 15, trotro fare 5, momo 50, airtime 50, Kofi 200, Ama owes me 120 cedis, Adwoa dey owe me 50, Yaw come take oil 25 he go pay tomorrow, I owe Mensah 400, Kofi paid me 200. Meton bayere mmiako mmiako aduonu, meton bankye, kwadu, borodee, mako, gyeene, nkatea, nkuruma, kosua, obi tua sika, boɔ yɛ sɛn.';
 async function groqTranscribe(audioBytes, audioType, env, lang, country) {
   if (!env.GROQ_API_KEY) return null;
   const type = audioType || 'audio/webm';
@@ -1064,7 +1064,7 @@ async function handleTranscribe(request, env) {
 // 50 is a transcription/parsing error, not a fabrication) - evidence-checking
 // targets fabrication specifically, not every possible error; the review UI is
 // still what catches a wrong-but-grounded number.
-const WORKER_VERSION = 'w87';
+const WORKER_VERSION = 'w88';
 
 // Spanish (Venezuela) twin of EXTRACT_SYSTEM_PROMPT below: same event types,
 // same {value, evidence} rule, same JSON-only answer. Amounts are bare
@@ -1710,6 +1710,17 @@ function twiPrep(text) {
   t = t.replace(/\bme\s+t[oɔ]n\b/gi, 'I sold').replace(/\bme\s+t[oɔ]\b/gi, 'I bought');
   // Pidgin tense markers
   t = t.replace(/\b(don|done)\s+pay\b/gi, 'paid').replace(/\b(don|done)\s+buy\b/gi, 'bought');
+  // "mmiako mmiako" (one by one/individually, the reduplicated distributive
+  // of biako/one - same m- pattern as mmienu, mmiensa) is how the price was
+  // said, not a product; without a Twi anchor Whisper hears nonsense here
+  // ("maku maku", "miako miako") and it was filed as the item - real bug,
+  // a parent's real audio, 19 Sep. Normalise every spelling to "each", which
+  // the price step below already understands, so it never becomes an item.
+  t = t.replace(/\b(mm?iako|maku|makuo)\s+(mm?iako|maku|makuo)\b/gi, 'each');
+  // Same audio lost "bayer\u025b" (yam, learnakan.com) to "mbaire"/"bayire" -
+  // restored to the codebase's own plain spelling (kelewele, kontomire
+  // above), never translated to English, same as nkyene stays nkyene.
+  t = t.replace(/\b(mbaire|bayire)\b/gi, 'bayere');
   return t;
 }
 function englishNumbersToDigits(text) {
