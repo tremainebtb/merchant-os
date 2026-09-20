@@ -1064,7 +1064,7 @@ async function handleTranscribe(request, env) {
 // 50 is a transcription/parsing error, not a fabrication) - evidence-checking
 // targets fabrication specifically, not every possible error; the review UI is
 // still what catches a wrong-but-grounded number.
-const WORKER_VERSION = 'w89';
+const WORKER_VERSION = 'w90';
 
 // Spanish (Venezuela) twin of EXTRACT_SYSTEM_PROMPT below: same event types,
 // same {value, evidence} rule, same JSON-only answer. Amounts are bare
@@ -1734,6 +1734,15 @@ function twiPrep(text) {
   // restored to the codebase's own plain spelling (kelewele, kontomire
   // above), never translated to English, same as nkyene stays nkyene.
   t = t.replace(/\b(mbaire|bayire)\b/gi, 'bayere');
+  // Time-of-day words (learnakan.com's own time-vocabulary lesson) after
+  // a promise to pay - "obetua anwummer\u025b" already saves correctly as a
+  // debt (the credit rule fires on "will pay" alone), this just keeps the
+  // sentence shown back to the owner in one language, the same thing
+  // "okyena" -> "tomorrow" already does for tomorrow.
+  t = t.replace(/\banwummer[e\u025b]\b/gi, 'evening').replace(/\bawiaber[e\u025b]\b/gi, 'afternoon').replace(/\ban[o\u0254]pa\b/gi, 'morning');
+  // "\u025bnnora" (yesterday) - learnakan.com/akan-twi-adverbs/, its own
+  // example "\u025bnnora, mebaa ha" = "yesterday, I came here".
+  t = t.replace(/\b[e\u025b]nnora\b/gi, 'yesterday');
   return t;
 }
 function englishNumbersToDigits(text) {
