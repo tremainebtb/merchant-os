@@ -1064,7 +1064,7 @@ async function handleTranscribe(request, env) {
 // 50 is a transcription/parsing error, not a fabrication) - evidence-checking
 // targets fabrication specifically, not every possible error; the review UI is
 // still what catches a wrong-but-grounded number.
-const WORKER_VERSION = 'w90';
+const WORKER_VERSION = 'w91';
 
 // Spanish (Venezuela) twin of EXTRACT_SYSTEM_PROMPT below: same event types,
 // same {value, evidence} rule, same JSON-only answer. Amounts are bare
@@ -1743,6 +1743,12 @@ function twiPrep(text) {
   // "\u025bnnora" (yesterday) - learnakan.com/akan-twi-adverbs/, its own
   // example "\u025bnnora, mebaa ha" = "yesterday, I came here".
   t = t.replace(/\b[e\u025b]nnora\b/gi, 'yesterday');
+  // \u025bnn\u025b / nn\u025b (today) - confirmed independently by nkenne.com,
+  // learnakandictionary.com and churchofjesuschrist.org's own Twi
+  // translation, all three in real sentences, none of them the learnakan
+  // lesson page that turned out to have no table. Also the word Bobby's
+  // mother's own recording opens with ("Enne meko me shop...").
+  t = t.replace(/\b([e\u025b]nn[e\u025b]|nn[e\u025b])\b/gi, 'today');
   return t;
 }
 function englishNumbersToDigits(text) {

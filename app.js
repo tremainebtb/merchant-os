@@ -708,6 +708,7 @@ function twiToEnglish(text) {
   t = t.replace(/\b(mbaire|bayire)\b/gi, 'bayere');
   t = t.replace(/\banwummer[e\u025b]\b/gi, 'evening').replace(/\bawiaber[e\u025b]\b/gi, 'afternoon').replace(/\ban[o\u0254]pa\b/gi, 'morning');
   t = t.replace(/\b[e\u025b]nnora\b/gi, 'yesterday');
+  t = t.replace(/\b([e\u025b]nn[e\u025b]|nn[e\u025b])\b/gi, 'today');
   return t;
 }
 function repairHeard(text) {
