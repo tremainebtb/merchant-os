@@ -682,6 +682,11 @@ const TWI_NUM = { baako: 1, koro: 1, mmienu: 2, mienu: 2, abien: 2, mmiensa: 3, 
 function twiToEnglish(text) {
   let t = String(text || '');
   const fold = w => w.toLowerCase().replace(/\u0254/g, 'o').replace(/\u025b/g, 'e');
+  // Kept in step with twiPrep in the worker - see the comment there.
+  t = t.replace(/\bmpem\s+([a-z\u0254\u025b]+)\b/gi, (m, word) => {
+    const v = TWI_NUM[fold(word)];
+    return (v && v < 1000) ? String(v * 1000) : m;
+  });
   const isNum = w => Object.prototype.hasOwnProperty.call(TWI_NUM, fold(w));
   const words = t.split(/(\s+|[.,;!?]+)/), isSep = w => /^(\s+|[.,;!?]+)$/.test(w), out = [];
   for (let i = 0; i < words.length; i++) {

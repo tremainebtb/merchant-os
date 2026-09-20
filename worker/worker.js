@@ -1064,7 +1064,7 @@ async function handleTranscribe(request, env) {
 // 50 is a transcription/parsing error, not a fabrication) - evidence-checking
 // targets fabrication specifically, not every possible error; the review UI is
 // still what catches a wrong-but-grounded number.
-const WORKER_VERSION = 'w92';
+const WORKER_VERSION = 'w93';
 
 // Spanish (Venezuela) twin of EXTRACT_SYSTEM_PROMPT below: same event types,
 // same {value, evidence} rule, same JSON-only answer. Amounts are bare
@@ -1685,6 +1685,20 @@ const EN_TENS = { twenty: 20, thirty: 30, forty: 40, fifty: 50, sixty: 60, seven
 function twiPrep(text) {
   let t = String(text || '');
   const fold = w => w.toLowerCase().replace(/\u0254/g, 'o').replace(/\u025b/g, 'e');
+  // "mpem <number>" = that number x 1000 (mpem du = 10,000,
+  // akandictionary.com; learnakan.com's numbering lesson, the same
+  // compound). Genuinely multiplicative, unlike the additive run below
+  // ("\u0254ha ne aduonu" = 100+20) - resolved to a plain digit string here,
+  // first, so it never fights that loop. Tested (20 Sep 2026): a further
+  // "ne <word>" after it ("mpem du ne aduonu", meant as 10,020) is NOT
+  // added on top - it comes out "10000 ne 20", two separate numbers, a
+  // known limit, not a silent one. No real recording has ever named an
+  // amount above 500 cedis, let alone a compound like that; this covers
+  // the plain "mpem <number>" case as a safety margin, not the compound.
+  t = t.replace(/\bmpem\s+([a-z\u0254\u025b]+)\b/gi, (m, word) => {
+    const v = TWI_NUMBERS[fold(word)];
+    return (v && v < 1000) ? String(v * 1000) : m;
+  });
   // numerals: a run of Twi number words is summed (hundreds+tens+units), "ne" joins
   const isNum = w => Object.prototype.hasOwnProperty.call(TWI_NUMBERS, fold(w));
   const words = t.split(/(\s+|[.,;!?]+)/);
@@ -1898,12 +1912,30 @@ function finalizeEvents(events, text, lang, country) {
     const e = out[0];
     out = [toPayment({ price: nums[0], currency: e.currency }, e.customer), { type: 'debt_in', customer: e.customer, price: nums[1], currency: e.currency }];
   }
+  // Fix, 20 Sep 2026: isPay above is one verdict for the WHOLE
+  // utterance, so "I owe Mensah 400, Kofi paid me 200." had its real
+  // payment suppressed by the FIRST clause's "I owe" (NOT_PAY_EN's own
+  // guard against "I paid for X"). This second pass is anchored to one
+  // event's own name, the same test this file already trusts for
+  // expense events a few lines above, so a debt named earlier in a
+  // compound sentence cannot suppress a different person's real payment
+  // later in it, and cannot fire on a name that is NOT followed by a
+  // paid-word.
+  if (lang !== 'es') {
+    out = out.map(e => {
+      if (e.type === 'debt_in' || e.type === 'debt_out') {
+        const name = e.customer || e.supplier;
+        if (name && new RegExp('\\b' + esc(name) + '\\s+(has\\s+)?(paid|pay|payed|don\\s+pay)\\b').test(tt)) return toPayment(e, name);
+      }
+      return e;
+    });
+  }
   // "I owe 400 cedis" with no name: the placeholder, never the words "I owe"
   out.forEach(e => { if (e.type === 'debt_out' && /^(i|we)\s+(still\s+)?owe$/i.test(String(e.supplier || '').trim())) e.supplier = 'supplier'; });
   // "Kojo took 3 plantain 8 each, will pay Friday": credit, not a sale
   if (lang !== 'es' && out.length === 1 && out[0].type === 'sale') {
     const credit = /\b(will|go|gonna|shall|dey go)\s+pay\b|\bpay\s+(later|tomorrow|next\s+week|on\s+\w+day|monday|tuesday|wednesday|thursday|friday|saturday|sunday|month\s+end)\b|\bon\s+credit\b|\bno\s+pay\s+yet\b|\bnever\s+pay\b/i.test(raw) && !/\b(i|we)\s+(will|go)\s+pay\b/i.test(raw);
-    const who = /^\s*([A-Z][a-z\u00e0-\u00ff]+(?:\s+[A-Z][a-z\u00e0-\u00ff]+)?)\s+(took|take|collect|carry|carried|buy|bought|come\s+take)\b/.exec(raw);
+    const who = /^\s*([A-Z][a-z\u00e0-\u00ff]+(?:\s+[A-Z][a-z\u00e0-\u00ff]+)?)\s+(took|take|collect|carry|carried|buy|bought|come\s+take|gye|fa)\b/.exec(raw);
     if (credit && who) {
       const e = out[0];
       const total = (e.qty || 1) * (e.price || 0);
