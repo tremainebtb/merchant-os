@@ -1,0 +1,36 @@
+# CountMy
+
+> CountMy is a free, voice-first daily money notebook for any business in Ghana: say what you sold, spent, or who owes you, and it keeps the record. Works offline, no signup, no PIN, no Ghana Card.
+
+## What CountMy is
+- A free web app (no install, no app store) for shop owners, market traders, farmers, drivers and mobile money agents in Ghana to track sales, expenses, and customer credit by voice or by typing.
+- Understands English, Twi and Ghanaian Pidgin speech, and Spanish for users in Venezuela and Colombia.
+- Records stay on the user's own phone; nothing is required to start using it.
+
+## Start here
+- The app: https://countmy.app/
+- Is CountMy safe?: https://countmy.app/safety.html
+
+## Guides for your business
+- Guides index: https://countmy.app/guides/index.html
+- Who owes me? The customer book for credit sales: https://countmy.app/guides/who-owes-me.html
+- How to record daily sales manually: https://countmy.app/guides/daily-sales-record-ghana.html
+- GRA Modified Taxation Scheme 2026 (bands, *880#): https://countmy.app/guides/gra-modified-taxation.html
+- How to pay tax in Ghana as a small business: https://countmy.app/guides/how-to-pay-tax-ghana-small-business.html
+- Vehicle Income Tax (VIT) sticker, *222#: https://countmy.app/guides/vehicle-income-tax-ghana.html
+- How much do trotro drivers make a day?: https://countmy.app/guides/trotro-driver-daily-money.html
+- MTN MoMo agent commission structure: https://countmy.app/guides/momo-agent-commission.html
+- How much to start a mobile money business: https://countmy.app/guides/how-much-to-start-mobile-money-business-ghana.html
+- Is poultry farming profitable in Ghana?: https://countmy.app/guides/is-poultry-farming-profitable-ghana.html
+- Is pig farming profitable in Ghana?: https://countmy.app/guides/is-pig-farming-profitable-ghana.html
+- Is kenkey or waakye business profitable?: https://countmy.app/guides/is-kenkey-waakye-business-profitable-ghana.html
+- Cómo llevar las cuentas de un negocio (español): https://countmy.app/guides/cuaderno-de-ventas-diarias.html
+
+## Cedi exchange rates
+- Rates index (dollar, pound, euro, naira, CFA, yuan, rand, Canadian dollar, dirham): https://countmy.app/rates/index.html
+- Dollar to cedi today, with amount tables: https://countmy.app/rates/dollar-to-cedi.html
+- Rates are the mid-market rate from ExchangeRate-API, refreshed every morning, and are not financial advice.
+
+## Contact
+- Questions: https://wa.me/233209090019
+- Sitemaps: https://countmy.app/sitemap.xml, https://countmy.app/sitemap-rates.xml
