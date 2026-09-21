@@ -2152,6 +2152,35 @@ function getShopId() { return (localStorage.getItem('kym_shop_id') || '').trim()
 function setShopId(id) { localStorage.setItem('kym_shop_id', (id || '').trim()); }
 function isPaid() { return localStorage.getItem('kym_paid_backend') === '1'; }
 
+// CountMy Plus, 21 Sep 2026: the ONLY thing ever limited for a free shop is
+// how many Ask CountMy questions she gets per day - never her own recorded
+// sales, expenses or debts, which stay fully visible forever either way.
+// This is deliberate: a 7-day history lockout existed until 5 Sep 2026 and
+// was removed after two independent evidence reviews plus a 3,000-firm Accra
+// survey found that watching her own records vanish reads as the app taking
+// her money book away, for an audience already primed to fear that being in
+// a system costs you (see the comment above the history render). Re-limiting
+// history would repeat that exact, already-evidenced mistake. Asking a
+// question is a new, optional feature, not her book - a safe place to put a
+// real free/paid difference.
+const ASK_FREE_DAILY_LIMIT = 5;
+function askQuestionsLeftToday() {
+  if (isPaid()) return Infinity;
+  const day = todayKey(Date.now());
+  if (localStorage.getItem('kym_ask_day') !== day) return ASK_FREE_DAILY_LIMIT;
+  return Math.max(0, ASK_FREE_DAILY_LIMIT - (parseInt(localStorage.getItem('kym_ask_n'), 10) || 0));
+}
+function recordAskUsed() {
+  if (isPaid()) return;
+  const day = todayKey(Date.now());
+  if (localStorage.getItem('kym_ask_day') !== day) {
+    localStorage.setItem('kym_ask_day', day);
+    localStorage.setItem('kym_ask_n', '1');
+  } else {
+    localStorage.setItem('kym_ask_n', String((parseInt(localStorage.getItem('kym_ask_n'), 10) || 0) + 1));
+  }
+}
+
 async function refreshPaidStatus() {
   const shop = getShopId();
   if (!shop || !navigator.onLine) return;
@@ -2714,6 +2743,14 @@ async function answerQuestion(text) {
   } else {
     return false;
   }
+  if (askQuestionsLeftToday() <= 0) {
+    track('voice_ask', { intent: 'limit_reached' });
+    const limitMsg = `That's today's ${ASK_FREE_DAILY_LIMIT} free questions. Ask again tomorrow, or support CountMy to ask any time.`;
+    setMicStatus(limitMsg, 'heard');
+    speakShort(limitMsg);
+    return true;
+  }
+  recordAskUsed();
   track('voice_ask', { intent });
   ping('ask');
   setMicStatus(answer, 'heard');
@@ -2762,6 +2799,14 @@ async function answerQuestionEs(text) {
   } else {
     return false;
   }
+  if (askQuestionsLeftToday() <= 0) {
+    track('voice_ask', { intent: 'limit_reached' });
+    const limitMsg = `Ya usaste tus ${ASK_FREE_DAILY_LIMIT} preguntas gratis de hoy. Pregunta otra vez mañana, o apoya a CountMy para preguntar cuando quieras.`;
+    setMicStatus(limitMsg, 'heard');
+    speakShort(limitMsg);
+    return true;
+  }
+  recordAskUsed();
   track('voice_ask', { intent });
   ping('ask');
   setMicStatus(answer, 'heard');
