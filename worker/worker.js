@@ -1064,7 +1064,7 @@ async function handleTranscribe(request, env) {
 // 50 is a transcription/parsing error, not a fabrication) - evidence-checking
 // targets fabrication specifically, not every possible error; the review UI is
 // still what catches a wrong-but-grounded number.
-const WORKER_VERSION = 'w94';
+const WORKER_VERSION = 'w95';
 
 // Spanish (Venezuela) twin of EXTRACT_SYSTEM_PROMPT below: same event types,
 // same {value, evidence} rule, same JSON-only answer. Amounts are bare
@@ -2031,8 +2031,14 @@ function finalizeEvents(events, text, lang, country) {
       const paidOne = /\by\s+pago\s+(una|uno|1|solo\s+una|solo\s+uno)\b|\bpago\s+(una|uno)\s+nom[a\u00e1]s\b/.test(tt);
       if (who && sale && paidOne) out.push({ type: 'debt_in', customer: who[1].charAt(0).toUpperCase() + who[1].slice(1), price: (sale.qty - 1) * sale.price, note: sale.item });
     }
-    // events added here carry the money of the sentence
-    const cur = country === 'CO' ? 'COP' : ((/bol[i]var|\bbolos?\b|\bbs\b/.test(tt) && !/d[o]lar|\bverdes?\b/.test(tt)) ? 'VES' : 'USD');
+    // events added here carry the money of the sentence. Real feedback,
+    // 22 Sep, from an actual Venezuelan tester: everyday spoken amounts
+    // there are dollars by default, nobody says "dólares" out loud for it -
+    // so a bare, isolated "bs" (two letters, no accent, easy for Whisper to
+    // hallucinate from noise or an unrelated word fragment) is too weak a
+    // signal to override that default. Only the real words for bolívares
+    // count as evidence now.
+    const cur = country === 'CO' ? 'COP' : ((/bol[i]var|\bbolos?\b/.test(tt) && !/d[o]lar|\bverdes?\b/.test(tt)) ? 'VES' : 'USD');
     out.forEach(e => { if (!e.currency) e.currency = cur; });
   }
   // "From all small sales to made 130" (a garbled "small small sales today
@@ -2156,8 +2162,10 @@ async function extractFromText(text, env, lang, country) {
     if (nums.length === 1) clean = clean.map(e => (e.price === undefined && e.type !== 'sale') ? Object.assign({}, e, { price: Number(nums[0].replace(',', '.')) }) : e);
     // Currency per event: the money word nearest AFTER the event's amount
     // decides; if none, the sentence-wide word; default dollars (Venezuela
-    // prices in dollars and pays in bolívares).
-    const isBs = /bol[ií]var|\bbolos?\b|\bbs\b/, isUsd = /d[oó]lar|\bverdes?\b|\$/;
+    // prices in dollars and pays in bolívares). Real feedback, 22 Sep: a
+    // bare "bs" is too easy for Whisper to hallucinate from noise or a
+    // stray fragment to count as real evidence someone said bolívares.
+    const isBs = /bol[ií]var|\bbolos?\b/, isUsd = /d[oó]lar|\bverdes?\b|\$/;
     const curAt = pos => { const after = tt.slice(pos, pos + 40); return isBs.test(after) ? 'VES' : isUsd.test(after) ? 'USD' : null; };
     const global = isBs.test(tt) && !isUsd.test(tt) ? 'VES' : 'USD';
     if (country === 'CO') { clean = clean.map(e => Object.assign({}, e, { currency: 'COP' })); return { events: clean }; }
