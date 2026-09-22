@@ -1,0 +1,31 @@
+name: Refresh Spanish (VE/CO) rate pages
+
+# Every morning (05:50 UTC, ten minutes after the cedi refresh) regenerate
+# rates/es/*.html and sitemap-rates-es.xml from live Venezuela (oficial +
+# paralelo) and Colombia (compra/venta) rates and commit.
+on:
+  schedule:
+    - cron: "50 5 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Generate pages
+        run: python tools/gen_rates_es.py
+      - name: Commit if changed
+        run: |
+          git config user.name "countmy-rates"
+          git config user.email "rates@countmy.app"
+          git add rates/es sitemap-rates-es.xml
+          if git diff --cached --quiet; then echo "no change"; exit 0; fi
+          git commit -m "rates-es: $(date -u +%Y-%m-%d) VE/CO refresh"
+          git push

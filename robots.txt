@@ -14,3 +14,4 @@ Disallow: /admin.html
 # AI/LLM guide: https://countmy.app/llms.txt
 Sitemap: https://countmy.app/sitemap.xml
 Sitemap: https://countmy.app/sitemap-rates.xml
+Sitemap: https://countmy.app/sitemap-rates-es.xml

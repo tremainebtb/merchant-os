@@ -64,6 +64,15 @@ const LANG = detectLang();
 const ES = LANG === 'es';
 document.documentElement.lang = ES ? 'es' : 'en';
 const t = (en, es) => (ES ? es : en);
+// Real bug, 22 Sep: the footer was static HTML, so every visitor - Spanish
+// included - saw "Cedi exchange rates today", which means nothing to
+// someone in Venezuela or Colombia. Rewritten once at load for ES.
+if (ES) {
+  const fr = document.getElementById('footerRates'); if (fr) { fr.href = 'rates/es/index.html'; fr.textContent = 'Tasas de cambio hoy'; }
+  const fg = document.getElementById('footerGuides'); if (fg) { fg.href = 'guides/cuaderno-de-ventas-diarias.html'; fg.textContent = 'Guías para tu negocio'; }
+  const fs = document.getElementById('footerSafety'); if (fs) { fs.textContent = '¿Es seguro CountMy?'; }
+  const fw = document.getElementById('footerWa'); if (fw) { fw.href = fw.href.replace('Hello%2C%20I%20have%20a%20question%20about%20CountMy', 'Hola%2C%20tengo%20una%20pregunta%20sobre%20CountMy'); fw.textContent = 'Escríbenos por WhatsApp'; }
+}
 // Country (17 Sep): Venezuela and Colombia share Spanish but not money or
 // words. ?c=CO / ?c=VE wins, then what the server saw on the first ping
 // (X-Country), then the phone's clock zone, then its locale. Ghana for
@@ -2202,7 +2211,16 @@ function renderAdmin() {
   // how it's worded, for this exact audience. Demoted to a small, low-key
   // link instead of a full-width button pitching payment - still reachable,
   // no longer competing with the free promise for attention.
-  document.getElementById('planPill').textContent = paid ? 'Thank you for supporting CountMy' : 'Support CountMy (optional, 99 cedis a year)';
+  // Real bug, 22 Sep: this line was overwriting the CountMy Plus pill text
+  // (v156) with the pre-Plus copy on every render, English-only regardless
+  // of language. Fixed - and for ES, the pill is hidden rather than
+  // translated: the payment behind it (MoMo to a Ghanaian number, priced in
+  // cedis) does not work in Venezuela or Colombia, so showing it would
+  // promise something broken. Show it again once a VE/CO payment path
+  // exists.
+  const planPillEl = document.getElementById('planPill');
+  if (ES) { planPillEl.hidden = true; }
+  else { planPillEl.hidden = false; planPillEl.textContent = paid ? 'Thank you for supporting CountMy' : 'Unlimited Ask CountMy (optional, 99 cedis a year)'; }
   const shopInput = document.getElementById('shopIdInput');
   if (shopInput && document.activeElement !== shopInput) shopInput.value = getShopId();
 }
@@ -2801,7 +2819,11 @@ async function answerQuestionEs(text) {
   }
   if (askQuestionsLeftToday() <= 0) {
     track('voice_ask', { intent: 'limit_reached' });
-    const limitMsg = `Ya usaste tus ${ASK_FREE_DAILY_LIMIT} preguntas gratis de hoy. Pregunta otra vez mañana, o apoya a CountMy para preguntar cuando quieras.`;
+    // 22 Sep: no "support CountMy to unlock" here on purpose - the paid path
+    // (MoMo to a Ghanaian number, priced in cedis) does not work for
+    // Venezuela or Colombia, so promising it would be a real, checkable lie
+    // to this user. Fix when a VE/CO payment method actually exists.
+    const limitMsg = `Ya usaste tus ${ASK_FREE_DAILY_LIMIT} preguntas gratis de hoy. Puedes preguntar otra vez mañana.`;
     setMicStatus(limitMsg, 'heard');
     speakShort(limitMsg);
     return true;
