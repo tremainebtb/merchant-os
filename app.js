@@ -2066,7 +2066,14 @@ function readValues() {
 function updateConfirm() {
   const cfg = FIELD_CONFIG[activeType];
   const v = readValues();
-  const line = cfg.confirm(v);
+  // Real bug, found 22 Sep in a live session: each confirm() only checked
+  // that item/price were non-empty strings, not that they added up to real
+  // money. Typing "00" passes that check - the line showed, Save looked
+  // ready - but saveEntry()'s own guard (`if (!amount ...) return`) treats
+  // a computed amount of zero as nothing to save and does nothing, silently.
+  // Ready now means the same thing in both places: a real, positive amount.
+  const ready = cfg.compute(v) > 0;
+  const line = ready ? cfg.confirm(v) : '';
   const el = document.getElementById('confirmLine');
   if (line) { el.textContent = line + ' \u2014 correct?'; el.classList.add('show'); }
   else { el.classList.remove('show'); }
