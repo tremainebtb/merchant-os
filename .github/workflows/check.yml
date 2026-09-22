@@ -1,0 +1,25 @@
+name: checks
+
+# Runs the static guardrails this repo has - right now just the ping()
+# event-name allowlist check (tools/check_event_allowlist.js), added
+# 22 Sep after Spanish voice pings were found to have been silently
+# rejected by the Worker for the whole time Spanish was live, because
+# 'voice_es' was missing from its allowlist. This fails the push, not
+# just a future deploy, so the gap is caught before it ever ships again.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'app.js'
+      - 'worker/worker.js'
+  pull_request:
+    paths:
+      - 'app.js'
+      - 'worker/worker.js'
+
+jobs:
+  event-allowlist:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: node tools/check_event_allowlist.js

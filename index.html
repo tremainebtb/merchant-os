@@ -56,7 +56,7 @@
      app.js?v=. Lets anyone - a reviewer, a tester in Kumasi, a future session -
      answer "which CountMy am I looking at?" from view-source or the console,
      the same way the Worker answers with "wv". -->
-<meta name="countmy-version" content="v164">
+<meta name="countmy-version" content="v165">
 <!-- Real finding, 28 Aug: the bare "CountMy" title carried no keywords at all
      for what people actually search - a free sales/expense ledger for
      Ghanaian shop owners. The <title> tag is the single strongest on-page
@@ -269,6 +269,7 @@ body{margin:0;background:var(--paper);color:var(--ink);font-family:"Work Sans",-
 .act-sale{background:var(--leaf)}
 .act-expense{background:var(--brick)}
 .act-owe-me{background:var(--amber)}
+.act-payment{background:var(--leaf-deep)}
 .act-owe-supplier{background:#5C5347}
 /* Photo entry, 2 Sep. Sits IN the same grid as the four typed buttons, at
    the same size, on purpose: it is one more way to get an entry in without
@@ -542,7 +543,7 @@ body.iab-first .home-mic-btn{opacity:.55}
 :root{--filled-ink:#FFFFFF;--small-flame-bg:#A83F12}
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--filled-ink:#221A12;--small-flame-bg:var(--flame)}}
 :root[data-theme="dark"]{--filled-ink:#221A12;--small-flame-bg:var(--flame)}
-.home-mic-btn,.act-sale,.act-expense,.act-owe-me,.btn-save,.voice-card-status.saved,.eod-send-btn,.act-banner-go,.hear-btn.speaking{color:var(--filled-ink)}
+.home-mic-btn,.act-sale,.act-expense,.act-owe-me,.act-payment,.btn-save,.voice-card-status.saved,.eod-send-btn,.act-banner-go,.hear-btn.speaking{color:var(--filled-ink)}
 .act-banner-go,.hear-btn.speaking{background:var(--small-flame-bg)}
 .home-mic-btn .mic-level-meter span{background:currentColor}
 /* Measured live: typed inputs and Save/Cancel/export rendered in Arial -
@@ -916,6 +917,10 @@ body.iab-first .home-mic-btn{opacity:.55}
       <svg class="act-icon" viewBox="0 0 24 24" fill="none"><circle cx="9" cy="8" r="3" stroke="currentColor" stroke-width="2"/><path d="M3 20c0-3.3 2.7-5.5 6-5.5S15 16.7 15 20" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M18 8v6M15 11h6" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>
       <span>Customer owes me</span>
     </button>
+    <button class="act-btn act-payment" data-type="payment">
+      <svg class="act-icon" viewBox="0 0 24 24" fill="none"><rect x="4" y="9" width="16" height="11" rx="2" stroke="currentColor" stroke-width="2"/><path d="M12 3v9M8 8l4 4 4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span>Someone paid you</span>
+    </button>
     <button class="act-btn act-owe-supplier" data-type="debt_out">
       <svg class="act-icon" viewBox="0 0 24 24" fill="none"><circle cx="9" cy="8" r="3" stroke="currentColor" stroke-width="2"/><path d="M3 20c0-3.3 2.7-5.5 6-5.5S15 16.7 15 20" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M15 11h6" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>
       <span>I owe supplier</span>
@@ -1090,7 +1095,7 @@ body.iab-first .home-mic-btn{opacity:.55}
      string is what forces a fresh script fetch even before any service worker logic
      runs, independent of it. Found live 27 Aug: without this, an already-visited
      browser can keep running old code from plain HTTP cache regardless of SW strategy. -->
-<script src="app.js?v=164"></script>
+<script src="app.js?v=165"></script>
 
 </body>
 </html>

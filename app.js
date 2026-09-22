@@ -516,6 +516,29 @@ const FIELD_CONFIG = {
     desc: v => t(`You owe ${v.item}`, `Le debes a ${v.item}`) + (v.note ? ' \u2014 ' + v.note : ''),
     amountSign: -1,
     isDebt: true
+  },
+  // 22 Sep, from a real session: a shop owner tried to record a customer's
+  // repayment through "Customer owes me" (typed "00"/"00", never finished),
+  // even though the payment-matching logic already existed and already
+  // worked - for voice only (applyVoicePayment). The gap was never the
+  // logic, it was that a typed/tapped user had no tile that led to it; the
+  // only place it lived was tapping an existing debt's own row in history,
+  // which nobody reaches for when something NEW just happened. This wires
+  // the same tested logic to the same "add new thing" tiles everyone
+  // already uses. No new entry of type 'payment' is ever persisted -
+  // saveEntry() special-cases this type and calls applyVoicePayment
+  // instead, exactly like the voice path does.
+  payment: {
+    title: 'Someone paid you',
+    fields: [
+      { key: 'item', label: 'Who paid you?', type: 'text' },
+      { key: 'price', label: 'How much (cedis)', type: 'number' }
+    ],
+    compute: v => Number(v.price) || 0,
+    confirm: v => {
+      if (!v.item || !v.price) return '';
+      return t(`${v.item} paid you ${fmt(v.price)}`, `${v.item} te pag\u00f3 ${fmt(v.price)}`);
+    }
   }
 };
 
@@ -1002,7 +1025,8 @@ if (ES) {
     sale: { title: 'Agregar venta', item: '\u00bfQu\u00e9 vendiste?', qty: '\u00bfCu\u00e1ntos?', price: 'Precio de cada uno ($)', method: '\u00bfC\u00f3mo te pagaron?', cash: 'Efectivo', momo: tc('Pago M\u00f3vil', 'Nequi / transferencia') },
     expense: { title: 'Agregar gasto', item: '\u00bfEn qu\u00e9 gastaste?', price: '\u00bfCu\u00e1nto? ($)', kind: '\u00bfQu\u00e9 tipo de gasto?', business: 'Gasto del negocio', stock: 'Mercanc\u00eda para vender', home: 'Para la casa' },
     debt_in: { title: 'Cliente me debe', item: 'Nombre del cliente', price: '\u00bfCu\u00e1nto te debe? ($)', note: 'Por qu\u00e9 (opcional)' },
-    debt_out: { title: tc('Le debo al proveedor', 'Debo al proveedor'), item: 'Nombre del proveedor', price: '\u00bfCu\u00e1nto le debes? ($)', note: 'Por qu\u00e9 (opcional)' }
+    debt_out: { title: tc('Le debo al proveedor', 'Debo al proveedor'), item: 'Nombre del proveedor', price: '\u00bfCu\u00e1nto le debes? ($)', note: 'Por qu\u00e9 (opcional)' },
+    payment: { title: 'Alguien te pag\u00f3', item: '\u00bfQui\u00e9n te pag\u00f3?', price: '\u00bfCu\u00e1nto pag\u00f3? ($)' }
   };
   for (const ty of Object.keys(L)) {
     const cfg = FIELD_CONFIG[ty]; if (!cfg) continue;
@@ -1223,7 +1247,12 @@ function sameName(a, b) {
   const wx = x.split(/\s+/), wy = y.split(/\s+/);
   return wx[0].length >= 3 && wx[0] === wy[0];
 }
-async function applyVoicePayment(p) {
+// 22 Sep: generalized to accept the input method explicitly instead of
+// always assuming voice (defaults to pendingVoiceSource so the existing
+// voice call sites need no changes) - the manual "Someone paid you" tile
+// below calls this same tested matching logic with 'manual'.
+async function applyVoicePayment(p, source) {
+  source = source || pendingVoiceSource;
   const amount = Number(p.price) || 0;
   const name = String(p.customer || '').trim();
   const placeholder = !name || /^(customer|cliente|somebody|someone|alguien|supplier|proveedor)$/i.test(name);
@@ -1242,9 +1271,9 @@ async function applyVoicePayment(p) {
   if (!matches.length) {
     const ts = Date.now();
     const item = placeholder ? t('payment received', 'pago recibido') : t(`payment from ${name}`, `pago de ${name}`);
-    const record = { id: newId(), type: 'sale', item, note: '', qty: 1, price: amount, kind: '', paid: 0, amount, source: pendingVoiceSource, day: todayKey(ts), ts };
+    const record = { id: newId(), type: 'sale', item, note: '', qty: 1, price: amount, kind: '', paid: 0, amount, source, day: todayKey(ts), ts };
     if (cur) record.cur = cur;
-    try { await addEntry(record); track('save_entry', { type: 'payment_as_sale', input_method: pendingVoiceSource }); ping('save'); } catch (err) { track('save_error', { where: 'voice_payment', reason: (err && err.name) || 'unknown' }); }
+    try { await addEntry(record); track('save_entry', { type: 'payment_as_sale', input_method: source }); ping('save'); } catch (err) { track('save_error', { where: 'voice_payment', reason: (err && err.name) || 'unknown' }); }
     return placeholder
       ? t(`Saved ${fmtSay(amount, cur)} as money in.`, `Guard\u00e9 ${fmtSay(amount, cur)} como dinero que entr\u00f3.`)
       : t(`${name} paid ${fmtSay(amount, cur)}. I had no debt for ${name}, so I saved it as money in.`, `${name} pag\u00f3 ${fmtSay(amount, cur)}. No ten\u00eda ninguna deuda de ${name}, as\u00ed que lo guard\u00e9 como dinero que entr\u00f3.`);
@@ -1254,17 +1283,17 @@ async function applyVoicePayment(p) {
     if (left <= 0) break;
     const pay = Math.min(open(m), left);
     const payments = Array.isArray(m.payments) ? m.payments.slice() : [];
-    payments.push({ amount: pay, ts: Date.now(), source: 'voice' });
+    payments.push({ amount: pay, ts: Date.now(), source });
     await updateEntry(m.id, { paid: (Number(m.paid) || 0) + pay, payments });
     left -= pay;
   }
   const stillOwed = matches.reduce((s, m) => s + open(m), 0) - (amount - left);
-  track('debt_paid', { full: stillOwed <= 0, voice: true });
+  track('debt_paid', { full: stillOwed <= 0, voice: source === 'voice' });
   ping('save');
   if (left > 0) {
     // paid more than was owed: the extra is money in, said out loud
     const ts = Date.now();
-    const record = { id: newId(), type: 'sale', item: t(`extra from ${spoken}`, `extra de ${spoken}`), note: '', qty: 1, price: left, kind: '', paid: 0, amount: left, source: pendingVoiceSource, day: todayKey(ts), ts };
+    const record = { id: newId(), type: 'sale', item: t(`extra from ${spoken}`, `extra de ${spoken}`), note: '', qty: 1, price: left, kind: '', paid: 0, amount: left, source, day: todayKey(ts), ts };
     if (cur) record.cur = cur;
     try { await addEntry(record); } catch (err) { /* the debt itself is already settled */ }
     return t(`${spoken} paid ${fmtSay(amount, cur)}. That clears the debt, with ${fmtSay(left, cur)} extra saved as money in.`, `${spoken} pag\u00f3 ${fmtSay(amount, cur)}. Con eso queda saldado, y ${fmtSay(left, cur)} de m\u00e1s lo guard\u00e9 como dinero que entr\u00f3.`);
@@ -2096,6 +2125,19 @@ async function saveEntry() {
   saveBtn.disabled = true;
   saveBtn.textContent = t('Saving\u2026', 'Guardando\u2026');
   try {
+    // No entry of type 'payment' is ever persisted directly - it always
+    // means applying money against an existing debt (or, with no match,
+    // logging it as money in), the exact same tested logic the voice
+    // path already used. See applyVoicePayment.
+    if (activeType === 'payment' && !editingEntry) {
+      const msg = await applyVoicePayment({ customer: v.item, price: v.price }, 'manual');
+      closeSheet();
+      await render();
+      const status = document.getElementById('homeMicStatus');
+      if (status) { status.textContent = msg; status.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+      say(msg);
+      return;
+    }
     let record = null;
     let duplicate = false;
     let edited = false;
@@ -3307,7 +3349,7 @@ if (ES) {
     '\u201cWho owes me?\u201d \u201cWhat did I sell?\u201d': '\u201c\u00bfQui\u00e9n me debe?\u201d \u201c\u00bfQu\u00e9 vend\u00ed?\u201d', 'Today and all your records': 'Hoy y todas tus cuentas',
     'English \u00b7 Twi \u00b7 Pidgin': 'Espa\u00f1ol',
     'Type it instead': 'Mejor escr\u00edbelo',
-    '+ Sale': '+ Venta', '+ Expense': '+ Gasto', 'Customer owes me': 'Cliente me debe', 'I owe supplier': 'Le debo al proveedor',
+    '+ Sale': '+ Venta', '+ Expense': '+ Gasto', 'Customer owes me': 'Cliente me debe', 'I owe supplier': 'Le debo al proveedor', 'Someone paid you': 'Alguien te pagó',
     'Snap your book or receipt': 'T\u00f3male foto al cuaderno o a la factura',
     'Get a free page for your business': 'P\u00e1gina gratis para tu negocio',
     'Cancel': 'Cancelar', 'Save': 'Guardar', 'Delete this entry': 'Borrar esto', 'Add': 'Agregar',
