@@ -72,6 +72,8 @@ if (ES) {
   const fg = document.getElementById('footerGuides'); if (fg) { fg.href = 'guides/cuaderno-de-ventas-diarias.html'; fg.textContent = 'Guías para tu negocio'; }
   const fs = document.getElementById('footerSafety'); if (fs) { fs.href = 'seguridad.html'; fs.textContent = '¿Es seguro CountMy?'; }
   const fw = document.getElementById('footerWa'); if (fw) { fw.href = fw.href.replace('Hello%2C%20I%20have%20a%20question%20about%20CountMy', 'Hola%2C%20tengo%20una%20pregunta%20sobre%20CountMy'); fw.textContent = 'Escríbenos por WhatsApp'; }
+  const rl = document.querySelector('#recoverSheet a.export-btn');
+  if (rl) rl.href = rl.href.replace('Hello%2C%20I%20lost%20my%20phone%20and%20I%20need%20my%20CountMy%20records%20back.%20My%20shop%20name%20is%3A%20', 'Hola%2C%20perd%C3%AD%20mi%20tel%C3%A9fono%20y%20necesito%20recuperar%20mis%20cuentas%20de%20CountMy.%20El%20nombre%20de%20mi%20negocio%20es%3A%20');
 }
 // Country (17 Sep): Venezuela and Colombia share Spanish but not money or
 // words. ?c=CO / ?c=VE wins, then what the server saw on the first ping
@@ -2606,19 +2608,25 @@ function markBackedUp() {
 
 function backupStatusText() {
   let ts = 0;
-  try { ts = Number(localStorage.getItem('kym_last_backup')) || 0; } catch (e) { return ''; }
-  if (!ts) return 'Not backed up yet';
+  try { ts = Number(localStorage.getItem('kym_last_backup')) || 0; } catch (e) { return { backedUp: false, text: '' }; }
+  if (!ts) return { backedUp: false, text: t('Not backed up yet', 'A\u00fan sin respaldo') };
   const day = todayKey(ts);
-  if (day === todayKey(Date.now())) return 'Backed up today';
-  if (day === todayKey(Date.now() - 24 * 60 * 60 * 1000)) return 'Backed up yesterday';
-  return 'Backed up ' + new Date(ts).toLocaleDateString('en-GH', { day: 'numeric', month: 'short' });
+  if (day === todayKey(Date.now())) return { backedUp: true, text: t('Backed up today', 'Respaldado hoy') };
+  if (day === todayKey(Date.now() - 24 * 60 * 60 * 1000)) return { backedUp: true, text: t('Backed up yesterday', 'Respaldado ayer') };
+  // Real bug, 22 Sept: this always formatted the date in English ('en-GH')
+  // regardless of language, and the caller told "backed up" from "not"
+  // by checking whether the returned string started with the English word
+  // "Backed" - which would have silently broken the moment this text was
+  // ever translated. Returns a structured {backedUp, text} instead so the
+  // display logic never has to parse language-specific English out of it.
+  const d = new Date(ts).toLocaleDateString(ES ? 'es-VE' : 'en-GH', { day: 'numeric', month: 'short' });
+  return { backedUp: true, text: t('Backed up ' + d, 'Respaldado el ' + d) };
 }
 
 function renderBackupStatus() {
   const el = document.getElementById('backupStatus');
   if (!el) return;
-  const text = backupStatusText();
-  const backedUp = text.indexOf('Backed up') === 0;
+  const { backedUp, text } = backupStatusText();
   el.textContent = (backedUp ? '\u2713 ' : '') + text;
   el.classList.toggle('ok', backedUp);
 }
@@ -3311,14 +3319,47 @@ if (ES) {
     'Is CountMy safe?': '\u00bfEs seguro CountMy?', 'Message us on WhatsApp': 'Escr\u00edbenos por WhatsApp',
     'No connection \u2014 still recording, saved on your phone. Please tap to check again.': 'Sin conexi\u00f3n: sigue anotando, se guarda en tu celular. Toca para revisar otra vez.',
     'Share my page': 'Compartir mi p\u00e1gina', 'Edit': 'Editar', 'Make my page': 'Crear mi p\u00e1gina',
-    'Safe to tap \u2014 sends your records to your own WhatsApp, nothing changes on your phone.': 'Puedes tocar tranquilo \u2014 env\u00eda tus cuentas a tu propio WhatsApp, nada cambia en tu tel\u00e9fono.'
+    'Safe to tap \u2014 sends your records to your own WhatsApp, nothing changes on your phone.': 'Puedes tocar tranquilo \u2014 env\u00eda tus cuentas a tu propio WhatsApp, nada cambia en tu tel\u00e9fono.',
+    '\u25b6 Hear it': '\u25b6 Esc\u00fachalo',
+    'Close': 'Cerrar',
+    'not set yet': 'a\u00fan sin definir',
+    'Getting your records back': 'C\u00f3mo recuperar tus cuentas',
+    'Your records are saved on this phone, and a safe copy is kept for you under your business name.': 'Tus cuentas se guardan en este tel\u00e9fono, y se guarda una copia de seguridad para ti bajo el nombre de tu negocio.',
+    'Your business name is:': 'El nombre de tu negocio es:',
+    'Write it down somewhere safe. It is how your copy is found again.': 'An\u00f3talo en un lugar seguro. As\u00ed se encuentra tu copia otra vez.',
+    'If your phone is lost or broken, message us on WhatsApp with your business name and we will send your records back to you.': 'Si pierdes o se da\u00f1a tu tel\u00e9fono, escr\u00edbenos por WhatsApp con el nombre de tu negocio y te enviamos tus cuentas de vuelta.',
+    'Message us to get my records': 'Escr\u00edbenos para recuperar mis cuentas',
+    'Your business page': 'La p\u00e1gina de tu negocio',
+    'Customers open it from WhatsApp, see what you sell, and message you. This page is public: your business name and WhatsApp number will be shown.': 'Tus clientes la abren desde WhatsApp, ven lo que vendes, y te escriben. Esta p\u00e1gina es p\u00fablica: se mostrar\u00e1 el nombre de tu negocio y tu n\u00famero de WhatsApp.',
+    'Business name': 'Nombre del negocio',
+    'What you sell': 'Qu\u00e9 vendes',
+    'Fashion and clothes': 'Moda y ropa', 'Beauty and hair': 'Belleza y cabello', 'Food and drinks': 'Comida y bebidas',
+    'Phones and electronics': 'Celulares y electr\u00f3nicos', 'Shoes and bags': 'Zapatos y bolsos',
+    'Your WhatsApp number': 'Tu n\u00famero de WhatsApp',
+    'When you are open (optional)': 'Cu\u00e1ndo est\u00e1s abierto (opcional)',
+    'What you sell and the price (up to 5)': 'Qu\u00e9 vendes y el precio (hasta 5)',
+    'The safest thing today: tap': 'Lo m\u00e1s seguro hoy: toca',
+    'and send it to yourself. That copy is yours forever, even without this app.': 'y env\u00edatelo a ti mismo. Esa copia es tuya para siempre, incluso sin esta aplicaci\u00f3n.',
+    'Where (town or market)': 'D\u00f3nde (ciudad o mercado)',
+    'Provisions': 'Abarrotes', 'Fabrics': 'Telas', 'Drinks': 'Bebidas', 'Hardware': 'Ferreter\u00eda', 'Services': 'Servicios', 'Other': 'Otro',
+    '+ Add another': '+ Agregar otro'
   };
   try {
-    document.querySelectorAll('body *').forEach(el => {
-      if (el.children.length) return;
-      const raw = el.textContent; const k = raw.trim();
-      if (S[k] !== undefined) el.textContent = raw.replace(k, S[k]);
-    });
+    // Real bug, 22 Sept: the old sweep only replaced elements with ZERO
+    // children, so any button holding an icon (<svg>) or a label sitting
+    // next to a nested child (the langSwitch button inside the language
+    // line) was skipped whole - "Send my records to my own WhatsApp",
+    // "See how it works" and "English \u00b7 Twi \u00b7 Pidgin" all shipped
+    // untranslated in v158 despite being in this table, because none of
+    // them are leaf elements. A TreeWalker over actual TEXT NODES fixes
+    // the whole class of bug at once: it replaces only the matching text,
+    // wherever it sits, and leaves sibling icons/child elements alone.
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+    let node;
+    while ((node = walker.nextNode())) {
+      const raw = node.nodeValue; const k = raw.trim();
+      if (k && S[k] !== undefined) node.nodeValue = raw.replace(k, S[k]);
+    }
     const tl = document.getElementById('trustLine');
     if (tl) tl.textContent = tc('Gratis. Sin clave ni Pago M\u00f3vil.', 'Gratis. Sin clave ni Nequi.');
     const mic = document.getElementById('homeMicBtn'); if (mic) mic.setAttribute('aria-label', 'Cu\u00e9ntale a CountMy qu\u00e9 pas\u00f3');
@@ -3329,6 +3370,12 @@ if (ES) {
     // MoMo support pill is Ghana-only.
     const pill = document.getElementById('planPill'); if (pill) pill.style.display = 'none';
     document.title = 'CountMy - Cuaderno de cuentas gratis por voz para tu negocio';
+    // Placeholder text isn't a text node, so the walker above never touches
+    // it - found 22 Sept alongside the rest of the audit (Ama's Fashion,
+    // an English town example, an English hours example were all still
+    // showing as grey placeholder text in the Spanish business-page form).
+    const PH = { shopName: 'María Moda', shopArea: 'El Cementerio, Caracas', shopWhatsapp: '0414 123 4567', shopHours: 'Lun a sáb, 8am a 6pm' };
+    Object.keys(PH).forEach(id => { const el = document.getElementById(id); if (el) el.placeholder = PH[id]; });
   } catch (e) { /* never block the app */ }
 }
 if (inAppBrowser()) {
