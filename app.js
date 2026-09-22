@@ -3366,6 +3366,9 @@ if (ES) {
     // showing as grey placeholder text in the Spanish business-page form).
     const PH = { shopName: 'María Moda', shopArea: 'El Cementerio, Caracas', shopWhatsapp: '0414 123 4567', shopHours: 'Lun a sáb, 8am a 6pm' };
     Object.keys(PH).forEach(id => { const el = document.getElementById(id); if (el) el.placeholder = PH[id]; });
+    // aria-label isn't a text node either - a Spanish screen-reader user
+    // hit "Today" in English on the always-visible summary strip.
+    const strip = document.getElementById('todayStrip'); if (strip) strip.setAttribute('aria-label', 'Hoy');
   } catch (e) { /* never block the app */ }
 }
 if (inAppBrowser()) {
