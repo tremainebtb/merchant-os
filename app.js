@@ -404,6 +404,11 @@ function getAllEntries() {
   });
 }
 
+// Titles and field labels below are plain English on purpose - the ES
+// block right after this object (search TYPE_LABEL) already overwrites
+// cfg.title and every field/option label for Spanish, keyed off the same
+// entry type. Only compute/confirm/desc live here, and those are NOT
+// touched by that block, so they get their own t()/tc() calls below.
 const FIELD_CONFIG = {
   sale: {
     title: 'Add sale',
@@ -431,7 +436,7 @@ const FIELD_CONFIG = {
     confirm: v => {
       const total = (Number(v.qty) || 0) * (Number(v.price) || 0);
       if (!v.item || !v.qty || !v.price) return '';
-      return `${v.qty} \u00d7 ${v.item} at ${fmt(v.price)} = ${fmt(total)}`;
+      return t(`${v.qty} \u00d7 ${v.item} at ${fmt(v.price)} = ${fmt(total)}`, `${v.qty} \u00d7 ${v.item} a ${fmt(v.price)} = ${fmt(total)}`);
     },
     desc: v => `${v.qty} \u00d7 ${v.item}`,
     amountSign: 1
@@ -471,7 +476,7 @@ const FIELD_CONFIG = {
       if (!v.item || !v.price) return '';
       return `${v.item} \u2014 ${fmt(v.price)}`;
     },
-    desc: v => v.item + (v.kind === 'stock' ? ' (stock)' : v.kind === 'home' ? ' (took home)' : ''),
+    desc: v => v.item + (v.kind === 'stock' ? t(' (stock)', ' (mercanc\u00eda)') : v.kind === 'home' ? t(' (took home)', ' (para la casa)') : ''),
     amountSign: -1
   },
   debt_in: {
@@ -484,7 +489,7 @@ const FIELD_CONFIG = {
     compute: v => Number(v.price) || 0,
     confirm: v => {
       if (!v.item || !v.price) return '';
-      return `${v.item} owes you ${fmt(v.price)}`;
+      return t(`${v.item} owes you ${fmt(v.price)}`, `${v.item} te debe ${fmt(v.price)}`);
     },
     // Real feedback, 28 Aug (a 55-year-old first-time user, low literacy/
     // numeracy): the Recent list used to show just the name ("Ama") with
@@ -492,7 +497,7 @@ const FIELD_CONFIG = {
     // me and supplier getting messy" is exactly what that produces for
     // someone who can't reliably read a red/green + or -. Say the direction
     // in words every time, not just via sign/color.
-    desc: v => `${v.item} owes you` + (v.note ? ' \u2014 ' + v.note : ''),
+    desc: v => t(`${v.item} owes you`, `${v.item} te debe`) + (v.note ? ' \u2014 ' + v.note : ''),
     amountSign: 1,
     isDebt: true
   },
@@ -506,9 +511,9 @@ const FIELD_CONFIG = {
     compute: v => Number(v.price) || 0,
     confirm: v => {
       if (!v.item || !v.price) return '';
-      return `You owe ${v.item} ${fmt(v.price)}`;
+      return t(`You owe ${v.item} ${fmt(v.price)}`, `Le debes a ${v.item} ${fmt(v.price)}`);
     },
-    desc: v => `You owe ${v.item}` + (v.note ? ' \u2014 ' + v.note : ''),
+    desc: v => t(`You owe ${v.item}`, `Le debes a ${v.item}`) + (v.note ? ' \u2014 ' + v.note : ''),
     amountSign: -1,
     isDebt: true
   }
@@ -1987,7 +1992,7 @@ function openSheet(type, entry) {
   editingEntry = entry || null;
   sheetVoiceFilled = false;
   const cfg = FIELD_CONFIG[type];
-  document.getElementById('sheetTitle').textContent = entry ? 'Edit entry' : cfg.title;
+  document.getElementById('sheetTitle').textContent = entry ? t('Edit entry', 'Editar registro') : cfg.title;
   const fieldsEl = document.getElementById('fields');
   fieldsEl.innerHTML = cfg.fields.map(f => {
     const current = entry ? entry[f.key] : undefined;
@@ -2011,7 +2016,7 @@ function openSheet(type, entry) {
   `;
   }).join('') + (entry && cfg.isDebt ? `
     <div class="field">
-      <label for="field-paid">Paid so far (cedis)</label>
+      <label for="field-paid">${t('Paid so far (cedis)', 'Pagado hasta ahora ($)')}</label>
       <input id="field-paid" type="number" inputmode="decimal" data-key="paid" autocomplete="off" data-clarity-mask="True" value="${entry.paid || 0}">
     </div>` : '');
   document.getElementById('deleteEntryBtn').hidden = !entry;
@@ -2031,7 +2036,7 @@ function openSheet(type, entry) {
   });
   document.getElementById('confirmLine').classList.remove('show');
   document.getElementById('saveBtn').disabled = true;
-  document.getElementById('saveBtn').textContent = entry ? 'Save changes' : 'Save';
+  document.getElementById('saveBtn').textContent = entry ? t('Save changes', 'Guardar cambios') : t('Save', 'Guardar');
   document.getElementById('sheet').classList.add('open');
   document.getElementById('sheet').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   fieldsEl.querySelector('input').focus();
