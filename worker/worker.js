@@ -198,7 +198,11 @@ async function handlePing(request, env) {
   if (!shop) return cors(new Response(JSON.stringify({ error: 'missing shop id' }), { status: 400 }));
   // share_shop / shop_created added 16 Sep for the spread-loop numbers.
   // mic_* and iab (17 Sep): one name per voice-failure class, never content.
-  if (!['open', 'save', 'share_shop', 'shop_created', 'ask', 'tap', 'install', 'voice_en', 'voice_twi', 'voice_pidgin',
+  // Real bug, 22 Sep: 'voice_es' was missing from this allowlist the whole
+  // time Spanish has been live - every Spanish voice session's language
+  // ping was silently rejected with a 400 here (ping() swallows the error),
+  // so Spanish usage never once showed up in the spoken-language stats.
+  if (!['open', 'save', 'share_shop', 'shop_created', 'ask', 'tap', 'install', 'voice_en', 'voice_twi', 'voice_pidgin', 'voice_es',
     'iab', 'iab_tap', 'iab_tap_ios', 'iab_typed', 'iab_example', 'stt_browser', 'stt_whisper', 'iab_auto', 'iab_auto_ios', 'iab_stay', 'iab_escaped', 'iab_escaped_ios', 'iab_mic_ok', 'iab_note', 'mic_denied', 'mic_nomic', 'mic_busy', 'mic_empty', 'mic_silent', 'mic_timeout', 'mic_server', 'mic_network'].includes(eventType)) {
     return cors(new Response(JSON.stringify({ error: 'invalid event' }), { status: 400 }));
   }
@@ -781,7 +785,7 @@ async function handleAdminStats(request, env) {
   stmts.push(env.COUNTMY_DB.prepare("SELECT COALESCE(lang, '') as lang, COUNT(*) as n FROM people_devices GROUP BY lang ORDER BY n DESC LIMIT 12"));
   // Spoken language per voice entry, and how long a real person takes from
   // opening to the first tap and to the first record (the "30 seconds" test).
-  stmts.push(env.COUNTMY_DB.prepare("SELECT event_type, COUNT(*) as n, COUNT(DISTINCT shop_hash) as devices FROM live_events WHERE event_type IN ('voice_en', 'voice_twi', 'voice_pidgin') GROUP BY event_type"));
+  stmts.push(env.COUNTMY_DB.prepare("SELECT event_type, COUNT(*) as n, COUNT(DISTINCT shop_hash) as devices FROM live_events WHERE event_type IN ('voice_en', 'voice_twi', 'voice_pidgin', 'voice_es') GROUP BY event_type"));
   stmts.push(env.COUNTMY_DB.prepare('SELECT event_type, COUNT(DISTINCT shop_hash) as devices, COUNT(*) as n FROM live_events WHERE ts >= ? GROUP BY event_type ORDER BY devices DESC').bind(now - 7 * DAY));
   stmts.push(env.COUNTMY_DB.prepare('SELECT tapped_ts - first_ts as ms FROM people_devices WHERE tapped_ts IS NOT NULL AND tapped_ts >= first_ts ORDER BY ms LIMIT 500'));
   stmts.push(env.COUNTMY_DB.prepare('SELECT saved_ts - first_ts as ms FROM people_devices WHERE saved_ts IS NOT NULL AND saved_ts >= first_ts ORDER BY ms LIMIT 500'));
@@ -1064,7 +1068,7 @@ async function handleTranscribe(request, env) {
 // 50 is a transcription/parsing error, not a fabrication) - evidence-checking
 // targets fabrication specifically, not every possible error; the review UI is
 // still what catches a wrong-but-grounded number.
-const WORKER_VERSION = 'w95';
+const WORKER_VERSION = 'w96';
 
 // Spanish (Venezuela) twin of EXTRACT_SYSTEM_PROMPT below: same event types,
 // same {value, evidence} rule, same JSON-only answer. Amounts are bare

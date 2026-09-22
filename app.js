@@ -2715,7 +2715,12 @@ function showEntryMilestone(total) {
 // phone's own records, no server, no reading. A question is only treated as
 // one when it carries no amount - "how much did I sell today" is a question,
 // "I sold rice for 30 cedis" is an entry - so an entry is never swallowed.
+// Real bug, 22 Sep: this had no Spanish branch at all, so every ES voice
+// session (Venezuela/Colombia) silently logged as 'en' in the spoken-
+// language analytics - not wrong on screen, only invisible in the stats,
+// which is why Spanish usage never showed up as Spanish usage there.
 function guessSpokenLang(text) {
+  if (ES) return 'es';
   const t = ' ' + String(text || '').toLowerCase().replace(/[\u0254\u0186]/g, 'o').replace(/[\u025b\u0190]/g, 'e') + ' ';
   const twi = /\b(me|wo|ne|na)\s+(ton|to|tua|de|nya|gye)\b|\bde\s+me\s+ka\b|\b(baako|mmienu|mmiensa|enan|anum|nsia|nson|nwotwe|nkron|edu|aduonu|aduasa|aduanan|aduonum|oha|apem|sidi|sika|ntoma|nkate)\b/;
   const pidgin = /\b(dey|wey|abeg|sef|chop|wetin|make\s+i|e\s+be|na\s+so|dem)\b/;
