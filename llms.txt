@@ -24,13 +24,26 @@
 - Is poultry farming profitable in Ghana?: https://countmy.app/guides/is-poultry-farming-profitable-ghana.html
 - Is pig farming profitable in Ghana?: https://countmy.app/guides/is-pig-farming-profitable-ghana.html
 - Is kenkey or waakye business profitable?: https://countmy.app/guides/is-kenkey-waakye-business-profitable-ghana.html
-- Cómo llevar las cuentas de un negocio (español): https://countmy.app/guides/cuaderno-de-ventas-diarias.html
+
+## Guías en español (Venezuela y Colombia)
+- Cómo llevar las cuentas de un negocio en un cuaderno: https://countmy.app/guides/cuaderno-de-ventas-diarias.html
+- Régimen Simple de Tributación (RST), Colombia: https://countmy.app/guides/regimen-simple-tributacion-colombia.html
+- El cuaderno de fiado en la tienda de barrio, Colombia: https://countmy.app/guides/cuaderno-de-fiado-tienda-colombia.html
+- Las cuentas de la bodega con dos tasas (oficial y paralelo), Venezuela: https://countmy.app/guides/cuentas-bodega-dos-tasas-venezuela.html
+- ¿Es seguro CountMy?: https://countmy.app/seguridad.html
+- Privacidad: https://countmy.app/privacidad.html
 
 ## Cedi exchange rates
 - Rates index (dollar, pound, euro, naira, CFA, yuan, rand, Canadian dollar, dirham): https://countmy.app/rates/index.html
 - Dollar to cedi today, with amount tables: https://countmy.app/rates/dollar-to-cedi.html
 - Rates are the mid-market rate from ExchangeRate-API, refreshed every morning, and are not financial advice.
 
+## Tasas de cambio (Venezuela y Colombia)
+- Índice de tasas (dólar a bolívar, dólar a peso colombiano): https://countmy.app/rates/es/index.html
+- Dólar a bolívar hoy, oficial y paralelo: https://countmy.app/rates/es/dolar-a-bolivar.html
+- Dólar a peso colombiano hoy, compra y venta: https://countmy.app/rates/es/dolar-a-peso.html
+- Actualizadas cada mañana desde dolarapi.com; no son asesoría financiera.
+
 ## Contact
 - Questions: https://wa.me/233209090019
-- Sitemaps: https://countmy.app/sitemap.xml, https://countmy.app/sitemap-rates.xml
+- Sitemaps: https://countmy.app/sitemap.xml, https://countmy.app/sitemap-rates.xml, https://countmy.app/sitemap-rates-es.xml

@@ -70,7 +70,7 @@ const t = (en, es) => (ES ? es : en);
 if (ES) {
   const fr = document.getElementById('footerRates'); if (fr) { fr.href = 'rates/es/index.html'; fr.textContent = 'Tasas de cambio hoy'; }
   const fg = document.getElementById('footerGuides'); if (fg) { fg.href = 'guides/cuaderno-de-ventas-diarias.html'; fg.textContent = 'Guías para tu negocio'; }
-  const fs = document.getElementById('footerSafety'); if (fs) { fs.textContent = '¿Es seguro CountMy?'; }
+  const fs = document.getElementById('footerSafety'); if (fs) { fs.href = 'seguridad.html'; fs.textContent = '¿Es seguro CountMy?'; }
   const fw = document.getElementById('footerWa'); if (fw) { fw.href = fw.href.replace('Hello%2C%20I%20have%20a%20question%20about%20CountMy', 'Hola%2C%20tengo%20una%20pregunta%20sobre%20CountMy'); fw.textContent = 'Escríbenos por WhatsApp'; }
 }
 // Country (17 Sep): Venezuela and Colombia share Spanish but not money or
@@ -2080,7 +2080,7 @@ async function saveEntry() {
   saving = true;
   const saveBtn = document.getElementById('saveBtn');
   saveBtn.disabled = true;
-  saveBtn.textContent = 'Saving\u2026';
+  saveBtn.textContent = t('Saving\u2026', 'Guardando\u2026');
   try {
     let record = null;
     let duplicate = false;
@@ -2145,7 +2145,7 @@ async function saveEntry() {
   } finally {
     saving = false;
     saveBtn.disabled = false;
-    saveBtn.textContent = 'Save';
+    saveBtn.textContent = t('Save', 'Guardar');
   }
 }
 
@@ -2390,13 +2390,13 @@ async function render() {
   const vsYesterdayEl = document.getElementById('tVsYesterday');
   const salesDiff = sales - yesterdaySales;
   if (salesDiff > 0) {
-    vsYesterdayEl.textContent = `Up ${fmt(salesDiff)} from yesterday`;
+    vsYesterdayEl.textContent = t(`Up ${fmt(salesDiff)} from yesterday`, `${fmt(salesDiff)} más que ayer`);
     vsYesterdayEl.className = 'today-vs pos';
   } else if (salesDiff < 0) {
-    vsYesterdayEl.textContent = `Down ${fmt(-salesDiff)} from yesterday`;
+    vsYesterdayEl.textContent = t(`Down ${fmt(-salesDiff)} from yesterday`, `${fmt(-salesDiff)} menos que ayer`);
     vsYesterdayEl.className = 'today-vs neg';
   } else {
-    vsYesterdayEl.textContent = 'Same as yesterday';
+    vsYesterdayEl.textContent = t('Same as yesterday', 'Igual que ayer');
     vsYesterdayEl.className = 'today-vs';
   }
 
@@ -3083,9 +3083,9 @@ function renderShopReady() {
   const st = shopPageState();
   const box = document.getElementById('shopReady');
   const btn = document.getElementById('shopPageBtn');
-  if (!st || !st.url) { box.hidden = true; if (btn) btn.textContent = 'Get a free page for your business'; return; }
-  if (btn) btn.textContent = 'My business page';
-  document.getElementById('shopReadyText').textContent = `${st.name} has a page: ${st.url.replace('https://', '')}`;
+  if (!st || !st.url) { box.hidden = true; if (btn) btn.textContent = t('Get a free page for your business', 'Página gratis para tu negocio'); return; }
+  if (btn) btn.textContent = t('My business page', 'Mi página de negocio');
+  document.getElementById('shopReadyText').textContent = t(`${st.name} has a page: ${st.url.replace('https://', '')}`, `${st.name} tiene una página: ${st.url.replace('https://', '')}`);
   const items = (st.items || []).map(i => i.name).filter(Boolean).slice(0, 4).join(', ');
   const msg = `${st.name}${st.area ? ' - ' + st.area : ''}\n${items ? items + '\n' : ''}See what I sell and WhatsApp me here:\n${st.url}?utm_source=whatsapp&utm_medium=share&utm_campaign=shop_page`;
   document.getElementById('shopShareBtn').href = 'https://wa.me/?text=' + encodeURIComponent(msg);
@@ -3120,13 +3120,13 @@ document.getElementById('shopSaveBtn').addEventListener('click', async () => {
     items: readShopItems(),
     programme: localStorage.getItem('kym_programme') || ''
   };
-  if (!payload.name) { setMicStatus('Please give your business a name.', 'err', 'shopStatus'); return; }
-  if (!payload.whatsapp) { setMicStatus('Please enter your WhatsApp number.', 'err', 'shopStatus'); return; }
-  btn.disabled = true; btn.textContent = 'Making\u2026';
+  if (!payload.name) { setMicStatus(t('Please give your business a name.', 'Por favor ponle un nombre a tu negocio.'), 'err', 'shopStatus'); return; }
+  if (!payload.whatsapp) { setMicStatus(t('Please enter your WhatsApp number.', 'Por favor escribe tu n\u00famero de WhatsApp.'), 'err', 'shopStatus'); return; }
+  btn.disabled = true; btn.textContent = t('Making\u2026', 'Creando\u2026');
   try {
     const res = await fetch(`${API_BASE}/shop`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
     const data = await res.json().catch(() => ({}));
-    if (!res.ok || !data.slug) { setMicStatus(data.error || 'Could not make the page. Please try again.', 'err', 'shopStatus'); return; }
+    if (!res.ok || !data.slug) { setMicStatus(data.error || t('Could not make the page. Please try again.', 'No se pudo crear la p\u00e1gina. Intenta otra vez.'), 'err', 'shopStatus'); return; }
     localStorage.setItem(SHOP_LS, JSON.stringify({ ...payload, slug: data.slug, editKey: data.editKey, url: data.url }));
     if (!getShopId()) setShopId(payload.name); // her backup is filed under this name from now on
     track(st.slug ? 'business_updated' : 'business_created', { category: payload.category, items: payload.items.length });
@@ -3134,10 +3134,10 @@ document.getElementById('shopSaveBtn').addEventListener('click', async () => {
     closeShopSheet();
     renderShopReady();
     document.getElementById('shopReady').scrollIntoView({ behavior: 'smooth', block: 'center' });
-    speakShort('Your page is ready. Tap Share my page to send it on WhatsApp.');
+    speakShort(t('Your page is ready. Tap Share my page to send it on WhatsApp.', 'Tu p\u00e1gina est\u00e1 lista. Toca Compartir mi p\u00e1gina para enviarla por WhatsApp.'));
   } catch (e) {
-    setMicStatus('No connection. Please try again when you have signal.', 'err', 'shopStatus');
-  } finally { btn.disabled = false; btn.textContent = 'Make my page'; }
+    setMicStatus(t('No connection. Please try again when you have signal.', 'Sin conexi\u00f3n. Intenta otra vez cuando tengas se\u00f1al.'), 'err', 'shopStatus');
+  } finally { btn.disabled = false; btn.textContent = t('Make my page', 'Crear mi p\u00e1gina'); }
 });
 renderShopReady();
 
@@ -3310,7 +3310,8 @@ if (ES) {
     'Lost your phone? How to get your records back': '\u00bfPerdiste el celular? C\u00f3mo recuperar tus cuentas',
     'Is CountMy safe?': '\u00bfEs seguro CountMy?', 'Message us on WhatsApp': 'Escr\u00edbenos por WhatsApp',
     'No connection \u2014 still recording, saved on your phone. Please tap to check again.': 'Sin conexi\u00f3n: sigue anotando, se guarda en tu celular. Toca para revisar otra vez.',
-    'Share my page': 'Compartir mi p\u00e1gina', 'Edit': 'Editar', 'Make my page': 'Crear mi p\u00e1gina'
+    'Share my page': 'Compartir mi p\u00e1gina', 'Edit': 'Editar', 'Make my page': 'Crear mi p\u00e1gina',
+    'Safe to tap \u2014 sends your records to your own WhatsApp, nothing changes on your phone.': 'Puedes tocar tranquilo \u2014 env\u00eda tus cuentas a tu propio WhatsApp, nada cambia en tu tel\u00e9fono.'
   };
   try {
     document.querySelectorAll('body *').forEach(el => {
@@ -3417,7 +3418,7 @@ if (!micSupported()) {
   document.getElementById('homeMicBtn').style.display = 'none';
   const orRow = document.querySelector('.or-row'); if (orRow) orRow.style.display = 'none';
   try {
-    setMicStatus('This browser cannot use the microphone. You can type it instead, just below.', 'err', 'homeMicStatus');
+    setMicStatus(t('This browser cannot use the microphone. You can type it instead, just below.', 'Este navegador no puede usar el micrófono. Puedes escribirlo abajo.'), 'err', 'homeMicStatus');
     const box = document.getElementById('typeChoices'); const tt = document.getElementById('typeToggle');
     if (box) box.hidden = false; if (tt) tt.hidden = true;
     track('mic_unsupported');
@@ -3472,7 +3473,7 @@ async function handleSnap(file) {
       renderVoiceReview();
       closeSheet();
       setMicStatus('', null, 'snapStatus');
-      setMicStatus('From your photo \u2014 check each one below, then tap Save.', 'heard', 'homeMicStatus');
+      setMicStatus(t('From your photo \u2014 check each one below, then tap Save.', 'De tu foto \u2014 revisa cada uno abajo, luego toca Guardar.'), 'heard', 'homeMicStatus');
       document.getElementById('voiceReview').scrollIntoView({ behavior: 'smooth', block: 'start' });
       speakPhotoReview(events);
     } else {
@@ -3545,10 +3546,10 @@ window.addEventListener('offline', updateOfflineBadge);
 // out loud in words, not just leave the same static line sitting there.
 document.getElementById('offlineBadge').addEventListener('click', function () {
   if (navigator.onLine) {
-    this.textContent = 'Back online now - your records are safe.';
+    this.textContent = t('Back online now - your records are safe.', 'Ya tienes conexión - tus cuentas están a salvo.');
     setTimeout(updateOfflineBadge, 2500);
   } else {
-    this.textContent = 'Still no connection - don\'t worry, everything you add is saved on your phone.';
+    this.textContent = t('Still no connection - don\'t worry, everything you add is saved on your phone.', 'Todavía sin conexión - tranquilo, todo lo que anotas se guarda en tu teléfono.');
   }
 });
 

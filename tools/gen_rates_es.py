@@ -115,7 +115,7 @@ FOOT_VE = '''
   <p class="pairs">{pairs}</p>
   <a class="cta" href="/?lang=es&amp;utm_source=rates&amp;utm_medium=page&amp;utm_campaign={slug}"><svg viewBox="0 0 24 24" fill="none"><path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3Z" stroke="currentColor" stroke-width="2"/><path d="M19 11a7 7 0 0 1-14 0M12 18v3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>¿Vendiste hoy? Dilo, CountMy lo anota</a>
   <p class="cta-sub">Cuaderno de cuentas gratis para cualquier negocio. Sin contraseña, sin clave del banco.</p>
-  <p class="foot">Tasas: <a href="https://ve.dolarapi.com" rel="noopener">dolarapi.com</a> (oficial = Banco Central de Venezuela; paralelo = mercado informal), esta página se generó el {date}. El precio real depende de dónde cambies - el paralelo cambia varias veces al día. No es asesoría financiera. <a href="/guides/cuaderno-de-ventas-diarias.html">Guías para tu negocio</a> · <a href="/privacy.html">Privacidad</a></p>
+  <p class="foot">Tasas: <a href="https://ve.dolarapi.com" rel="noopener">dolarapi.com</a> (oficial = Banco Central de Venezuela; paralelo = mercado informal), esta página se generó el {date}. El precio real depende de dónde cambies - el paralelo cambia varias veces al día. No es asesoría financiera. <a href="/guides/cuaderno-de-ventas-diarias.html">Guías para tu negocio</a> · <a href="/privacidad.html">Privacidad</a></p>
 </div>
 <script>
 (function(){{var ro={ro};var rp={rp};var a=document.getElementById('c_amt'),oo=document.getElementById('c_out_of'),op=document.getElementById('c_out_pa');if(!a)return;function f(n){{return n>=1000?Math.round(n).toLocaleString('es-VE'):n.toFixed(2);}}
@@ -130,7 +130,7 @@ FOOT_CO = '''
   <p class="pairs">{pairs}</p>
   <a class="cta" href="/?lang=es&amp;utm_source=rates&amp;utm_medium=page&amp;utm_campaign={slug}"><svg viewBox="0 0 24 24" fill="none"><path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3Z" stroke="currentColor" stroke-width="2"/><path d="M19 11a7 7 0 0 1-14 0M12 18v3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>¿Vendiste hoy? Dilo, CountMy lo anota</a>
   <p class="cta-sub">Cuaderno de cuentas gratis para cualquier negocio. Sin contraseña, sin clave del banco.</p>
-  <p class="foot">Tasa: <a href="https://co.dolarapi.com" rel="noopener">dolarapi.com</a> (compra/venta del mercado), esta página se generó el {date}. La TRM oficial la fija la Superintendencia Financiera de Colombia cada día hábil. No es asesoría financiera. <a href="/guides/cuaderno-de-ventas-diarias.html">Guías para tu negocio</a> · <a href="/privacy.html">Privacidad</a></p>
+  <p class="foot">Tasa: <a href="https://co.dolarapi.com" rel="noopener">dolarapi.com</a> (compra/venta del mercado), esta página se generó el {date}. La TRM oficial la fija la Superintendencia Financiera de Colombia cada día hábil. No es asesoría financiera. <a href="/guides/cuaderno-de-ventas-diarias.html">Guías para tu negocio</a> · <a href="/privacidad.html">Privacidad</a></p>
 </div>
 <script>
 (function(){{var r={r};var a=document.getElementById('c_amt'),o=document.getElementById('c_out');if(!a)return;function f(n){{return n.toLocaleString('es-CO',{{maximumFractionDigits:0}});}}
