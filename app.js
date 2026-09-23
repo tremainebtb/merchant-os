@@ -2356,9 +2356,23 @@ async function render() {
   // and mean nothing to the person this is for; both stay off the screen.
   const person = document.getElementById('personLine'); if (person) person.hidden = true;
   if (firstUse) { const st = document.getElementById('homeMicStatus'); if (st && !st.textContent) st.textContent = t('Talk Twi, Pidgin or English.', 'Habla en espa\u00f1ol, como t\u00fa hablas.'); }
-  document.getElementById('whatIs').hidden = true;
+  // 24 Sep, reversing part of v143: at least eight people who arrived from
+  // Facebook group posts asked "what is it, what do I do with it". v143
+  // assumed the first-timer is someone handed the phone by family; the
+  // stranger from a link is now the main arrival. So a first-timer sees
+  // one headline naming the thing, then the button, then the example
+  // AND what CountMy writes back - the result shown, not described.
+  // Returning users keep their greeting and daily question unchanged.
+  document.getElementById('whatIs').hidden = !firstUse;
+  if (hg) hg.hidden = firstUse;
+  const askLine = document.querySelector('.ask-line'); if (askLine) askLine.hidden = firstUse;
   const strip = document.getElementById('todayStrip'); if (strip) strip.hidden = firstUse;
-  document.getElementById('exampleChat').hidden = true;
+  const exChat = document.getElementById('exampleChat');
+  if (exChat) {
+    exChat.hidden = !firstUse;
+    const exRes = document.getElementById('exampleResult');
+    if (exRes && firstUse) exRes.textContent = !ES ? '3 waakye, 60 cedis' : tc('3 refrescos, $6', '5 camisas, $50.000');
+  }
   document.getElementById('trustLine').hidden = !firstUse;
   if (typeof renderInstallBanner === 'function') renderInstallBanner();
 
@@ -3350,14 +3364,13 @@ if (ES) {
   // Static page text, Spanish. Leaf elements whose whole text matches an
   // English line are swapped; everything else is untouched.
   const S = {
-    'You talk. It keeps the proof: today\u2019s sales, who owes you, your year. Free, on your own WhatsApp.': 'T\u00fa hablas. \u00c9l guarda la prueba: las ventas de hoy, qui\u00e9n te debe, tu a\u00f1o. Gratis, en tu propio WhatsApp.',
+    'A free notebook for your business.': 'Un cuaderno gratis para tu negocio.',
+    '→ CountMy writes:': '→ CountMy anota:',
+    'You talk. It writes down what you sell, what you spend, and who owes you.': 'T\u00fa hablas. CountMy anota lo que vendes, lo que gastas y qui\u00e9n te debe.',
     'What happened in your business today?': '\u00bfQu\u00e9 pas\u00f3 hoy en tu negocio?',
     'Tell CountMy': 'Cu\u00e9ntale a CountMy',
     'Say it in English, Twi or Pidgin. You can also ask: \u201cwho owes me?\u201d': 'Dilo en espa\u00f1ol. Tambi\u00e9n puedes preguntar: \u201c\u00bfqui\u00e9n me debe?\u201d',
-    '\u201cAma owes me 120.\u201d': '\u201cMar\u00eda me debe 20.\u201d',
-    'Saved: Ama, 120 cedis.': 'Guardado: Mar\u00eda, 20 d\u00f3lares.',
     '\u201cWho owes me?\u201d': '\u201c\u00bfQui\u00e9n me debe?\u201d',
-    'Ama owes you 120 cedis.': 'Mar\u00eda te debe 20 d\u00f3lares.',
     'See how it works': 'Ver c\u00f3mo funciona',
     'Money in': 'Entr\u00f3', 'Money out': 'Sali\u00f3', 'Owed to you': 'Te deben',
     'Try saying:': 'Prueba diciendo:', 'Ask CountMy': 'Preg\u00fantale a CountMy', 'See my business': 'Ver mi negocio',
@@ -3457,6 +3470,11 @@ if (inAppBrowser()) {
     const android = isAndroid();
     const iosApp = window.KYM_IOS_APP || 'other';
     if (android) {
+      // No automatic jump to Chrome here, on purpose - tried on 18 Sep and a
+      // real Facebook visitor got a blank page for nine minutes (see the
+      // note in index.html). Re-tried 24 Sep and pulled before shipping by
+      // red team for the same reason. The one-tap button below is the
+      // fastest exit Facebook actually honours.
       // Facebook's Android browser has no microphone permission at all
       // (Meta developer thread, 2024-25): the tap is unavoidable, so it is
       // the whole first screen. Fallback link for phones without Chrome.
@@ -3464,8 +3482,9 @@ if (inAppBrowser()) {
       // browser and 3 of the 88 pressed the Chrome button. The wall is the
       // button. So the first screen here is a typing box that works where
       // the person already is; Chrome is the second offer, not the gate.
-      top.innerHTML = `<p>${t('Type what happened. It keeps the record.', 'Escribe qu\u00e9 pas\u00f3. \u00c9l guarda la cuenta.')}</p>`
-        + `<form class="iab-type" id="iabTypeForm" autocomplete="off"><input id="iabTypeIn" type="text" inputmode="text" enterkeyhint="done" placeholder="${t('Sold 3 bowls of waakye, 60 cedis', 'Vend\u00ed 3 arepas a 2 d\u00f3lares')}" aria-label="${t('What happened?', '\u00bfQu\u00e9 pas\u00f3?')}"><button type="submit" class="iab-save">${t('Save', 'Guardar')}</button></form>`
+      top.innerHTML = `<p class="iab-what">${t('A free notebook for your business.', 'Un cuaderno gratis para tu negocio.')}</p>`
+        + `<p>${t('Type what you sold or spent. It keeps the record.', 'Escribe lo que vendiste o gastaste. CountMy guarda la cuenta.')}</p>`
+        + `<form class="iab-type" id="iabTypeForm" autocomplete="off"><input id="iabTypeIn" type="text" inputmode="text" enterkeyhint="done" placeholder="${t('Sold 3 bowls of waakye, 60 cedis', tc('Vend\u00ed 3 arepas a 2 d\u00f3lares', 'Vend\u00ed 5 camisas de a 10 mil'))}" aria-label="${t('What happened?', '\u00bfQu\u00e9 pas\u00f3?')}"><button type="submit" class="iab-save">${t('Save', 'Guardar')}</button></form>`
         + `<button type="button" class="iab-example" id="iabExample">${t('Try the example', 'Probar el ejemplo')}</button>`
         + `<p class="iab-sub">${t('Free. It will not ask for your MoMo PIN or password.', 'Gratis. No te pide clave ni PIN.')}</p>`
         + `<p class="iab-or">${t('Want to talk instead?', '\u00bfPrefieres hablar?')}</p>`
@@ -3485,7 +3504,10 @@ if (inAppBrowser()) {
       // does work here, so the page stays fully usable and says so.
       top.innerHTML = `<p>${t('Voice works here. For the best experience, tap <b>\u22ef</b> at the top right, then <b>Open in Safari</b>.', 'La voz funciona aqu\u00ed. Para lo mejor, toca <b>\u22ef</b> arriba a la derecha y luego <b>Abrir en Safari</b>.')}</p>`;
     }
-    const first = document.querySelector('.pitch') || document.getElementById('homeGreeting');
+    // Android's card carries its own identity line (the page's is hidden
+    // under iab-first); elsewhere the page's own "what is it" line must
+    // still be the first thing read, so the notice goes after it.
+    const first = (!android && document.getElementById('whatIs')) || document.querySelector('.pitch') || document.getElementById('homeGreeting');
     if (first && first.parentNode) first.parentNode.insertBefore(top, first.nextSibling);
     const tb = document.getElementById('iabTopBtn'); if (tb) tb.addEventListener('click', () => { ping(android ? 'iab_tap' : 'iab_tap_ios'); track('iab_tap'); });
     // Typed record inside the in-app browser: the same server step the mic

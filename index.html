@@ -56,7 +56,7 @@
      app.js?v=. Lets anyone - a reviewer, a tester in Kumasi, a future session -
      answer "which CountMy am I looking at?" from view-source or the console,
      the same way the Worker answers with "wv". -->
-<meta name="countmy-version" content="v166">
+<meta name="countmy-version" content="v168">
 <!-- Real finding, 28 Aug: the bare "CountMy" title carried no keywords at all
      for what people actually search - a free sales/expense ledger for
      Ghanaian shop owners. The <title> tag is the single strongest on-page
@@ -438,7 +438,11 @@ input[type="number"]{-moz-appearance:textfield}
 .ask-line{font-family:"Manrope",sans-serif;font-weight:800;font-size:1.45rem;line-height:1.2;margin:0 0 14px;color:var(--navy);letter-spacing:-.01em}
 .home-mic-label{font-family:"Manrope",sans-serif;font-weight:800;font-size:1.15rem}
 .mic-lang-line{text-align:center;font-size:.89rem;font-weight:500;color:var(--muted);margin:2px 0 6px}
-.what-is{margin:-6px 0 14px;color:var(--ink-soft);font-size:1rem}
+.what-is{margin:2px 0 16px}
+.what-is-head{display:block;font-family:"Manrope",sans-serif;font-weight:800;font-size:1.5rem;line-height:1.2;color:var(--navy);letter-spacing:-.01em;text-wrap:balance}
+.what-is-sub{display:block;margin-top:6px;font-size:1.02rem;line-height:1.35;color:var(--ink-soft)}
+.example-result{text-align:center;font-size:.95rem;color:var(--ink-soft);margin:-6px 0 12px}
+.example-result b{color:var(--leaf-deep);font-weight:700}
 .home-greeting{font-family:"Manrope",sans-serif;font-weight:800;font-size:1.6rem;color:var(--navy);margin:2px 0 10px;letter-spacing:-.01em}
 .today-strip{background:var(--surface);border:1px solid var(--rule);border-radius:18px;padding:12px 12px 10px;margin:0 0 16px;box-shadow:0 2px 10px rgba(34,26,18,.06)}
 .ts-head{display:flex;justify-content:space-between;align-items:baseline;padding:0 4px 8px}
@@ -469,10 +473,6 @@ input[type="number"]{-moz-appearance:textfield}
 .mic-lang-line{text-align:center;color:var(--ink-soft);font-size:.9rem;margin:0 0 14px}
 .trust-line{text-align:center;font-size:.92rem;color:var(--ink-soft);margin:0 0 10px;font-weight:500}
 .trust-line a{color:var(--leaf-deep);font-weight:700}
-.example-chat{display:flex;flex-direction:column;gap:6px;margin:10px 0 14px}
-.example-chat div{max-width:82%;padding:9px 13px;border-radius:14px;font-size:.95rem;line-height:1.3}
-.example-chat .ex-you{align-self:flex-start;background:var(--surface);border:1px solid var(--rule);color:var(--navy);font-weight:600}
-.example-chat .ex-app{align-self:flex-end;background:var(--leaf-soft);color:var(--leaf-deep);font-weight:600}
 .mic-trust-line{text-align:center;font-size:.94rem;font-weight:700;color:var(--leaf-deep);margin-bottom:14px}
 .home-mic-status{min-height:1.4em;text-align:center;font-size:.95rem;color:var(--ink-soft);margin-bottom:14px}
 /* In-app browser notice (17 Sep): one sentence, one big button. */
@@ -483,6 +483,7 @@ input[type="number"]{-moz-appearance:textfield}
 .iab-note{display:block;margin:10px 0 0;background:var(--leaf-soft);color:var(--leaf-deep);font-weight:800;font-size:1.05rem;border-radius:14px;padding:13px 16px;cursor:pointer}
 .iab-top{background:#1E2F55;color:#fff;border-radius:18px;padding:16px;margin:0 0 16px;text-align:center} /* fixed navy: the --navy token flips pale in dark mode and white text on it vanished (real screenshot, 19 Sep) */
 .iab-top p{margin:0 0 10px;font-size:1.05rem;font-weight:700;color:#fff}
+.iab-top .iab-what{font-family:"Manrope",sans-serif;font-size:1.35rem;font-weight:800;line-height:1.2;margin:0 0 6px;text-wrap:balance}
 .iab-top .iab-open{background:var(--flame);font-size:1.25rem;padding:18px 16px}
 .iab-top .iab-sub{color:rgba(255,255,255,.85);margin:10px 0 0;font-size:.9rem}
 .iab-top .iab-alt{display:inline-block;margin-top:8px;color:#fff;font-size:.9rem;text-decoration:underline}
@@ -500,7 +501,7 @@ input[type="number"]{-moz-appearance:textfield}
 .person-line a{color:var(--leaf-deep);font-weight:700}
 .try-line.as-btn{cursor:pointer}
 .hear-example{display:inline-block;margin-left:6px;background:var(--leaf-soft);color:var(--leaf-deep);border:none;border-radius:100px;padding:5px 12px;font:inherit;font-size:.85rem;font-weight:700;cursor:pointer}
-body.iab-first .home-greeting, body.iab-first .what-is, body.iab-first .ask-line, body.iab-first .try-line, body.iab-first .second-row, body.iab-first .mic-lang-line, body.iab-first #demoBtn, body.iab-first .trust-line, body.iab-first .person-line{display:none !important}
+body.iab-first .home-greeting, body.iab-first .what-is, body.iab-first .ask-line, body.iab-first .try-line, body.iab-first .example-result, body.iab-first .second-row, body.iab-first .mic-lang-line, body.iab-first #demoBtn, body.iab-first .trust-line, body.iab-first .person-line{display:none !important}
 body.iab-first .home-mic-btn{opacity:.55}
 .iab-note input{display:none}
 .home-mic-status.heard{color:var(--leaf-deep);font-weight:600}
@@ -688,7 +689,11 @@ body.iab-first .home-mic-btn{opacity:.55}
        Greeting, three plain numbers for today, the mic, then the two
        second-order actions. Nothing to learn, nothing to read first. -->
   <div id="homeGreeting" class="home-greeting">Good morning</div>
-  <p id="whatIs" class="what-is" hidden>You talk. It keeps the proof: today’s sales, who owes you, your year. Free, on your own WhatsApp.</p>
+  <!-- 24 Sep: back on for first use. Eight people who came from Bobby's
+       Facebook group posts asked him "what is it, what do I do with it" -
+       the stranger arriving from a link needs the name of the thing before
+       the button. Two short lines, big first line, first use only. -->
+  <div id="whatIs" class="what-is" hidden><strong class="what-is-head">A free notebook for your business.</strong><span class="what-is-sub">You talk. It writes down what you sell, what you spend, and who owes you.</span></div>
   <div class="today-strip" id="todayStrip" role="group" aria-label="Today">
     <div class="ts-head"><span class="ts-title">Today</span><span class="ts-date" id="tsDate"></span></div>
     <div class="ts-tiles">
@@ -713,6 +718,9 @@ body.iab-first .home-mic-btn{opacity:.55}
        user had no way to know without guessing and just trying. Say it
        plainly, right where the decision to speak is made. -->
   <div class="try-line"><span class="try-label">Try saying:</span> <span id="tryExample" class="try-example">&ldquo;I sold 3 bowls of waakye for 60 cedis.&rdquo;</span> <button type="button" id="hearExample" class="hear-example">&#9654; Hear it</button></div>
+  <!-- Show the result, not just the instruction: what you say, then what
+       CountMy writes back. First use only; text set per country in app.js. -->
+  <p id="exampleChat" class="example-result" hidden><span class="ex-label">&rarr; CountMy writes:</span> <b id="exampleResult">3 waakye, 60 cedis</b></p>
   <!-- Trust, before the tap (16 Sep, the owner: "is it free? is it a scam? is there
        a catch?"). Ghanaian online-trust research puts trust above ease of use;
        GSMA lists confidence/safety as a top barrier. Three facts, one link,
@@ -721,13 +729,6 @@ body.iab-first .home-mic-btn{opacity:.55}
   <!-- 5. A person, not a website (18 Sep red team): the founder and his
        WhatsApp, on the FIRST screen, where a stranger decides. -->
   <p id="personLine" class="person-line" hidden>Made in Ghana for everyone in business: traders, farmers, drivers, artisans, shops. Questions? <a id="waSupport" target="_blank" rel="noopener" href="https://wa.me/233209090019?text=Hello%2C%20I%20saw%20CountMy">Message us on WhatsApp</a></p>
-  <!-- Show, don't explain: the same exchange as the share card. First use only. -->
-  <div id="exampleChat" class="example-chat" aria-label="Example" hidden>
-    <div class="ex-you">&ldquo;Ama owes me 120.&rdquo;</div>
-    <div class="ex-app">Saved: Ama, 120 cedis.</div>
-    <div class="ex-you">&ldquo;Who owes me?&rdquo;</div>
-    <div class="ex-app">Ama owes you 120 cedis.</div>
-  </div>
   <div id="homeMicStatus" class="home-mic-status" aria-live="polite"></div>
   <div class="second-row">
     <button type="button" class="second-btn" id="askBtn"><span class="sb-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3h11A2.5 2.5 0 0 1 20 5.5v8a2.5 2.5 0 0 1-2.5 2.5H10l-5 4v-4H6.5A2.5 2.5 0 0 1 4 13.5v-8Z"/><path d="M9.5 8.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .8-1 1.4M12 14.5h.01"/></svg></span><span class="sb-title">Ask CountMy</span><span class="sb-sub">&ldquo;Who owes me?&rdquo; &ldquo;What did I sell?&rdquo;</span></button>
@@ -1095,7 +1096,7 @@ body.iab-first .home-mic-btn{opacity:.55}
      string is what forces a fresh script fetch even before any service worker logic
      runs, independent of it. Found live 27 Aug: without this, an already-visited
      browser can keep running old code from plain HTTP cache regardless of SW strategy. -->
-<script src="app.js?v=166"></script>
+<script src="app.js?v=168"></script>
 
 </body>
 </html>
