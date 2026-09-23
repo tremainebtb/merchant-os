@@ -148,6 +148,14 @@ def write(file, html):
 
 VE_PAIR_LINKS = '<a href="/rates/es/dolar-a-bolivar.html">Dólar a bolívar</a>'
 CO_PAIR_LINKS = '<a href="/rates/es/dolar-a-peso.html">Dólar a peso</a>'
+# 24 Sep: the footer is headed "Otros montos hoy" but only linked the other
+# country's hub, so all 18 amount pages and the Spanish index had no link in
+# from anywhere (sitemap-only discovery). Now it links what the heading says.
+VE_AMOUNT_LINKS = ' '.join('<a href="/rates/es/%s-dolares-a-bolivares.html">%s %s a bolívares</a>' % (a, fmt(a, 0), 'dólar' if a == 1 else 'dólares') for a in VE_AMOUNTS)
+CO_AMOUNT_LINKS = ' '.join('<a href="/rates/es/%s-dolares-a-pesos.html">%s %s a pesos</a>' % (a, fmt(a, 0), 'dólar' if a == 1 else 'dólares') for a in CO_AMOUNTS_USD)
+ES_HUBS = '<a href="/rates/es/index.html">Todas las tasas de hoy</a> ' + VE_PAIR_LINKS + ' ' + CO_PAIR_LINKS
+VE_FOOT_PAIRS = VE_AMOUNT_LINKS + ' ' + ES_HUBS
+CO_FOOT_PAIRS = CO_AMOUNT_LINKS + ' ' + ES_HUBS
 
 def gen(rates):
     date = rates['date']; hd = human_date(date)
@@ -182,7 +190,7 @@ def gen(rates):
   <h2 class="faq">Preguntas frecuentes</h2>
   <div class="faq">%s</div>
 ''' % (hd, bs(ro), bs(rp), gap_pct, bs(ro), bs(rp), near, ''.join('<h3>%s</h3><p>%s</p>' % (q, a) for q, a in faq))
-    body += FOOT_VE.format(pairs=CO_PAIR_LINKS, slug='dolar-bolivar', date=hd, ro=repr(ro), rp=repr(rp))
+    body += FOOT_VE.format(pairs=VE_FOOT_PAIRS, slug='dolar-bolivar', date=hd, ro=repr(ro), rp=repr(rp))
     write('dolar-a-bolivar.html', body); files.append('dolar-a-bolivar.html')
 
     # ---- Venezuela: amount pages ----
@@ -210,7 +218,7 @@ def gen(rates):
   <h2 class="faq">Preguntas frecuentes</h2>
   <div class="faq">%s</div>
 ''' % (unit, hd, bs(vo), bs(vp), a, bs(vo), bs(vp), near, ''.join('<h3>%s</h3><p>%s</p>' % (q, x) for q, x in faq))
-        body += FOOT_VE.format(pairs=CO_PAIR_LINKS, slug='dolar-bolivar', date=hd, ro=repr(ro), rp=repr(rp))
+        body += FOOT_VE.format(pairs=VE_FOOT_PAIRS, slug='dolar-bolivar', date=hd, ro=repr(ro), rp=repr(rp))
         write('%s-dolares-a-bolivares.html' % a, body); files.append('%s-dolares-a-bolivares.html' % a)
 
     # ---- Colombia: dólar a peso (index/main page) ----
@@ -242,7 +250,7 @@ def gen(rates):
   <h2 class="faq">Preguntas frecuentes</h2>
   <div class="faq">%s</div>
 ''' % (hd, fmt(compra, 0), fmt(venta, 0), cop(mid), near, near2, ''.join('<h3>%s</h3><p>%s</p>' % (q, a) for q, a in faq))
-    body += FOOT_CO.format(pairs=VE_PAIR_LINKS, slug='dolar-peso', date=hd, r=repr(mid))
+    body += FOOT_CO.format(pairs=CO_FOOT_PAIRS, slug='dolar-peso', date=hd, r=repr(mid))
     write('dolar-a-peso.html', body); files.append('dolar-a-peso.html')
 
     # ---- Colombia: USD amount pages ----
@@ -266,7 +274,7 @@ def gen(rates):
   <h2 class="faq">Preguntas frecuentes</h2>
   <div class="faq">%s</div>
 ''' % (unit, hd, unit, cop(v), fmt(compra, 0), fmt(venta, 0), a, cop(v), near, ''.join('<h3>%s</h3><p>%s</p>' % (q, x) for q, x in faq))
-        body += FOOT_CO.format(pairs=VE_PAIR_LINKS, slug='dolar-peso', date=hd, r=repr(mid))
+        body += FOOT_CO.format(pairs=CO_FOOT_PAIRS, slug='dolar-peso', date=hd, r=repr(mid))
         write('%s-dolares-a-pesos.html' % a, body); files.append('%s-dolares-a-pesos.html' % a)
 
     # ---- index ----
@@ -285,13 +293,13 @@ def gen(rates):
   </div>
   <p class="pairs"><a href="/rates/es/dolar-a-bolivar.html">Ver dólar a bolívar completo</a> <a href="/rates/es/dolar-a-peso.html">Ver dólar a peso completo</a></p>
 ''' % (hd, bs(ro), bs(rp), fmt(compra, 0), fmt(venta, 0))
-    body += FOOT_VE.format(pairs=CO_PAIR_LINKS, slug='index-es', date=hd, ro=repr(ro), rp=repr(rp))
+    body += FOOT_VE.format(pairs=VE_AMOUNT_LINKS + ' ' + CO_FOOT_PAIRS, slug='index-es', date=hd, ro=repr(ro), rp=repr(rp))
     write('index.html', body); files.append('index.html')
 
     # ---- sitemap ----
     sm = ['<?xml version="1.0" encoding="UTF-8"?>', '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">']
     for f in files:
-        loc = 'https://countmy.app/rates/es/' + ('' if f == 'index.html' else f)
+        loc = 'https://countmy.app/rates/es/' + f  # match each page's own canonical
         sm.append('  <url><loc>%s</loc><lastmod>%s</lastmod><changefreq>daily</changefreq><priority>%s</priority></url>' % (loc, date, '0.9' if f in ('index.html', 'dolar-a-bolivar.html', 'dolar-a-peso.html') else '0.6'))
     sm.append('</urlset>')
     io.open(os.path.join(ROOT, 'sitemap-rates-es.xml'), 'w', encoding='utf-8', newline='\n').write('\n'.join(sm) + '\n')

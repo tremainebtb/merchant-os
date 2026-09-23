@@ -148,13 +148,16 @@ def faq_json(items):
 def write(file, html):
     io.open(os.path.join(OUT, file), 'w', encoding='utf-8', newline='\n').write(html)
 
+# 24 Sep: every hub in both directions, on every page. Before this only
+# cedi-to-naira and cedi-to-dollar were linked, and 7 cedi-to-X hubs plus all
+# their amount pages had no link in from anywhere (sitemap-only discovery).
 def pair_links(exclude=None):
     out = []
     for code, sing, plur, adj, sym, slug, region in CUR:
         if slug != exclude:
             out.append('<a href="/rates/%s-to-cedi.html">%s to cedi</a>' % (slug, sing.capitalize() if code != 'XOF' else 'CFA'))
-    out.append('<a href="/rates/cedi-to-naira.html">Cedi to naira</a>')
-    out.append('<a href="/rates/cedi-to-dollar.html">Cedi to dollar</a>')
+    for code, sing, plur, adj, sym, slug, region in CUR:
+        out.append('<a href="/rates/cedi-to-%s.html">Cedi to %s</a>' % (slug, 'CFA' if code == 'XOF' else sing))
     return ' '.join(out)
 
 def gen(rates):
@@ -217,9 +220,13 @@ def gen(rates):
   </div>
   <h2>Cedis to %s</h2>
   <div class="tw"><table><tr><th class="num">Cedis</th><th class="num">%s</th></tr>%s</table></div>
+  <h2>Amounts</h2>
+  <p class="pairs">%s</p>
   <h2 class="faq">Questions people ask</h2>
   <div class="faq">%s</div>
-''' % (name, hd, fmt(1 / r, 4), code, code, cedis(r), Name, fmt(1000 / r), plur, Name, rows2, ''.join('<h3>%s</h3><p>%s</p>' % (q, a) for q, a in faq))
+''' % (name, hd, fmt(1 / r, 4), code, code, cedis(r), Name, fmt(1000 / r), plur, Name, rows2,
+       ' '.join('<a href="/rates/%s-cedis-to-%s.html">%s cedis to %s</a>' % (a, pslug, fmt(a, 0), plur) for a in CEDI_AMOUNTS),
+       ''.join('<h3>%s</h3><p>%s</p>' % (q, a) for q, a in faq))
         body += FOOT.format(pairs=pair_links(slug), slug='cedi-to-' + slug, date=hd, rate=repr(r)).replace("o.textContent='GH\\u20b5 '+f(v*r);", "o&&(o.textContent='GH\\u20b5 '+f(v*r));")
         write('cedi-to-%s.html' % slug, body); files.append('cedi-to-%s.html' % slug)
 
@@ -294,7 +301,7 @@ def gen(rates):
     # ---- sitemap
     sm = ['<?xml version="1.0" encoding="UTF-8"?>', '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">']
     for f in files:
-        loc = 'https://countmy.app/rates/' + ('' if f == 'index.html' else f)
+        loc = 'https://countmy.app/rates/' + f  # match each page's own canonical, index.html included
         sm.append('  <url><loc>%s</loc><lastmod>%s</lastmod><changefreq>daily</changefreq><priority>%s</priority></url>' % (loc, date, '0.9' if f == 'index.html' or f.endswith('-to-cedi.html') else '0.6'))
     sm.append('</urlset>')
     io.open(os.path.join(ROOT, 'sitemap-rates.xml'), 'w', encoding='utf-8', newline='\n').write('\n'.join(sm) + '\n')
