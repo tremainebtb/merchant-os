@@ -317,7 +317,12 @@ function syncEntryToServer(entry, deleted) {
     fetch(`${API_BASE}/sync`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ shop, entry, deleted: !!deleted, test: isTestDevice() })
+      body: JSON.stringify({ shop, entry, deleted: !!deleted, test: isTestDevice() }),
+      // Same keepalive gap as ping() (see 23 Sep note there) - without it, a
+      // real save right before someone closes or backgrounds the page can
+      // fail to reach the server, so "backed up" never gets set even though
+      // the entry itself is safely saved locally.
+      keepalive: true
     }).then(res => {
       // Only on a real server confirmation - claiming "backed up" because a
       // request was merely sent would be the same broken promise the apps
@@ -351,7 +356,8 @@ function syncNotSaved(entryLike) {
       shop,
       entry: { id: newId(), ...entryLike, status: 'not_saved' },
       deleted: false
-    })
+    }),
+    keepalive: true // same gap as ping() and syncEntryToServer - see the 23 Sep note above
   }).catch(() => {});
 }
 
@@ -2000,7 +2006,16 @@ function ping(eventType) {
     fetch(`${API_BASE}/ping`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ shop, event: eventType, programme: localStorage.getItem('kym_programme') || '', device: getDeviceId(), source: localStorage.getItem('kym_source') || '', test: isTestDevice(), nudge: nudgeCohort(), ver: window.KYM_VERSION || '', lang: (navigator.language || '').slice(0, 12), mobile: /Mobi|Android/i.test(navigator.userAgent) ? 1 : 0, standalone: isStandalone() ? 1 : 0 })
+      body: JSON.stringify({ shop, event: eventType, programme: localStorage.getItem('kym_programme') || '', device: getDeviceId(), source: localStorage.getItem('kym_source') || '', test: isTestDevice(), nudge: nudgeCohort(), ver: window.KYM_VERSION || '', lang: (navigator.language || '').slice(0, 12), mobile: /Mobi|Android/i.test(navigator.userAgent) ? 1 : 0, standalone: isStandalone() ? 1 : 0 }),
+      // Real bug, 23 Sep: a visitor who backgrounds or closes the page within
+      // the first second or two (exactly what Facebook's in-app browser did
+      // to a real Ghanaian visitor today - Clarity's own summary: "hid the
+      // page within a second of arrival") can have this fetch cancelled by
+      // the browser mid-flight without keepalive, before it ever reaches the
+      // Worker. That visit becomes invisible to every tracking system at
+      // once - not undercounted, erased - which is exactly the kind of gap
+      // that made a real "I had 3 users" report look like only 1-2 happened.
+      keepalive: true
     }).catch(() => {});
   } catch (err) {
     // Usage reporting must never interrupt a locally committed save.
