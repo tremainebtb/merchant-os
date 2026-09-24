@@ -1114,9 +1114,17 @@ async function transcribeAudio(audioBytes, audioType, env, lang, country) {
 }
 // Whisper's own language guess, or a non-Latin script in its text (it wrote
 // Twi in Japanese, Urdu and Thai script in the 24 Sep bench).
+// Twi-only words (sourced lexicon, 24 Sep): goods and numbers of 5+ letters
+// plus verb forms. Ghanaian English borrows single Twi words (kenkey,
+// kontomire), so it takes THREE different ones before a clip Whisper calls
+// English is sent to Khaya - it labelled about 3 in 20 real Twi clips English.
+const TWI_ONLY_WORDS = new Set('abenkwan abirekyie abomu aborobe aborodwomaa aburoo aduaba aduanan aduane aduasa aduokron aduonu aduonum aduosia aduoson aduowotwe adwene ahanan ahankron ahansia ahanson ahanu ahanum ahanwotwe ahasa ahoma ahwedee akekaduro akoko akokonam akrantee amango ampesie ankaa apatre asikyire atadee atadwe atosodee atua baako bankye bayere bidie bobesa borodee borofere burodo dokono dubaako dumiensa dumienu dunan dunkron dunsia dunson dunum dunwotwe efere emane emmore foroee fufuo gyeene kokonte kontommire koobi kookoo kosua krataa kresin kwadu kyenam kyenere mafiri magye mankani maton matua mede meleke meton metonn metoo metua mmiensa mmienu mmire momoni mpaboa nantwie nantwinam nenkyemoono nkatee nkatenkwan nkrante nkron nkuruma nkuto nkwan nkyene nneema nnema nnora nsafufuo nsuomnam ntoma ntoosi nufosuo nwotwe nyaadewa nyinaa obonko odwan odwannam okyena opepem opepepem paanoo praee prako prakonam samina sekan sidi sika wode yensin'.split(' '));
 function soundsLikeTwi(g) {
   const l = String((g && g.language) || '').toLowerCase();
   if (l && l !== 'english' && l !== 'en') return true;
+  const toks = new Set(String((g && g.text) || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\u025b/g, 'e').replace(/\u0254/g, 'o').split(/[^a-z]+/));
+  let n = 0; for (const tk of toks) if (TWI_ONLY_WORDS.has(tk)) n++;
+  if (n >= 3) return true;
   return /[^\u0000-\u024f\u0254\u025b\u1e00-\u1eff\u2000-\u206f\u20b5\s]/.test(String((g && g.text) || ''));
 }
 async function khayaTranscribe(audioBytes, audioType, env) {
@@ -1205,7 +1213,7 @@ async function handleTranscribe(request, env) {
 // 50 is a transcription/parsing error, not a fabrication) - evidence-checking
 // targets fabrication specifically, not every possible error; the review UI is
 // still what catches a wrong-but-grounded number.
-const WORKER_VERSION = 'w102';
+const WORKER_VERSION = 'w103';
 
 // Spanish (Venezuela) twin of EXTRACT_SYSTEM_PROMPT below: same event types,
 // same {value, evidence} rule, same JSON-only answer. Amounts are bare
@@ -1273,7 +1281,9 @@ Examples, one per type - every type below is equally likely, do NOT assume an ut
 [{"type":"expense","item":{"value":"stock","evidence":"stock"},"price":{"value":200,"evidence":"200 cedis"}}]
 [{"type":"debt_in","customer":{"value":"Ama","evidence":"Ama"},"price":{"value":120,"evidence":"120 cedis"}}]
 [{"type":"debt_in","customer":{"value":"Kofi","evidence":"Kofi"},"price":{"value":50,"evidence":"fifty cedis"},"note":{"value":"soap","evidence":"soap"}}]
-[{"type":"debt_out","supplier":{"value":"Mensah","evidence":"Mensah"},"price":{"value":400,"evidence":"400 cedis"}}]`;
+[{"type":"debt_out","supplier":{"value":"Mensah","evidence":"Mensah"},"price":{"value":400,"evidence":"400 cedis"}}]
+
+Twi goods words - these are ALWAYS the item sold or bought, NEVER a person's name: bayere yam, borodee plantain, bankye cassava, aburoo maize, emo rice, adua beans, nsuomnam fish, apatre tilapia, koobi salted dried tilapia, emane herring, adwene catfish, nam meat, nantwinam beef, akokonam chicken, akoko chicken, odwannam mutton, prakonam pork, abirekyie goat, odwan sheep, nantwie cow, prako pig, kosua egg, ntoosi tomato, nenkyemoono tomato, gyeene onion, mako pepper, nyaadewa garden egg, nkuruma okra, kontommire cocoyam leaves, mankani cocoyam, abe palm fruit, ngo palm oil, anwa cooking, adwe palm kernel, adwe ngo palm kernel oil, nkatee groundnut, paanoo bread, burodo bread, asikyire sugar, nkyene salt, samina soap, nsuo water, nsa drink, ntoma cloth, mpaboa shoes, atadee dress, kube coconut, kwadu banana, ankaa orange, aborobe pineapple, borofere pawpaw, amango mango, ankaa twadee lime, akekaduro ginger, anwo garlic, ahwedee sugarcane, aborodwomaa potato, esam flour, emmore dough, nufosuo milk, meleke milk, tii tea, bota butter, paya avocado pear, atadwe tiger nut, nkuto shea butter, nwa snail, koto crab, obonko shrimp, akrantee grasscutter, bese kola nut, kookoo cocoa, nsafufuo palm wine, bobesa wine, nkwan soup, foroee stew, abomu stew, koko porridge, fufuo fufu, atosodee vegetables, aduaba fruit, mmire mushroom, efere cucumber, kresin kerosene, bidie charcoal, yensin firewood, kyenere candle, sapo sponge, praee broom, kyenam fried fish, aduane food, sekan knife, nkrante cutlass, ahoma rope, ekye hat, krataa paper, tofe toffee, nku pomade, dokono kenkey, ampesie boiled yam, kokonte dried-cassava-flour swallow, abenkwan palm-nut soup, nkatenkwan groundnut soup, momoni fermented salted fish. Twi measures (a count word, not an item): kotoku bag, boto sack, baage bag, bokiti bucket, kenten basket, adaka box, galon gallon, toa bottle, kuruwa cup, ankore barrel, koraa calabash, kyensee metal pan, ahina pot, kukuo pot, kuo group, fa half, susu to measure, prete plate, olonka olonka - tin, margarine tin margarine tin.`;
 
 // Deterministic, model-independent safety layer - takes whatever the LLM
 // returned (which may be malformed, missing fields, contain the literal string
@@ -1376,7 +1386,11 @@ const TWI_NUMBERS = {
   aduenum: 50, adunsia: 60, adunson: 70, adunwotwe: 80, adunkron: 90,
   // \u0254pepem (million) - Wikivoyage's Twi phrasebook, learnakan.com and
   // learnakandictionary.com's compound entries all agree (3 sources).
-  opepem: 1000000
+  opepem: 1000000,
+  // 24 Sep sourced lexicon (2+ independent publishers each: akandictionary.com,
+  // LearnAkan, Harvard ELIAS, Wikivoyage, Boston U 200-word project, GhanaNLP
+  // corpora): Akuapem and Fante forms and the -n- hundreds spellings.
+  biako: 1, kor: 1, ebien: 2, ebiasa: 3, esia: 6, esuon: 7, dubiako: 11, duebien: 12, duebiasa: 13, duanan: 14, duenum: 15, duesia: 16, duesuon: 17, duawotwe: 18, duakron: 19, eduonu: 20, eduasa: 30, eduanan: 40, eduonum: 50, eduosia: 60, eduosuon: 70, eduowotwe: 80, eduokron: 90, ahaebien: 200, ahaanan: 400, ahaenum: 500, ahansia: 600, ahaesia: 600, ahanson: 700, ahaesuon: 700, ahanwotwe: 800, ahaawotwe: 800, ahankron: 900, ahaakron: 900, mpemdu: 10000, opepepem: 1000000000
 };
 function twiNumberCandidates(transcriptNorm) {
   const out = new Set();
@@ -1896,7 +1910,7 @@ function twiPrep(text) {
     // smaller number word (hundreds, then tens, then units)
     while (j < words.length) {
       let k = j;
-      while (k < words.length && (isSep(words[k]) || fold(words[k]) === 'ne')) k++;
+      while (k < words.length && (isSep(words[k]) || fold(words[k]) === 'ne' || fold(words[k]) === 'na')) k++;
       if (k >= words.length || !isNum(words[k])) break;
       const v = TWI_NUMBERS[fold(words[k])];
       if (v >= last) break; // "aduonu aduasa" is two amounts, not one
