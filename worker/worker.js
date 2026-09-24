@@ -629,6 +629,21 @@ function benchWer(ref, hyp) {
   }
   return Math.round((prev[h.length] / r.length) * 1000) / 1000;
 }
+// Letter error rate with spaces removed: Twi word boundaries are written
+// differently by different engines ("Misika no akasen" vs "Me sika no aka
+// sen"), which a word score punishes even when every sound was heard.
+function benchCer(ref, hyp) {
+  const norm = s => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/ɛ/g, 'e').replace(/ɔ/g, 'o').replace(/[^a-z0-9]+/g, '');
+  const r = norm(ref), h = norm(hyp);
+  if (!r.length) return null;
+  let prev = Array.from({ length: h.length + 1 }, (_, j) => j);
+  for (let i = 1; i <= r.length; i++) {
+    const cur = [i];
+    for (let j = 1; j <= h.length; j++) cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (r[i - 1] === h[j - 1] ? 0 : 1));
+    prev = cur;
+  }
+  return Math.round((prev[h.length] / r.length) * 1000) / 1000;
+}
 async function benchGroq(bytes, type, env, withPrompt) {
   if (!env.GROQ_API_KEY) return { error: 'no groq key' };
   const form = new FormData();
@@ -664,21 +679,32 @@ async function handleAdminAsrBench(request, env) {
   for (const it of items) {
     const row = { ref: String(it.ref || '').slice(0, 400) };
     try {
-      const u = new URL(String(it.url || ''));
-      if (u.protocol !== 'https:') throw new Error('https only');
-      const res = await fetch(u.toString());
-      if (!res.ok) throw new Error('fetch ' + res.status);
-      const bytes = new Uint8Array(await res.arrayBuffer());
+      let bytes, type;
+      if (it.b64) {
+        // A clip converted on the owner's laptop (e.g. to the webm/opus
+        // phones actually record), sent inline.
+        const bin = atob(String(it.b64)); bytes = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+        type = String(it.type || 'audio/webm');
+      } else {
+        const u = new URL(String(it.url || ''));
+        if (u.protocol !== 'https:') throw new Error('https only');
+        const res = await fetch(u.toString());
+        if (!res.ok) throw new Error('fetch ' + res.status);
+        bytes = new Uint8Array(await res.arrayBuffer());
+        type = String(it.type || res.headers.get('content-type') || 'audio/wav').split(';')[0];
+      }
       if (bytes.length > 3 * 1024 * 1024) throw new Error('too big');
-      const type = String(it.type || res.headers.get('content-type') || 'audio/wav').split(';')[0];
-      const [plain, prompted, khaya] = await Promise.all([benchGroq(bytes, type, env, false), benchGroq(bytes, type, env, true), benchKhaya(bytes, type, env)]);
+      const only = String(it.only || '');
+      const skip = { error: 'skipped' };
+      const [plain, prompted, khaya] = await Promise.all([only && only !== 'whisper' ? skip : benchGroq(bytes, type, env, false), only && only !== 'whisperPrompted' ? skip : benchGroq(bytes, type, env, true), only && only !== 'khaya' ? skip : benchKhaya(bytes, type, env)]);
       row.whisper = plain; row.whisperPrompted = prompted; row.khaya = khaya;
-      for (const k of ['whisper', 'whisperPrompted', 'khaya']) if (row[k] && typeof row[k].text === 'string') row[k].wer = benchWer(row.ref, row[k].text);
+      for (const k of ['whisper', 'whisperPrompted', 'khaya']) if (row[k] && typeof row[k].text === 'string') { row[k].wer = benchWer(row.ref, row[k].text); row[k].cer = benchCer(row.ref, row[k].text); }
     } catch (e) { row.error = String(e.message || e).slice(0, 120); }
     out.push(row);
   }
   const avg = k => { const v = out.map(r => r[k] && r[k].wer).filter(x => typeof x === 'number'); return v.length ? Math.round((v.reduce((a, b) => a + b, 0) / v.length) * 1000) / 1000 : null; };
-  return cors(new Response(JSON.stringify({ n: out.length, meanWer: { whisper: avg('whisper'), whisperPrompted: avg('whisperPrompted'), khaya: avg('khaya') }, rows: out, wv: WORKER_VERSION }), { headers: { 'Content-Type': 'application/json' } }));
+  const avgC = k => { const v = out.map(r => r[k] && r[k].cer).filter(x => typeof x === 'number'); return v.length ? Math.round((v.reduce((a, b) => a + b, 0) / v.length) * 1000) / 1000 : null; };
+  return cors(new Response(JSON.stringify({ n: out.length, meanWer: { whisper: avg('whisper'), whisperPrompted: avg('whisperPrompted'), khaya: avg('khaya') }, meanCer: { whisper: avgC('whisper'), whisperPrompted: avgC('whisperPrompted'), khaya: avgC('khaya') }, rows: out, wv: WORKER_VERSION }), { headers: { 'Content-Type': 'application/json' } }));
 }
 
 async function handleAdminRecentEntries(request, env) {
@@ -1138,7 +1164,7 @@ async function handleTranscribe(request, env) {
 // 50 is a transcription/parsing error, not a fabrication) - evidence-checking
 // targets fabrication specifically, not every possible error; the review UI is
 // still what catches a wrong-but-grounded number.
-const WORKER_VERSION = 'w97';
+const WORKER_VERSION = 'w98';
 
 // Spanish (Venezuela) twin of EXTRACT_SYSTEM_PROMPT below: same event types,
 // same {value, evidence} rule, same JSON-only answer. Amounts are bare
