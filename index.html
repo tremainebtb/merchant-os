@@ -56,7 +56,7 @@
      app.js?v=. Lets anyone - a reviewer, a tester in Kumasi, a future session -
      answer "which CountMy am I looking at?" from view-source or the console,
      the same way the Worker answers with "wv". -->
-<meta name="countmy-version" content="v169">
+<meta name="countmy-version" content="v170">
 <!-- Real finding, 28 Aug: the bare "CountMy" title carried no keywords at all
      for what people actually search - a free sales/expense ledger for
      Ghanaian shop owners. The <title> tag is the single strongest on-page
@@ -607,16 +607,28 @@ body.book-on .what-is{margin-bottom:12px}
 .bk-sum .bk-mk{font-size:1.15rem}
 .bk-s-in{color:var(--leaf-deep)}.bk-s-out{color:var(--brick)}.bk-s-left{color:var(--navy);margin-left:auto}
 .bk-bs{padding:0 14px 10px;font-size:.88rem;font-weight:600;color:var(--muted)}
-.bk-bar{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);gap:8px;margin-top:10px}
-.bk-act{border:0;border-radius:18px;min-height:92px;padding:8px 4px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;color:var(--filled-ink);font-family:"Manrope",sans-serif;font-weight:800;font-size:1rem;line-height:1.1;text-align:center;box-shadow:0 3px 10px rgba(30,20,10,.14);cursor:pointer;transition:transform .12s}
-.bk-act svg{width:36px;height:36px;flex:none}
+.bk-bar{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:10px}
+.bk-act{border:0;border-radius:18px;min-height:112px;padding:10px 4px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;color:var(--filled-ink);font-family:"Manrope",sans-serif;font-weight:800;font-size:1.08rem;line-height:1.1;text-align:center;box-shadow:0 3px 10px rgba(30,20,10,.14);cursor:pointer;transition:transform .12s}
+.bk-act svg{width:44px;height:44px;flex:none}
 .bk-act:active{transform:scale(.94)}
 .bk-a-in{background:var(--leaf)}.bk-a-out{background:var(--brick)}.bk-a-owe{background:var(--amber)}
-body.book-on #homeMicBtn{margin:0;width:auto;border-radius:18px;min-height:92px;padding:8px 4px;gap:4px;justify-content:center;box-shadow:0 3px 10px rgba(30,20,10,.14)}
-body.book-on #homeMicBtn svg{width:36px;height:36px}
-body.book-on #homeMicBtn .home-mic-label{font-size:1rem;line-height:1.1}
-body.book-on #homeMicBtn .mic-level-meter{height:14px;margin:0}
+/* Talk: its own full-width row, and blue, not orange. In Akan the word for
+   red also covers orange, pink and purple (Hagan 1970), so an orange Talk
+   read the same colour as red Spent. Dark blue counts as black (mourning),
+   so this is a mid blue. */
+:root{--bk-talk:#2F6DB5}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bk-talk:#7FB2EE}}
+:root[data-theme="dark"]{--bk-talk:#7FB2EE}
+.bk-talkrow{margin-top:8px}
+body.book-on #homeMicBtn{margin:0;width:100%;border-radius:18px;min-height:78px;padding:10px 16px;flex-direction:row;gap:12px;justify-content:center;background:var(--bk-talk);color:var(--filled-ink);box-shadow:0 3px 10px rgba(30,20,10,.14)}
+body.book-on #homeMicBtn svg{width:38px;height:38px}
+body.book-on #homeMicBtn .home-mic-label{font-size:1.2rem;line-height:1.1}
+body.book-on #homeMicBtn .mic-level-meter{height:18px;margin:0}
+body.book-on #homeMicBtn.recording{background:var(--leaf-deep)}
 body.book-on #homeMicBtn.recording svg{display:none}
+/* The photo button stops competing with Talk: outlined, not a second
+   solid full-width block of colour. */
+body.book-on .act-snap{background:var(--surface);color:var(--navy);border:1.5px solid var(--rule);box-shadow:none}
 .bk-nudge{animation:bk-nudge .9s ease-in-out 3}
 @keyframes bk-nudge{0%,100%{transform:none}50%{transform:scale(1.06)}}
 .bk-scrim{position:fixed;inset:0;background:rgba(20,18,15,.42);z-index:50}
@@ -826,11 +838,18 @@ body.book-on #homeMicBtn.recording svg{display:none}
       </div>
       <div class="bk-bs" id="bkBs" hidden></div>
     </div>
+    <!-- Pictures of the action, not maths signs (24 Sep, second pass): non-
+         readers read numbers but not symbols, and drawings with movement are
+         read as actions (Medhi 2006/2011, Parikh 2003). Hand receiving coins =
+         Sold; money flying out = Spent; person + notebook = Owes me. Three
+         across keeps each button near the 20 mm older adults need; Talk gets
+         its own full-width row below (#bkTalkRow). -->
     <div class="bk-bar" id="bkBar">
-      <button type="button" class="bk-act bk-a-in" id="bkSold"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span id="bkSoldLbl">Sold</span></button>
-      <button type="button" class="bk-act bk-a-out" id="bkSpent"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14"/></svg><span id="bkSpentLbl">Spent</span></button>
-      <button type="button" class="bk-act bk-a-owe" id="bkOwes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="10" cy="8" r="3.6"/><path d="M3 20a7 7 0 0 1 14 0"/><path d="M19 7v6M16 10h6"/></svg><span id="bkOwesLbl">Owes me</span></button>
+      <button type="button" class="bk-act bk-a-in" id="bkSold"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 15h2a2 2 0 1 0 0-4h-3c-.6 0-1.1.2-1.4.6L3 17"/><path d="m7 21 1.6-1.4c.3-.4.8-.6 1.4-.6h4c1.1 0 2.1-.4 2.8-1.2l4.6-4.4a2 2 0 0 0-2.75-2.91l-4.2 3.9"/><path d="m2 16 6 6"/><circle cx="16" cy="9" r="2.9"/><circle cx="6" cy="5" r="3"/></svg><span id="bkSoldLbl">Sold</span></button>
+      <button type="button" class="bk-act bk-a-out" id="bkSpent"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="9" width="15" height="10" rx="2"/><circle cx="9.5" cy="14" r="2.3"/><path d="M15 8l6-6"/><path d="M16 2h5v5"/></svg><span id="bkSpentLbl">Spent</span></button>
+      <button type="button" class="bk-act bk-a-owe" id="bkOwes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="7.5" r="3.3"/><path d="M2 20.5a6 6 0 0 1 12 0"/><rect x="15.5" y="8.5" width="6.5" height="12" rx="1"/><path d="M17.5 12h2.5M17.5 15h2.5"/></svg><span id="bkOwesLbl">Owes me</span></button>
     </div>
+    <div class="bk-talkrow" id="bkTalkRow"></div>
 
     <div class="bk-scrim" id="bkScrim" hidden></div>
     <div class="bk-sheet" id="bkEntry" hidden role="dialog" aria-modal="true" aria-labelledby="bkTitle" data-clarity-mask="True">
@@ -1260,7 +1279,7 @@ body.book-on #homeMicBtn.recording svg{display:none}
      string is what forces a fresh script fetch even before any service worker logic
      runs, independent of it. Found live 27 Aug: without this, an already-visited
      browser can keep running old code from plain HTTP cache regardless of SW strategy. -->
-<script src="app.js?v=169"></script>
+<script src="app.js?v=170"></script>
 
 </body>
 </html>

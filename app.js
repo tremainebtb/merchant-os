@@ -2362,7 +2362,7 @@ async function render() {
   // the language promise moves under the mic where the decision is made.
   const micLbl = document.querySelector('#homeMicBtn .home-mic-label');
   if (micLbl && !document.getElementById('homeMicBtn').classList.contains('recording')) {
-    const want = BOOK_ON ? t('Talk', 'Habla') : firstUse ? t('Press and talk', 'Toca y habla') : t('Tell CountMy', 'Cu\u00e9ntale a CountMy');
+    const want = BOOK_ON ? ((BK_IAB_TALK && firstUse) ? t('Talk (opens Chrome)', 'Habla (abre Chrome)') : t('Talk', 'Habla')) : firstUse ? t('Press and talk', 'Toca y habla') : t('Tell CountMy', 'Cu\u00e9ntale a CountMy');
     micLbl.textContent = want; micLbl.dataset.idle = want;
   }
   const secondRow = document.querySelector('.second-row'); if (secondRow) secondRow.hidden = firstUse;
@@ -3902,10 +3902,10 @@ function bookNudgeTiles() {
   try {
     document.body.classList.add('book-on');
     bk$('book').hidden = false;
-    // Talk is the fourth equal button: the real mic, with every listener it
-    // already has, moved into the row.
+    // Talk has its own full-width row under the three tap buttons: the real mic,
+    // with every listener it already has, moved there.
     const mic = document.getElementById('homeMicBtn');
-    if (mic) { bk$('bkBar').appendChild(mic); mic.classList.remove('first-use'); }
+    if (mic) { bk$('bkTalkRow').appendChild(mic); mic.classList.remove('first-use'); }
     bk$('bkSoldLbl').textContent = BK_LABEL.in;
     bk$('bkSpentLbl').textContent = BK_LABEL.out;
     bk$('bkOwesLbl').textContent = BK_LABEL.owe;
