@@ -669,6 +669,26 @@ async function benchKhaya(bytes, type, env) {
     return { text: String(text || '').trim() };
   } catch (e) { return { error: String(e).slice(0, 80) }; }
 }
+// Owner-only: one Twi phrase through Khaya's text-to-speech, audio returned
+// as-is. Used once to make the Book's spoken Twi prompts as static files
+// (so no per-use cost); never called by the app itself.
+async function handleAdminTts(request, env) {
+  const url = new URL(request.url);
+  const key = url.searchParams.get('key') || '';
+  if (!env.ADMIN_KEY || key !== env.ADMIN_KEY) return cors(new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401 }));
+  if (!env.KHAYA_API_KEY) return cors(new Response(JSON.stringify({ error: 'no khaya key' }), { status: 503 }));
+  let body = {}; try { body = await request.json(); } catch (e) { /* empty */ }
+  const text = String(body.text || '').trim().slice(0, 200);
+  if (!text) return cors(new Response(JSON.stringify({ error: 'no text' }), { status: 400 }));
+  const r = await fetch('https://translation-api.ghananlp.org/tts/v2/synthesize', {
+    method: 'POST',
+    headers: { 'Ocp-Apim-Subscription-Key': env.KHAYA_API_KEY, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text, language: String(body.language || 'twi'), speaker_id: String(body.speaker || 'female'), format: 'mp3' })
+  });
+  if (!r.ok) return cors(new Response(JSON.stringify({ error: 'khaya ' + r.status, detail: (await r.text()).slice(0, 300) }), { status: 502, headers: { 'Content-Type': 'application/json' } }));
+  return cors(new Response(await r.arrayBuffer(), { headers: { 'Content-Type': r.headers.get('content-type') || 'audio/mpeg' } }));
+}
+
 async function handleAdminAsrBench(request, env) {
   const url = new URL(request.url);
   const key = url.searchParams.get('key') || '';
@@ -1213,7 +1233,7 @@ async function handleTranscribe(request, env) {
 // 50 is a transcription/parsing error, not a fabrication) - evidence-checking
 // targets fabrication specifically, not every possible error; the review UI is
 // still what catches a wrong-but-grounded number.
-const WORKER_VERSION = 'w103';
+const WORKER_VERSION = 'w104';
 
 // Spanish (Venezuela) twin of EXTRACT_SYSTEM_PROMPT below: same event types,
 // same {value, evidence} rule, same JSON-only answer. Amounts are bare
@@ -1872,6 +1892,10 @@ function twiPrep(text) {
   t = t.replace(new RegExp('\\bm[ae\\u025b](?:re)?t[o\\u0254](?:\\u0254|e[e\\u025b]?)?' + END, 'gi'), 'I bought');
   // "Madi sika" = I have spent money. "di" alone is also "eat", so only with sika.
   t = t.replace(/\bm[ae\u025b]di\s+sika\b/gi, 'I spent money');
+  // "Mede sidi du tuaa l\u0254re" = I used 10 cedis to pay for the lorry (the de ...
+  // tua serial frame, Twi corpus + Christaller): the thing paid for is what
+  // follows "tuaa", never the verb itself.
+  t = t.replace(/\bm[e\u025b]de\s+((?:sidi|cedis?|sika)\s+[a-z\u0254\u025b]+|[a-z\u0254\u025b]+\s+(?:sidi|cedis?))\s+tuaa?\b/gi, 'I paid $1 for');
   // "magye" = I (have) received / collected (gye: LearnAkanDictionary, and
   // Christaller's "maton ... magye" sell-then-receive frame): the amount
   // that follows is what the goods sold for.
@@ -3019,6 +3043,7 @@ export default {
       else if (path === '/admin/programme' && request.method === 'GET') adminResp = await handleProgrammeReport(request, env);
       else if (path === '/admin/purge-test' && request.method === 'POST') adminResp = await handleAdminPurgeTest(request, env);
       else if (path === '/admin/asr-bench' && request.method === 'POST') adminResp = await handleAdminAsrBench(request, env);
+      else if (path === '/admin/tts' && request.method === 'POST') adminResp = await handleAdminTts(request, env);
       if (adminResp) {
         if (adminResp.status === 401) await bumpAdminFail(env, ip);
         return adminResp;
