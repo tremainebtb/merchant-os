@@ -99,6 +99,16 @@ const CO = ES && COUNTRY === 'CO';
 const tc = (ve, co) => (CO ? co : ve);
 // Default currency for typed entries: Colombia pesos, Venezuela dollars.
 const HOME_CUR = CO ? 'COP' : 'USD';
+// The Book home screen (v169, 24 Sep). The one switch back: set
+// BOOK_DEFAULT to false and the old home returns for everyone. ?book=0
+// shows the old home on one phone, for comparing. See "The Book" below.
+var BOOK_DEFAULT = true;
+var BK_IAB_TALK = false; // set by the in-app browser block (Book + Facebook Android)
+var BOOK_ON = (function () { try { return BOOK_DEFAULT && new URLSearchParams(location.search).get('book') !== '0'; } catch (e) { return BOOK_DEFAULT; } })();
+// Real bug, found 24 Sep: afterEntrySaved() called escapeHtml, which never
+// existed, so the "send it to your own WhatsApp" prompt after a first save
+// threw inside its try and silently never showed.
+function escapeHtml(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
 // Venezuela keeps two currencies: dollars are the reference, bolívares the
 // day-to-day cash. An entry carries cur 'USD' | 'VES' (voice sets it from the
 // words spoken; typed entries are dollars). Ghana entries have no cur.
@@ -597,7 +607,9 @@ function showOpenInChrome(reason) {
     box = document.createElement('div');
     box.id = 'iabBanner';
     box.className = 'iab-banner';
-    const btn = document.getElementById('homeMicBtn');
+    // In the Book the mic sits inside the button row, so the notice goes
+    // under the row instead of into it.
+    const btn = document.getElementById(BOOK_ON ? 'homeMicStatus' : 'homeMicBtn');
     if (btn && btn.parentNode) btn.parentNode.insertBefore(box, btn); else return;
   }
   const lead = reason === 'failed'
@@ -621,6 +633,8 @@ function showOpenInChrome(reason) {
   }
 }
 function showTypedChoices() {
+  // In the Book the tap buttons are already on screen: point at them.
+  if (BOOK_ON) { bookNudgeTiles(); return; }
   try {
     const box = document.getElementById('typeChoices'); const tt = document.getElementById('typeToggle');
     if (box) box.hidden = false; if (tt) tt.hidden = true;
@@ -2310,6 +2324,7 @@ function greeting() {
 
 async function render() {
   const entries = await getAllEntries();
+  if (BOOK_ON) { try { bookRender(entries); } catch (e) { track('book_error', { where: 'render', reason: (e && e.name) || 'unknown' }); } }
   const today = todayKey(Date.now());
   const todayAll = entries.filter(e => e.day === today);
   // Venezuela: dollars are the day's totals; bolívar entries get their own line.
@@ -2340,13 +2355,14 @@ async function render() {
   // thing on the screen, so the eye lands on the only thing to do.
   document.getElementById('shopPageBtn').hidden = firstUse;
   document.getElementById('planPill').hidden = firstUse;
-  document.getElementById('homeMicBtn').classList.toggle('first-use', firstUse);
+  // In the Book the four buttons are equals, so the mic does not breathe.
+  document.getElementById('homeMicBtn').classList.toggle('first-use', firstUse && !BOOK_ON);
   // 18 Sep red team: a brand name is not an instruction. First-timers get
   // "Press and talk"; the two buttons that can do nothing yet are hidden;
   // the language promise moves under the mic where the decision is made.
   const micLbl = document.querySelector('#homeMicBtn .home-mic-label');
   if (micLbl && !document.getElementById('homeMicBtn').classList.contains('recording')) {
-    const want = firstUse ? t('Press and talk', 'Toca y habla') : t('Tell CountMy', 'Cu\u00e9ntale a CountMy');
+    const want = BOOK_ON ? t('Talk', 'Habla') : firstUse ? t('Press and talk', 'Toca y habla') : t('Tell CountMy', 'Cu\u00e9ntale a CountMy');
     micLbl.textContent = want; micLbl.dataset.idle = want;
   }
   const secondRow = document.querySelector('.second-row'); if (secondRow) secondRow.hidden = firstUse;
@@ -2542,7 +2558,7 @@ async function render() {
       </div>` : '';
     const settledTag = cfg.isDebt && isSettled ? `<span class="debt-settled-tag">\u2713 ${t('Paid in full', 'Pag\u00f3 todo')}</span>` : '';
     return `<div class="hist-item${cfg.isDebt ? ' is-debt' : ''}" data-edit-id="${e.id}">
-      <div class="desc" data-clarity-mask="True">${cfg.desc(e)}${settledTag}<small>${when}</small>${agingLine}${remind}${paymentRow}</div>
+      <div class="desc" data-clarity-mask="True">${escapeHtml(cfg.desc(e))}${settledTag}<small>${when}</small>${agingLine}${remind}${paymentRow}</div>
       <div class="amt ${cls}" data-clarity-mask="True">${sign}${fmt(displayAmount, e.cur)}</div>
     </div>`;
   }).join('') + (hiddenCount > 0 ? `<button type="button" class="show-all-btn" id="showAllBtn">${t(`Show all ${entries.length} records`, `Ver todo (${entries.length})`)}</button>` : '');
@@ -3356,6 +3372,10 @@ document.querySelectorAll('.ts-tile').forEach(tile => tile.addEventListener('cli
 // detectLang() (URL param, saved choice, or browser locale) only, never a
 // tap in the UI, in either direction.
 document.getElementById('homeMicBtn').addEventListener('click', () => {
+  // Book inside Facebook's Android browser: Talk is handled by the in-app
+  // block below. Checked here too because WebViews older than 89 run this
+  // listener before that block's capture listener can stop it.
+  if (BK_IAB_TALK) return;
   track('open_sheet', { type: 'home_mic' });
   ping('tap'); // funnel step between 'opened' and 'recorded' (16 Sep)
   toggleMic(document.getElementById('homeMicBtn'), 'homeMicStatus');
@@ -3366,7 +3386,7 @@ if (ES) {
   const S = {
     'A free notebook for your business.': 'Un cuaderno gratis para tu negocio.',
     '→ CountMy writes:': '→ CountMy anota:',
-    'You talk. It writes down what you sell, what you spend, and who owes you.': 'T\u00fa hablas. CountMy anota lo que vendes, lo que gastas y qui\u00e9n te debe.',
+    'Tap or talk. It writes down what you sell, what you spend, and who owes you.': 'Toca o habla. CountMy anota lo que vendes, lo que gastas y qui\u00e9n te debe.',
     'What happened in your business today?': '\u00bfQu\u00e9 pas\u00f3 hoy en tu negocio?',
     'Tell CountMy': 'Cu\u00e9ntale a CountMy',
     'Say it in English, Twi or Pidgin. You can also ask: \u201cwho owes me?\u201d': 'Dilo en espa\u00f1ol. Tambi\u00e9n puedes preguntar: \u201c\u00bfqui\u00e9n me debe?\u201d',
@@ -3458,6 +3478,490 @@ if (ES) {
     const strip = document.getElementById('todayStrip'); if (strip) strip.setAttribute('aria-label', 'Hoy');
   } catch (e) { /* never block the app */ }
 }
+// ---------------------------------------------------------------------------
+// The Book (v169, 24 Sep 2026). The home screen is an exercise-book page:
+// today's lines, what came in, what went out, what is left, and four equal
+// buttons - Sold, Spent, Owes me (tap + keypad) and Talk (the mic).
+// Why, from the evidence gathered and fact-checked 24 Sep:
+//  - the design that got 100% of low-literacy users through their tasks
+//    was pictures + numbers WITH voice on every screen, not text and not
+//    voice alone (Medhi et al., ToCHI 2011: text 0/20, voice 13/18);
+//  - speech fails where most visitors arrive (Facebook's Android browser
+//    gives web pages no mic) and on everyday Twi (~30% words wrong at best,
+//    arXiv 2507.02407); the owner's mum lost 2 voice tries, typed 7 clean;
+//  - numbers on a keypad work for these users, a ledger layout is what
+//    they understand (Parikh 2003); no Twi voice notebook exists in Ghana,
+//    so voice stays as the equal fourth button, not a hidden extra.
+// Every line is a normal entry in the same IndexedDB store, synced by the
+// same addEntry/updateEntry/deleteEntry, editable in the same edit sheet.
+// Paying a debt adds to debt.payments exactly like "Paid small small".
+// ---------------------------------------------------------------------------
+const BK_CED = '\u20b5', BK_MINUS = '\u2212', BK_DAY = 86400000;
+const BK_LOCALE = ES ? (CO ? 'es-CO' : 'es-VE') : 'en-GB';
+const BK_LABEL = { in: t('Sold', 'Vend\u00ed'), out: t('Spent', 'Gast\u00e9'), owe: t('Owes me', tc('Fiao', 'Fiado')) };
+// Stored as the item when she writes no words, so the edit sheet (which
+// needs an item) still works; never shown on the page itself.
+const BK_PLAIN_ITEM = { in: t('Sale', 'Venta'), out: t('Spent', 'Gasto') };
+const BK_CATS = [
+  ['\ud83d\udce6', t('Stock', 'Mercanc\u00eda'), 'stock'],
+  ['\ud83d\ude8c', t('Transport', 'Transporte'), 'running'],
+  ['\ud83c\udf72', t('Food', 'Comida'), 'running'],
+  ['\ud83d\udcf1', t('Airtime', tc('Saldo', 'Recargas')), 'running'],
+  ['\ud83c\udfe0', t('Took home', 'Para la casa'), 'home']
+];
+// Recorded prompts per button (Twi first) go here once they are recorded by
+// someone who speaks it - never machine-made Twi. Until then the button's
+// question is spoken by say() in English or Spanish.
+const BOOK_CLIPS = {};
+const BK_ICON = {
+  in: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',
+  out: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round"><path d="M5 12h14"/></svg>',
+  owe: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"><circle cx="12" cy="8" r="3.6"/><path d="M5 20a7 7 0 0 1 14 0"/></svg>',
+  iowe: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="8" r="3.6"/><path d="M3 20a7 7 0 0 1 14 0"/><path d="M16 10h6"/></svg>'
+};
+BK_ICON.pay = BK_ICON.in;
+let bkToday = todayKey(Date.now()), bkViewDay = bkToday;
+let bkEntries = [];
+let bkKind = 'in', bkTyped = '', bkDebt = null, bkPrefilled = false, bkBusy = false, bkCur, bkRow = null, bkUndo = null, bkNewId = null;
+function bk$(id) { return document.getElementById(id); }
+function bookResetDay() { bkToday = todayKey(Date.now()); bkViewDay = bkToday; }
+function bkShiftDay(key, n) { const p = key.split('-'); return todayKey(new Date(+p[0], +p[1] - 1, +p[2], 12).getTime() + n * BK_DAY); }
+function bkDateOf(key) { const p = key.split('-'); return new Date(+p[0], +p[1] - 1, +p[2]); }
+function bkDayLabel(key) {
+  if (key === bkToday) return t('Today', 'Hoy');
+  if (key === bkShiftDay(bkToday, -1)) return t('Yesterday', 'Ayer');
+  return bkDateOf(key).toLocaleDateString(BK_LOCALE, { weekday: 'short', day: 'numeric', month: 'short' });
+}
+// Venezuela's bolivar lines are shown but kept out of the dollar totals.
+function bkHome(e) { return !ES || e.cur !== 'VES'; }
+function bkMoney(n, cur) {
+  if (ES) return fmt(n, cur);
+  const v = Math.round((Number(n) || 0) * 100) / 100;
+  return BK_CED + v.toLocaleString('en-GH', { maximumFractionDigits: 2 });
+}
+function bkLeftOn(e) { return Math.max(0, Math.round(((Number(e.amount) || 0) - (Number(e.paid) || 0)) * 100) / 100); }
+// The handwriting face has no cedi sign, so the symbol is set in Manrope.
+function bkAmtEl(n, cur) {
+  const s = bkMoney(n, cur), m = s.match(/^([^0-9]*)(.*)$/);
+  const amt = document.createElement('span'); amt.className = 'bk-amt';
+  const cs = document.createElement('span'); cs.className = 'bk-cs'; cs.textContent = m ? m[1].trim() : '';
+  amt.appendChild(cs); amt.appendChild(document.createTextNode(m ? m[2] : s));
+  return amt;
+}
+
+function bookRender(entries) {
+  bkEntries = entries;
+  const now = todayKey(Date.now());
+  if (now !== bkToday) { if (bkViewDay === bkToday) bkViewDay = now; bkToday = now; }
+  if (bkViewDay > bkToday) bkViewDay = bkToday;
+  const rows = [];
+  entries.forEach(e => {
+    if (e.day === bkViewDay && FIELD_CONFIG[e.type] && e.type !== 'payment') rows.push({ e, ts: e.ts });
+    // A payment is money in on the day it was paid, whichever day the debt
+    // was written - the same rule as the Money in tile.
+    if (e.type === 'debt_in' && Array.isArray(e.payments)) {
+      e.payments.forEach((p, i) => { if (p && Number(p.amount) > 0 && todayKey(p.ts) === bkViewDay) rows.push({ e, pay: p, i, ts: p.ts }); });
+    }
+  });
+  rows.sort((a, b) => a.ts - b.ts);
+  let inSum = 0, outSum = 0, bsIn = 0, bsOut = 0;
+  rows.forEach(r => {
+    const home = bkHome(r.e);
+    const n = r.pay ? (Number(r.pay.amount) || 0) : (Number(r.e.amount) || 0);
+    if (r.pay || r.e.type === 'sale') { if (home) inSum += n; else bsIn += n; }
+    else if (r.e.type === 'expense') { if (home) outSum += n; else bsOut += n; }
+  });
+  const owed = entries.filter(e => e.type === 'debt_in' && bkHome(e)).reduce((s, e) => s + bkLeftOn(e), 0);
+  bk$('bkIn').textContent = bkMoney(inSum);
+  bk$('bkOut').textContent = bkMoney(outSum);
+  const leftNow = Math.round((inSum - outSum) * 100) / 100;
+  bk$('bkLeft').textContent = (leftNow < 0 ? BK_MINUS : '') + bkMoney(Math.abs(leftNow));
+  bk$('bkOwe').textContent = bkMoney(owed);
+  const bs = bk$('bkBs');
+  bs.hidden = !(bsIn || bsOut);
+  if (!bs.hidden) bs.textContent = 'Bs: ' + [bsIn ? '+' + fmt(bsIn, 'VES').replace('Bs. ', '') : '', bsOut ? BK_MINUS + fmt(bsOut, 'VES').replace('Bs. ', '') : ''].filter(Boolean).join('  ');
+  bk$('bkDate').textContent = bkDayLabel(bkViewDay);
+  bk$('bkNext').disabled = bkViewDay === bkToday;
+  const ol = bk$('bkLines');
+  ol.textContent = '';
+  rows.forEach(r => ol.appendChild(bkLineEl(r)));
+  // The old typed buttons (I owe a supplier, photo of a receipt) stay one
+  // small link away, once there is a book to add to.
+  const more = document.getElementById('typeToggle');
+  if (more && !more.dataset.bk) { more.dataset.bk = '1'; more.textContent = t('More: I owe a supplier', 'M\u00e1s: le debo al proveedor'); }
+  if (more && document.getElementById('typeChoices').hidden) more.hidden = !entries.length;
+  // An empty first page shows one faint example line: what a line looks like.
+  if (!entries.length && bkViewDay === bkToday) {
+    const ex = !ES ? { amount: 60, item: '3 waakye' } : CO ? { amount: 50000, item: '5 camisas' } : { amount: 6, item: '3 refrescos' };
+    ol.appendChild(bkLineEl({ e: { id: 'ghost', type: 'sale', amount: ex.amount, item: ex.item }, ghost: true }));
+  }
+  if (bkNewId) {
+    const fresh = ol.querySelector('[data-bk="' + bkNewId + '"]');
+    if (fresh) { fresh.classList.add('new'); ol.scrollTop = ol.scrollHeight; }
+    bkNewId = null;
+  }
+}
+
+function bkLineEl(r) {
+  const e = r.e;
+  const li = document.createElement('li');
+  const row = document.createElement('div');
+  let kind = 'in', text = '', settled = false, owing = 0;
+  if (r.pay) { text = t(`${e.item} paid`, `${e.item} pag\u00f3`); }
+  else if (e.type === 'sale') { const q = Number(e.qty) || 0; text = e.item === BK_PLAIN_ITEM.in ? '' : (q > 1 ? `${q} ${e.item}` : String(e.item || '')); }
+  else if (e.type === 'expense') { kind = 'out'; text = e.item === BK_PLAIN_ITEM.out ? '' : String(e.item || ''); }
+  else if (e.type === 'debt_in') { kind = 'owe'; text = String(e.item || ''); owing = bkLeftOn(e); settled = owing <= 0; }
+  else if (e.type === 'debt_out') { kind = 'iowe'; text = t(`I owe ${e.item}`, `Le debo a ${e.item}`); settled = bkLeftOn(e) <= 0; }
+  row.className = 'bk-ln ' + kind + (settled ? ' settled' : '') + (r.ghost ? ' ghost' : '');
+  row.dataset.bk = r.pay ? e.id + ':' + r.i : e.id;
+  const mk = document.createElement('span'); mk.className = 'bk-mk';
+  if (kind === 'owe' || kind === 'iowe') mk.innerHTML = BK_ICON[kind];
+  else mk.textContent = kind === 'in' ? '+' : BK_MINUS;
+  row.appendChild(mk);
+  row.appendChild(bkAmtEl(r.pay ? r.pay.amount : e.amount, e.cur));
+  const txt = document.createElement('span'); txt.className = 'bk-txt'; txt.textContent = text;
+  row.appendChild(txt);
+  if (r.ghost) {
+    const tag = document.createElement('span'); tag.className = 'bk-tag'; tag.textContent = t('example', 'ejemplo');
+    row.appendChild(tag);
+  } else if (kind === 'owe') {
+    if (settled) { const tag = document.createElement('span'); tag.className = 'bk-tag'; tag.textContent = t('paid', 'pag\u00f3'); row.appendChild(tag); }
+    else {
+      if (owing < (Number(e.amount) || 0)) { const lf = document.createElement('span'); lf.className = 'bk-left'; lf.textContent = t(`${bkMoney(owing, e.cur)} left`, `falta ${bkMoney(owing, e.cur)}`); row.appendChild(lf); }
+      const pb = document.createElement('button'); pb.type = 'button'; pb.className = 'bk-pay'; pb.textContent = t('Paid', 'Pag\u00f3');
+      pb.addEventListener('click', ev => { ev.stopPropagation(); bkOpen('pay', e); });
+      row.appendChild(pb);
+    }
+  }
+  if (!r.ghost) {
+    row.setAttribute('role', 'button'); row.tabIndex = 0;
+    row.addEventListener('click', () => bkOpenLine(r));
+    row.addEventListener('keydown', ev => { if (ev.key === 'Enter') bkOpenLine(r); });
+  }
+  li.appendChild(row);
+  return li;
+}
+
+// ---- the keypad sheet: Sold / Spent / Owes me / somebody paid -------------
+function bkAmount() { const n = parseFloat(bkTyped); return isFinite(n) ? n : 0; }
+function bkReady() { return bkAmount() > 0 && (bkKind !== 'owe' || bk$('bkWho').value.trim().length > 0); }
+function bkGroup(s) {
+  const dot = s.indexOf('.'), whole = dot === -1 ? s : s.slice(0, dot), rest = dot === -1 ? '' : s.slice(dot);
+  return whole.replace(/\B(?=(\d{3})+(?!\d))/g, ES ? '.' : ',') + (ES ? rest.replace('.', ',') : rest);
+}
+function bkRefresh() {
+  bk$('bkAmt').textContent = bkTyped ? bkGroup(bkTyped) : '0';
+  bk$('bkCurSym').textContent = !ES ? BK_CED : (bkCur === 'VES' ? 'Bs' : '$');
+  bk$('bkWrite').classList.toggle('dim', !bkReady());
+}
+function bkPress(v) {
+  // A pre-filled "what is left" is replaced by the first key, like a
+  // calculator, so a part payment is just typing the part.
+  if (bkPrefilled) { bkPrefilled = false; bkTyped = ''; if (v === 'del') { bkTick(8); bkRefresh(); return; } }
+  const maxWhole = CO ? 9 : 7;
+  if (v === 'del') bkTyped = bkTyped.slice(0, -1);
+  else if (v === '.') { if (bkTyped.indexOf('.') === -1) bkTyped = (bkTyped || '0') + '.'; }
+  else if (v === '000') { const w = bkTyped.replace(/^0+/, ''); if (w && w.indexOf('.') === -1 && w.length + 3 <= maxWhole) bkTyped = w + '000'; }
+  else {
+    const dot = bkTyped.indexOf('.');
+    if (dot !== -1 && bkTyped.length - dot > 2) return;
+    if (dot === -1 && bkTyped.replace(/^0+/, '').length >= maxWhole) return;
+    bkTyped = (bkTyped === '0' ? '' : bkTyped) + v;
+  }
+  bkTick(8); bkRefresh();
+}
+function bkShake(el) { el.classList.remove('bk-shake'); void el.offsetWidth; el.classList.add('bk-shake'); bkTick(40); }
+function bkSavedCur() { try { return localStorage.getItem('kym_bk_cur') === 'VES' ? 'VES' : 'USD'; } catch (e) { return 'USD'; } }
+let bkTargetDay = null;
+function bkOpen(kind, debt) {
+  bookHideToast(); bkCloseSheets();
+  bkTargetDay = bkViewDay;
+  bkKind = kind; bkDebt = debt || null; bkTyped = ''; bkPrefilled = false;
+  bkCur = !ES ? undefined : debt ? (debt.cur || HOME_CUR) : (CO ? 'COP' : bkSavedCur());
+  if (kind === 'pay') { bkTyped = String(bkLeftOn(debt)); bkPrefilled = true; }
+  const sh = bk$('bkEntry');
+  sh.className = 'bk-sheet bk-k-' + kind;
+  bk$('bkIco').innerHTML = BK_ICON[kind];
+  bk$('bkTitle').textContent = kind === 'pay' ? t(`${debt.item} paid`, `${debt.item} pag\u00f3`) : BK_LABEL[kind];
+  bk$('bkShDay').textContent = (kind === 'pay' || bkViewDay === bkToday) ? '' : bkDayLabel(bkViewDay);
+  bk$('bkWhoBox').hidden = kind !== 'owe'; bk$('bkWho').value = '';
+  bk$('bkNote').value = ''; bk$('bkNote').hidden = true;
+  bk$('bkExtras').hidden = kind === 'pay'; bk$('bkWordsBtn').hidden = false;
+  // Venezuela: dollars or bolivars, remembered; a debt keeps its own currency.
+  const curs = bk$('bkCurs'); curs.textContent = '';
+  curs.hidden = !(ES && !CO && kind !== 'pay');
+  if (!curs.hidden) [['USD', '$'], ['VES', 'Bs']].forEach(([c, lbl]) => {
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'bk-chip' + (bkCur === c ? ' on' : ''); b.textContent = lbl;
+    b.addEventListener('click', () => { bkCur = c; try { localStorage.setItem('kym_bk_cur', c); } catch (e) { /* optional */ } curs.querySelectorAll('.bk-chip').forEach(x => x.classList.toggle('on', x === b)); bkRefresh(); });
+    curs.appendChild(b);
+  });
+  const cats = bk$('bkCats'); cats.textContent = '';
+  if (kind === 'out') BK_CATS.forEach(c => {
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'bk-chip'; b.textContent = c[0] + ' ' + c[1];
+    b.dataset.item = c[1]; b.dataset.kind = c[2];
+    b.addEventListener('click', () => { const on = !b.classList.contains('on'); cats.querySelectorAll('.bk-chip').forEach(x => x.classList.remove('on')); if (on) b.classList.add('on'); });
+    cats.appendChild(b);
+  });
+  // Names she already wrote, newest first, one tap each.
+  const names = {};
+  bkEntries.forEach(e => { if (e.type === 'debt_in' && e.item && !names[nameKey(e.item)]) names[nameKey(e.item)] = { n: e.item, ts: e.ts }; });
+  const wc = bk$('bkWhoChips'); wc.textContent = '';
+  Object.values(names).sort((a, b) => b.ts - a.ts).slice(0, 6).forEach(x => {
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'bk-chip'; b.textContent = x.n;
+    b.addEventListener('click', () => { bk$('bkWho').value = x.n; bk$('bkWho').blur(); bkRefresh(); });
+    wc.appendChild(b);
+  });
+  bk$('bkScrim').hidden = false; sh.hidden = false; sh.scrollTop = 0;
+  bkRefresh();
+  ping('tap');
+  track('book_open', { kind });
+  bkPrompt(kind);
+}
+// The question, out loud, the first three times each button is used - the
+// voice-on-every-screen half of the evidence. Then it stays quiet.
+function bkPrompt(kind) {
+  try {
+    const k = 'kym_bk_said_' + kind, n = parseInt(localStorage.getItem(k), 10) || 0;
+    if (n >= 3) return;
+    localStorage.setItem(k, String(n + 1));
+    const q = {
+      in: t('How much did you sell?', '\u00bfCu\u00e1nto vendiste?'),
+      out: t('How much did you spend?', '\u00bfCu\u00e1nto gastaste?'),
+      owe: t('Who owes you? How much?', tc('\u00bfQui\u00e9n te qued\u00f3 debiendo? \u00bfCu\u00e1nto?', '\u00bfA qui\u00e9n le fiaste? \u00bfCu\u00e1nto?')),
+      pay: t('How much did they pay?', '\u00bfCu\u00e1nto pag\u00f3?')
+    }[kind];
+    if (BOOK_CLIPS[kind]) { new Audio(BOOK_CLIPS[kind]).play().catch(() => speakShort(q)); return; }
+    speakShort(q);
+  } catch (e) { /* speech is a bonus */ }
+}
+function bkCloseSheets() {
+  ['bkEntry', 'bkLineSheet', 'bkDebtSheet'].forEach(id => { bk$(id).hidden = true; });
+  bk$('bkScrim').hidden = true;
+  if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+}
+async function bkWrite() {
+  if (bkBusy) return;
+  if (!(bkAmount() > 0)) { bkShake(bk$('bkDisp')); return; }
+  const who = bk$('bkWho').value.trim();
+  if (bkKind === 'owe' && !who) { bkShake(bk$('bkWhoBox')); bk$('bkWho').focus(); return; }
+  bkBusy = true;
+  const n = Math.round(bkAmount() * 100) / 100, ts = Date.now(), nowDay = todayKey(ts);
+  let record = null, undo = null, msg = t('Written', 'Anotado');
+  try {
+    if (bkKind === 'pay') {
+      // Always the fresh row: a second phone tab or a voice payment may have
+      // changed it since the page was drawn.
+      const debt = (await getAllEntries()).find(x => x.id === bkDebt.id);
+      if (!debt) throw new Error('gone');
+      const open = bkLeftOn(debt), pay = Math.min(n, open), extra = Math.round((n - pay) * 100) / 100;
+      const before = { paid: Number(debt.paid) || 0, payments: Array.isArray(debt.payments) ? debt.payments.slice() : [] };
+      if (pay > 0) await updateEntry(debt.id, { paid: before.paid + pay, payments: before.payments.concat([{ amount: pay, ts, source: 'book' }]) });
+      let extraRec = null;
+      if (extra > 0) {
+        // Paid more than was owed: the extra is money in, like the voice path.
+        extraRec = { id: newId(), type: 'sale', item: t(`extra from ${debt.item}`, `extra de ${debt.item}`), note: '', qty: 1, price: extra, kind: '', method: 'cash', paid: 0, amount: extra, source: 'book', day: nowDay, ts };
+        if (debt.cur) extraRec.cur = debt.cur;
+        // If the extra cannot be saved, put the debt back, so a second tap
+        // on Write it starts clean instead of counting the money twice.
+        try { await addEntry(extraRec); }
+        catch (err) { if (pay > 0) { try { await updateEntry(debt.id, before); } catch (e2) { /* nothing more to do */ } } throw err; }
+      }
+      bkViewDay = nowDay;
+      bkNewId = debt.id + ':' + before.payments.length;
+      msg = t(`${debt.item} paid ${bkMoney(n, debt.cur)}`, `${debt.item} pag\u00f3 ${bkMoney(n, debt.cur)}`);
+      undo = async () => { await updateEntry(debt.id, before); if (extraRec) await deleteEntry(extraRec.id); };
+      track('debt_paid', { full: pay >= open, voice: false, via: 'book' });
+      ping('save');
+    } else {
+      const day = bkTargetDay || bkViewDay;
+      bkViewDay = day;
+      const note = bk$('bkNote').value.trim().slice(0, 40);
+      const cat = bkKind === 'out' ? bk$('bkCats').querySelector('.bk-chip.on') : null;
+      const item = bkKind === 'owe' ? who.slice(0, 30) : (note || (cat ? cat.dataset.item : '') || BK_PLAIN_ITEM[bkKind]);
+      record = { id: newId(), type: { in: 'sale', out: 'expense', owe: 'debt_in' }[bkKind], item, note: bkKind === 'owe' ? note : '', qty: bkKind === 'in' ? 1 : '', price: n, kind: cat ? cat.dataset.kind : '', method: bkKind === 'in' ? 'cash' : '', paid: 0, amount: n, source: 'book', day, ts };
+      if (ES) record.cur = bkCur || HOME_CUR;
+      await addEntry(record);
+      const id = record.id;
+      bkNewId = id;
+      undo = async () => { await deleteEntry(id); };
+      track('save_entry', { type: record.type, input_method: 'book' });
+      ping('save');
+    }
+  } catch (err) {
+    bkBusy = false;
+    track('save_error', { where: 'book', reason: (err && err.name) || 'unknown' });
+    bookToast(t('The phone could not save that. Tap Write it again.', 'El tel\u00e9fono no pudo guardarlo. Toca Anotar otra vez.'));
+    return;
+  }
+  bkBusy = false;
+  bkCloseSheets();
+  try { await render(); } catch (e) { /* saved; the next render catches up */ }
+  bkChime(); bkTick(25);
+  if (!hasSpokenSaved()) speakShort(t('Saved.', 'Guardado.'));
+  bookToast(msg, undo ? async () => { try { await undo(); } catch (e) { /* nothing more to undo */ } await render(); } : null);
+  if (record) await afterEntrySaved(record);
+}
+// "Saved." out loud for the first three lines, then the chime is enough.
+function hasSpokenSaved() {
+  try { const n = parseInt(localStorage.getItem('kym_bk_said_saved'), 10) || 0; if (n >= 3) return true; localStorage.setItem('kym_bk_said_saved', String(n + 1)); return false; } catch (e) { return true; }
+}
+
+// ---- a line: paid / change / cross out, the way a real book does it --------
+function bkOpenLine(r) {
+  bookHideToast(); bkCloseSheets(); bkRow = r;
+  const e = r.e;
+  bk$('bkLineTitle').textContent = r.pay ? t(`${e.item} paid ${bkMoney(r.pay.amount, e.cur)}`, `${e.item} pag\u00f3 ${bkMoney(r.pay.amount, e.cur)}`)
+    : ((e.type === 'debt_in' || e.type === 'debt_out') ? e.item + ' ' : '') + bkMoney(e.amount, e.cur);
+  bk$('bkLinePaid').hidden = !(!r.pay && e.type === 'debt_in' && bkLeftOn(e) > 0);
+  bk$('bkLineEdit').hidden = !!r.pay;
+  // Crossing out a debt would take its payments (money in on other days)
+  // with it. Once anything was paid on it, only Change is offered.
+  bk$('bkLineCross').hidden = !r.pay && e.type === 'debt_in' && Array.isArray(e.payments) && e.payments.length > 0;
+  bk$('bkScrim').hidden = false; bk$('bkLineSheet').hidden = false;
+}
+async function bkCrossOut() {
+  const r = bkRow; if (!r) return;
+  bkCloseSheets();
+  try {
+    if (r.pay) {
+      // Crossing out a payment puts the debt back up by that amount.
+      const debt = (await getAllEntries()).find(x => x.id === r.e.id);
+      if (!debt) return;
+      const before = { paid: Number(debt.paid) || 0, payments: Array.isArray(debt.payments) ? debt.payments.slice() : [] };
+      const idx = before.payments.findIndex(p => p && p.ts === r.pay.ts && Number(p.amount) === Number(r.pay.amount));
+      if (idx === -1) return;
+      const payments = before.payments.slice(); payments.splice(idx, 1);
+      await updateEntry(debt.id, { paid: Math.max(0, before.paid - (Number(r.pay.amount) || 0)), payments });
+      track('book_cross', { what: 'payment' });
+      await render();
+      bookToast(t('Crossed out', 'Tachado'), async () => { await updateEntry(debt.id, before); await render(); });
+    } else {
+      const snap = Object.assign({}, r.e);
+      await deleteEntry(snap.id);
+      track('delete_entry', { type: snap.type, via: 'book' });
+      await render();
+      // Undo writes the very same line back (same id, so the server copy
+      // simply comes back too).
+      bookToast(t('Crossed out', 'Tachado'), async () => { await addEntry(snap); await render(); });
+    }
+  } catch (e) { bookToast(t('Could not change that. Try again.', 'No se pudo cambiar. Intenta otra vez.')); }
+}
+
+// ---- who owes me, every day -------------------------------------------------
+function bkOpenDebts() {
+  bookHideToast(); bkCloseSheets();
+  const list = bk$('bkDebtList'); list.textContent = '';
+  const debts = bkEntries.filter(e => e.type === 'debt_in' && bkLeftOn(e) > 0).sort((a, b) => a.ts - b.ts);
+  if (!debts.length) { const p = document.createElement('p'); p.className = 'bk-empty'; p.textContent = t('Nobody owes you.', 'Nadie te debe.'); list.appendChild(p); }
+  debts.forEach(e => {
+    const row = document.createElement('div'); row.className = 'bk-debt';
+    const nm = document.createElement('span'); nm.className = 'bk-nm'; nm.textContent = e.item;
+    const am = document.createElement('span'); am.className = 'bk-am'; am.textContent = bkMoney(bkLeftOn(e), e.cur);
+    const b = document.createElement('button'); b.type = 'button'; b.textContent = t('Paid', 'Pag\u00f3');
+    b.addEventListener('click', () => bkOpen('pay', e));
+    row.appendChild(nm); row.appendChild(am); row.appendChild(b); list.appendChild(row);
+  });
+  bk$('bkScrim').hidden = false; bk$('bkDebtSheet').hidden = false;
+  track('book_debts', { n: debts.length });
+}
+
+// ---- toast with undo, a chime and a buzz so a non-reader knows it worked ---
+let bkToastTimer = null;
+function bookToast(msg, undoFn) {
+  if (!BOOK_ON) return;
+  bk$('bkToastMsg').textContent = msg;
+  bk$('bkToastUndo').hidden = !undoFn;
+  bkUndo = undoFn || null;
+  bk$('bkToast').hidden = false;
+  clearTimeout(bkToastTimer); bkToastTimer = setTimeout(bookHideToast, 8000);
+}
+function bookHideToast() { if (!BOOK_ON) return; bk$('bkToast').hidden = true; bkUndo = null; }
+let bkActx = null;
+function bkChime() {
+  try {
+    bkActx = bkActx || new (window.AudioContext || window.webkitAudioContext)();
+    if (bkActx.state === 'suspended') bkActx.resume();
+    [660, 990].forEach((f, i) => {
+      const o = bkActx.createOscillator(), g = bkActx.createGain(), at = bkActx.currentTime + i * 0.09;
+      o.type = 'sine'; o.frequency.value = f; g.gain.setValueAtTime(0.0001, at); g.gain.exponentialRampToValueAtTime(0.12, at + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, at + 0.18);
+      o.connect(g); g.connect(bkActx.destination); o.start(at); o.stop(at + 0.2);
+    });
+  } catch (e) { /* sound is a bonus */ }
+}
+function bkTick(ms) { try { if (navigator.vibrate) navigator.vibrate(ms); } catch (e) { /* optional */ } }
+// When voice fails, or Talk cannot work here: point at the tap buttons.
+function bookNudgeTiles() {
+  if (!BOOK_ON) return;
+  const bar = bk$('bkBar'); if (!bar) return;
+  bar.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  ['bkSold', 'bkSpent', 'bkOwes'].forEach(id => { const b = bk$(id); b.classList.remove('bk-nudge'); void b.offsetWidth; b.classList.add('bk-nudge'); });
+}
+
+(function bookSetup() {
+  if (!BOOK_ON) return;
+  try {
+    document.body.classList.add('book-on');
+    bk$('book').hidden = false;
+    // Talk is the fourth equal button: the real mic, with every listener it
+    // already has, moved into the row.
+    const mic = document.getElementById('homeMicBtn');
+    if (mic) { bk$('bkBar').appendChild(mic); mic.classList.remove('first-use'); }
+    bk$('bkSoldLbl').textContent = BK_LABEL.in;
+    bk$('bkSpentLbl').textContent = BK_LABEL.out;
+    bk$('bkOwesLbl').textContent = BK_LABEL.owe;
+    bk$('bkWriteLbl').textContent = t('Write it', 'Anotar');
+    bk$('bkWordsBtn').textContent = t('+ words', '+ palabras');
+    bk$('bkWho').placeholder = t('Who?', '\u00bfQui\u00e9n?');
+    bk$('bkNote').placeholder = t('What was it?', '\u00bfQu\u00e9 fue?');
+    bk$('bkLinePaid').textContent = t('Paid', 'Pag\u00f3');
+    bk$('bkLineEdit').textContent = t('Change', 'Cambiar');
+    bk$('bkLineCross').textContent = t('Cross it out', 'Tacharlo');
+    bk$('bkDebtTitle').textContent = t('Who owes me', tc('Qui\u00e9n me debe (fiao)', 'Qui\u00e9n me debe (fiado)'));
+    bk$('bkToastUndo').textContent = t('Undo', 'Deshacer');
+    bk$('bkClose').setAttribute('aria-label', t('Close', 'Cerrar'));
+    bk$('bkLineClose').setAttribute('aria-label', t('Close', 'Cerrar'));
+    bk$('bkDebtClose').setAttribute('aria-label', t('Close', 'Cerrar'));
+    bk$('bkWho').setAttribute('aria-label', t('Who owes you', 'Qui\u00e9n te debe'));
+    bk$('bkNote').setAttribute('aria-label', t('What was it', 'Qu\u00e9 fue'));
+    bk$('bkOweBtn').setAttribute('aria-label', t('Who owes me', 'Qui\u00e9n me debe'));
+    bk$('bkPrev').setAttribute('aria-label', t('Day before', 'D\u00eda anterior'));
+    bk$('bkNext').setAttribute('aria-label', t('Next day', 'D\u00eda siguiente'));
+    const keys = bk$('bkKeys');
+    // Colombia counts in thousands of pesos: a 000 key instead of a point.
+    ['1', '2', '3', '4', '5', '6', '7', '8', '9', CO ? '000' : '.', '0', 'del'].forEach(v => {
+      const b = document.createElement('button'); b.type = 'button'; b.className = 'bk-key';
+      if (v === '.' && ES) b.textContent = ',';
+      else if (v === 'del') b.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6h11v12H9l-6-6z"/><path d="M13 10l4 4M17 10l-4 4"/></svg>';
+      else b.textContent = v;
+      b.setAttribute('aria-label', v === 'del' ? t('Delete', 'Borrar') : (v === '.' && ES) ? ',' : v);
+      b.addEventListener('click', () => bkPress(v));
+      keys.appendChild(b);
+    });
+    bk$('bkSold').addEventListener('click', () => bkOpen('in'));
+    bk$('bkSpent').addEventListener('click', () => bkOpen('out'));
+    bk$('bkOwes').addEventListener('click', () => bkOpen('owe'));
+    bk$('bkWrite').addEventListener('click', bkWrite);
+    bk$('bkWho').addEventListener('input', bkRefresh);
+    bk$('bkWho').addEventListener('keydown', ev => { if (ev.key === 'Enter') { ev.preventDefault(); bk$('bkWho').blur(); } });
+    bk$('bkNote').addEventListener('keydown', ev => { if (ev.key === 'Enter') { ev.preventDefault(); bk$('bkNote').blur(); } });
+    bk$('bkWordsBtn').addEventListener('click', () => { bk$('bkNote').hidden = false; bk$('bkWordsBtn').hidden = true; bk$('bkNote').focus(); });
+    bk$('bkClose').addEventListener('click', bkCloseSheets);
+    bk$('bkLineClose').addEventListener('click', bkCloseSheets);
+    bk$('bkDebtClose').addEventListener('click', bkCloseSheets);
+    bk$('bkScrim').addEventListener('click', bkCloseSheets);
+    bk$('bkLinePaid').addEventListener('click', () => { if (bkRow) bkOpen('pay', bkRow.e); });
+    bk$('bkLineEdit').addEventListener('click', () => { const r = bkRow; bkCloseSheets(); if (r) openSheet(r.e.type, r.e); });
+    bk$('bkLineCross').addEventListener('click', bkCrossOut);
+    bk$('bkOweBtn').addEventListener('click', bkOpenDebts);
+    bk$('bkToastUndo').addEventListener('click', () => { const u = bkUndo; bookHideToast(); if (u) u(); });
+    bk$('bkPrev').addEventListener('click', () => { bookHideToast(); bkViewDay = bkShiftDay(bkViewDay, -1); bookRender(bkEntries); });
+    bk$('bkNext').addEventListener('click', () => { bookHideToast(); if (bkViewDay < bkToday) { bkViewDay = bkShiftDay(bkViewDay, 1); bookRender(bkEntries); } });
+    document.addEventListener('keydown', ev => { if (ev.key === 'Escape' && !bk$('bkScrim').hidden) bkCloseSheets(); });
+    if (window.clarity && !window.KYM_IS_OWNER_DEVICE) window.clarity('set', 'home', 'book');
+    if (window.gtag) window.gtag('set', 'user_properties', { home: 'book' });
+  } catch (e) { track('book_error', { where: 'setup', reason: (e && e.name) || 'unknown' }); }
+})();
+
 if (inAppBrowser()) {
   try {
     ping('iab'); track('iab_open');
@@ -3469,7 +3973,29 @@ if (inAppBrowser()) {
     top.className = 'iab-top'; top.id = 'iabTop';
     const android = isAndroid();
     const iosApp = window.KYM_IOS_APP || 'other';
-    if (android) {
+    let bookHere = false;
+    if (android && BOOK_ON) {
+      // The Book (24 Sep): Sold, Spent and Owes me need no microphone, so
+      // the page works right here in Facebook's browser - no card, no
+      // typing box, no wall. Only Talk and Ask need Chrome. Once she has
+      // lines in this browser's book, Talk does NOT jump to Chrome: Chrome
+      // keeps a separate, empty book (the red team's reason the automatic
+      // jump was pulled), so she is pointed at the tap buttons instead.
+      bookHere = true;
+      BK_IAB_TALK = true;
+      const toChrome = (ev) => {
+        ev.preventDefault(); ev.stopImmediatePropagation();
+        if (hasAnyRecord) {
+          bookToast(t('Talking needs Chrome. Here, tap Sold, Spent or Owes me.', tc('Para hablar hace falta Chrome. Aqu\u00ed, toca Vend\u00ed, Gast\u00e9 o Fiao.', 'Para hablar hace falta Chrome. Aqu\u00ed, toca Vend\u00ed, Gast\u00e9 o Fiado.')));
+          bookNudgeTiles();
+          track('iab_talk_blocked');
+          return;
+        }
+        ping('iab_tap'); track('iab_tap', { via: 'book_talk' });
+        location.href = window.KYM_CHROME_URL || chromeIntentUrl();
+      };
+      ['homeMicBtn', 'askBtn'].forEach(id => { const el = document.getElementById(id); if (el) el.addEventListener('click', toChrome, true); });
+    } else if (android) {
       // No automatic jump to Chrome here, on purpose - tried on 18 Sep and a
       // real Facebook visitor got a blank page for nine minutes (see the
       // note in index.html). Re-tried 24 Sep and pulled before shipping by
@@ -3498,7 +4024,7 @@ if (inAppBrowser()) {
     } else if (iosApp === 'instagram') {
       top.innerHTML = `<p>${t('Tap once to open CountMy in Safari \u2014 your voice works best there.', 'Toca una vez para abrir CountMy en Safari: ah\u00ed la voz funciona mejor.')}</p>`
         + `<a class="iab-open" id="iabTopBtn" href="${window.KYM_IG_URL || '#'}">${t('Open in Safari', 'Abrir en Safari')}</a>`
-        + `<p class="iab-sub">${t('If nothing opens: tap <b>\u22ef</b> at the top right, then <b>Open in external browser</b>. Or just tap the orange button below \u2014 voice works here too.', 'Si no se abre: toca <b>\u22ef</b> arriba a la derecha y luego <b>Abrir en el navegador</b>. O toca el bot\u00f3n naranja abajo: aqu\u00ed tambi\u00e9n funciona la voz.')}</p>`;
+        + `<p class="iab-sub">${t('If nothing opens: tap <b>\u22ef</b> at the top right, then <b>Open in external browser</b>. ' + (BOOK_ON ? 'Or just tap Talk above \u2014 voice works here too.' : 'Or just tap the orange button below \u2014 voice works here too.'), 'Si no se abre: toca <b>\u22ef</b> arriba a la derecha y luego <b>Abrir en el navegador</b>. ' + (BOOK_ON ? 'O toca Habla arriba: aqu\u00ed tambi\u00e9n funciona la voz.' : 'O toca el bot\u00f3n naranja abajo: aqu\u00ed tambi\u00e9n funciona la voz.'))}</p>`;
     } else {
       // Facebook / Messenger on iPhone: no way out but the menu; the mic
       // does work here, so the page stays fully usable and says so.
@@ -3507,8 +4033,14 @@ if (inAppBrowser()) {
     // Android's card carries its own identity line (the page's is hidden
     // under iab-first); elsewhere the page's own "what is it" line must
     // still be the first thing read, so the notice goes after it.
-    const first = (!android && document.getElementById('whatIs')) || document.querySelector('.pitch') || document.getElementById('homeGreeting');
-    if (first && first.parentNode) first.parentNode.insertBefore(top, first.nextSibling);
+    if (BOOK_ON) {
+      // In the Book the notice sits under the buttons, never above the page.
+      const st = document.getElementById('homeMicStatus');
+      if (!bookHere && st && st.parentNode) st.parentNode.insertBefore(top, st);
+    } else {
+      const first = (!android && document.getElementById('whatIs')) || document.querySelector('.pitch') || document.getElementById('homeGreeting');
+      if (first && first.parentNode) first.parentNode.insertBefore(top, first.nextSibling);
+    }
     const tb = document.getElementById('iabTopBtn'); if (tb) tb.addEventListener('click', () => { ping(android ? 'iab_tap' : 'iab_tap_ios'); track('iab_tap'); });
     // Typed record inside the in-app browser: the same server step the mic
     // uses (evidence-checked, auto-saved), minus the microphone.
@@ -3554,9 +4086,10 @@ if (!micSupported()) {
   document.getElementById('homeMicBtn').style.display = 'none';
   const orRow = document.querySelector('.or-row'); if (orRow) orRow.style.display = 'none';
   try {
-    setMicStatus(t('This browser cannot use the microphone. You can type it instead, just below.', 'Este navegador no puede usar el micrófono. Puedes escribirlo abajo.'), 'err', 'homeMicStatus');
+    if (BOOK_ON) setMicStatus(t('Tap Sold, Spent or Owes me to write it.', tc('Toca Vend\u00ed, Gast\u00e9 o Fiao para anotarlo.', 'Toca Vend\u00ed, Gast\u00e9 o Fiado para anotarlo.')), null, 'homeMicStatus');
+    else setMicStatus(t('This browser cannot use the microphone. You can type it instead, just below.', 'Este navegador no puede usar el micrófono. Puedes escribirlo abajo.'), 'err', 'homeMicStatus');
     const box = document.getElementById('typeChoices'); const tt = document.getElementById('typeToggle');
-    if (box) box.hidden = false; if (tt) tt.hidden = true;
+    if (!BOOK_ON) { if (box) box.hidden = false; if (tt) tt.hidden = true; }
     track('mic_unsupported');
   } catch (e) { /* never block the rest of the script */ }
 }
@@ -3717,7 +4250,8 @@ document.querySelectorAll('.today-row.tappable').forEach(row => {
 // after a save. Today's date, and everything derived from it, is now always
 // recomputed the moment the app is looked at again.
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible') render();
+  // Never while a Book sheet is open: its header already says which day.
+  if (document.visibilityState === 'visible') { if (BOOK_ON && bk$('bkScrim').hidden) bookResetDay(); render(); }
 });
 
 // Real feedback, 30 Aug: the "Free. No signup." trust line under the mic is

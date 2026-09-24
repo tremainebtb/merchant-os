@@ -56,7 +56,7 @@
      app.js?v=. Lets anyone - a reviewer, a tester in Kumasi, a future session -
      answer "which CountMy am I looking at?" from view-source or the console,
      the same way the Worker answers with "wv". -->
-<meta name="countmy-version" content="v168">
+<meta name="countmy-version" content="v169">
 <!-- Real finding, 28 Aug: the bare "CountMy" title carried no keywords at all
      for what people actually search - a free sales/expense ledger for
      Ghanaian shop owners. The <title> tag is the single strongest on-page
@@ -154,8 +154,8 @@
      the system font and the webfont swaps in when it arrives. A brief font
      swap is a fair price for text seconds earlier; a blank orange screen is
      not something you can explain to someone using their first smartphone. -->
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&family=Work+Sans:wght@400;500;600&display=swap" media="print" onload="this.media='all'">
-<noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&family=Work+Sans:wght@400;500;600&display=swap"></noscript>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&family=Patrick+Hand&family=Work+Sans:wght@400;500;600&display=swap" media="print" onload="this.media='all'">
+<noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&family=Patrick+Hand&family=Work+Sans:wght@400;500;600&display=swap"></noscript>
 <style>
 /* Same design system as the landing page &#x2014; one product, one identity. */
 :root{
@@ -561,6 +561,112 @@ body.iab-first .home-mic-btn{opacity:.55}
 /* My own bug from v56, measured live: the typed choices sat in one column
    of the two-column actions grid, 167px of the 343px available. */
 .type-choices,.type-toggle{grid-column:1 / -1}
+
+/* ---- The Book (v169, 24 Sep). An exercise-book page and four equal
+   buttons. Everything is prefixed bk- so nothing above can collide with it.
+   Paper, rules and the red margin line keep their look in the dark theme,
+   just dimmed. ---- */
+:root{--bk-paper:#FFFDF7;--bk-rule:#D3DDEA;--bk-margin:#E3857A;--bk-line:44px;--bk-key:54px}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bk-paper:#1D2025;--bk-rule:#353B45;--bk-margin:#8C4B43}}
+:root[data-theme="dark"]{--bk-paper:#1D2025;--bk-rule:#353B45;--bk-margin:#8C4B43}
+@media (max-height:680px){:root{--bk-key:46px}}
+body.book-on .today-strip,body.book-on .ask-line,body.book-on .try-line,body.book-on #exampleChat,body.book-on .mic-lang-line,body.book-on #demoBtn,body.book-on #homeGreeting{display:none !important}
+body.book-on .what-is{margin-bottom:12px}
+.bk{margin:0 0 12px}
+.bk-page{background:var(--bk-paper);border:1px solid var(--rule);border-radius:16px;overflow:hidden;box-shadow:0 2px 10px rgba(34,26,18,.06)}
+.bk-head{display:flex;align-items:center;gap:2px;padding:4px 8px 4px 4px;border-bottom:2px solid var(--bk-rule)}
+.bk-day-btn{width:44px;height:44px;border:0;background:none;border-radius:50%;font-size:1.7rem;line-height:1;color:var(--navy);cursor:pointer;flex:none}
+.bk-day-btn:disabled{opacity:.25;cursor:default}
+.bk-date{font-family:"Manrope",sans-serif;font-weight:800;color:var(--navy);min-width:5.2em;text-align:center;white-space:nowrap}
+.bk-owe{margin-left:auto;display:flex;align-items:center;gap:4px;border:0;border-radius:100px;padding:8px 12px;min-height:44px;background:var(--amber-soft);color:var(--amber);font-family:"Manrope",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;font-weight:800;font-size:.95rem;cursor:pointer;min-width:0;font-variant-numeric:tabular-nums}
+.bk-owe svg{width:18px;height:18px;flex:none}
+.bk-owe b{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bk-lines{list-style:none;margin:0;padding:0;min-height:calc(var(--bk-line) * 2);max-height:calc(var(--bk-line) * 6);overflow-y:auto;
+  background-image:linear-gradient(to right,transparent 46px,var(--bk-margin) 46px,var(--bk-margin) 48px,transparent 48px),linear-gradient(to bottom,transparent calc(var(--bk-line) - 1px),var(--bk-rule) calc(var(--bk-line) - 1px),var(--bk-rule) var(--bk-line));
+  background-size:100% 100%,100% var(--bk-line);background-attachment:local,local}
+.bk-ln{height:var(--bk-line);display:flex;align-items:center;gap:8px;padding:0 10px 0 4px;font-family:"Patrick Hand","Segoe Print","Bradley Hand",cursive;font-size:1.4rem;color:var(--ink);cursor:pointer}
+.bk-ln .bk-mk{width:38px;flex:none;display:flex;justify-content:center;font-family:"Manrope",sans-serif;font-weight:800;font-size:1.3rem}
+.bk-ln .bk-mk svg{width:22px;height:22px}
+.bk-ln .bk-amt{flex:none;font-variant-numeric:tabular-nums;white-space:nowrap}
+.bk-ln .bk-cs{font-family:"Manrope",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;font-weight:800;font-size:.8em;margin-right:1px}
+.bk-ln .bk-txt{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;opacity:.85}
+.bk-ln .bk-tag{flex:none;font-family:"Manrope",sans-serif;font-size:.8rem;font-weight:800;padding:3px 8px;border-radius:99px;background:var(--leaf-soft);color:var(--leaf-deep)}
+.bk-ln .bk-left{flex:none;font-family:"Manrope",sans-serif;font-size:.8rem;font-weight:700;color:var(--muted)}
+.bk-ln .bk-pay{flex:none;border:0;font-family:"Manrope",sans-serif;font-size:.9rem;font-weight:800;padding:9px 13px;min-height:40px;border-radius:99px;background:var(--leaf);color:var(--filled-ink);cursor:pointer}
+.bk-ln.in .bk-mk,.bk-ln.in .bk-amt{color:var(--leaf-deep)}
+.bk-ln.out .bk-mk,.bk-ln.out .bk-amt{color:var(--brick)}
+.bk-ln.owe .bk-mk,.bk-ln.owe .bk-amt{color:var(--amber)}
+.bk-ln.iowe .bk-mk,.bk-ln.iowe .bk-amt{color:var(--ink-soft)}
+.bk-ln.settled .bk-amt,.bk-ln.settled .bk-txt{text-decoration:line-through;text-decoration-thickness:2px;opacity:.55}
+.bk-ln.ghost{opacity:.4;cursor:default}
+.bk-ln.ghost .bk-tag{background:none;color:var(--muted);font-weight:700}
+.bk-ln.new{animation:bk-write .7s ease-out}
+@keyframes bk-write{from{clip-path:inset(0 100% 0 0)}to{clip-path:inset(0 0 0 0)}}
+.bk-sums{display:flex;flex-wrap:wrap;gap:6px 16px;align-items:baseline;padding:10px 14px 10px 12px;border-top:2px solid var(--bk-rule);font-family:"Manrope",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;font-weight:800;font-size:1.1rem;font-variant-numeric:tabular-nums}
+.bk-sum{display:inline-flex;align-items:baseline;gap:4px;white-space:nowrap}
+.bk-sum .bk-mk{font-size:1.15rem}
+.bk-s-in{color:var(--leaf-deep)}.bk-s-out{color:var(--brick)}.bk-s-left{color:var(--navy);margin-left:auto}
+.bk-bs{padding:0 14px 10px;font-size:.88rem;font-weight:600;color:var(--muted)}
+.bk-bar{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);gap:8px;margin-top:10px}
+.bk-act{border:0;border-radius:18px;min-height:92px;padding:8px 4px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;color:var(--filled-ink);font-family:"Manrope",sans-serif;font-weight:800;font-size:1rem;line-height:1.1;text-align:center;box-shadow:0 3px 10px rgba(30,20,10,.14);cursor:pointer;transition:transform .12s}
+.bk-act svg{width:36px;height:36px;flex:none}
+.bk-act:active{transform:scale(.94)}
+.bk-a-in{background:var(--leaf)}.bk-a-out{background:var(--brick)}.bk-a-owe{background:var(--amber)}
+body.book-on #homeMicBtn{margin:0;width:auto;border-radius:18px;min-height:92px;padding:8px 4px;gap:4px;justify-content:center;box-shadow:0 3px 10px rgba(30,20,10,.14)}
+body.book-on #homeMicBtn svg{width:36px;height:36px}
+body.book-on #homeMicBtn .home-mic-label{font-size:1rem;line-height:1.1}
+body.book-on #homeMicBtn .mic-level-meter{height:14px;margin:0}
+body.book-on #homeMicBtn.recording svg{display:none}
+.bk-nudge{animation:bk-nudge .9s ease-in-out 3}
+@keyframes bk-nudge{0%,100%{transform:none}50%{transform:scale(1.06)}}
+.bk-scrim{position:fixed;inset:0;background:rgba(20,18,15,.42);z-index:50}
+.bk-sheet{position:fixed;left:0;right:0;bottom:0;z-index:51;max-width:520px;margin:0 auto;max-height:100vh;overflow-y:auto;background:var(--surface);color:var(--ink);border-radius:22px 22px 0 0;padding:12px 14px calc(12px + env(safe-area-inset-bottom,0px));box-shadow:0 -6px 24px rgba(0,0,0,.2);animation:bk-up .22s ease-out}
+@supports (max-height:100dvh){.bk-sheet{max-height:100dvh}}
+@keyframes bk-up{from{transform:translateY(30%)}to{transform:none}}
+.bk-sh-top{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.bk-sh-ico{width:40px;height:40px;border-radius:12px;display:grid;place-items:center;color:var(--filled-ink);flex:none}
+.bk-sh-ico svg{width:26px;height:26px}
+.bk-sh-title{font-family:"Manrope",sans-serif;font-weight:800;font-size:1.2rem;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bk-sh-day{font-weight:700;font-size:.85rem;color:var(--muted);flex:none}
+.bk-x{margin-left:auto;width:44px;height:44px;border:0;border-radius:50%;background:var(--paper);color:var(--ink);font-size:1.6rem;line-height:1;flex:none;cursor:pointer}
+.bk-k-in .bk-sh-ico,.bk-k-pay .bk-sh-ico{background:var(--leaf)}.bk-k-out .bk-sh-ico{background:var(--brick)}.bk-k-owe .bk-sh-ico,.bk-ico-owe{background:var(--amber)}
+.bk-ico-owe{color:var(--filled-ink)}
+.bk-who{margin-bottom:6px}
+.bk-field{width:100%;font-family:inherit;font-size:1.1rem;padding:12px 14px;border:2px solid var(--rule);border-radius:14px;background:var(--paper);color:var(--ink)}
+.bk-field:focus{outline:none;border-color:var(--navy)}
+.bk-chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.bk-chip{border:0;padding:9px 13px;min-height:40px;border-radius:99px;background:var(--paper);color:var(--ink);font-family:inherit;font-weight:600;font-size:.95rem;cursor:pointer}
+.bk-chip.on{background:var(--navy);color:var(--surface)}
+.bk-curs{justify-content:center;margin:-2px 0 8px}
+.bk-disp{display:flex;align-items:baseline;justify-content:center;gap:6px;padding:2px 0 6px;font-family:"Manrope",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;font-variant-numeric:tabular-nums;border-radius:14px}
+.bk-disp .bk-cur{font-size:1.5rem;font-weight:800;color:var(--muted)}
+.bk-disp .bk-n{font-size:2.8rem;font-weight:800;letter-spacing:-.02em;color:var(--ink)}
+.bk-k-in .bk-n,.bk-k-pay .bk-n{color:var(--leaf-deep)}.bk-k-out .bk-n{color:var(--brick)}.bk-k-owe .bk-n{color:var(--amber)}
+.bk-keys{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px}
+.bk-key{height:var(--bk-key);border:0;border-radius:14px;background:var(--paper);font-family:"Manrope",sans-serif;font-size:1.55rem;font-weight:800;color:var(--navy);cursor:pointer;display:grid;place-items:center}
+.bk-key:active{background:var(--rule)}
+.bk-key svg{width:30px;height:30px}
+.bk-write{width:100%;height:60px;border:0;border-radius:16px;background:var(--leaf);color:var(--filled-ink);font-family:"Manrope",sans-serif;font-weight:800;font-size:1.25rem;display:flex;align-items:center;justify-content:center;gap:8px;cursor:pointer}
+.bk-write svg{width:26px;height:26px}
+.bk-write.dim{opacity:.45}
+.bk-extras{display:flex;gap:6px;flex-wrap:wrap;justify-content:center;margin-top:8px}
+.bk-extras .bk-chips{margin:0;justify-content:center}
+.bk-note{margin-top:8px}
+.bk-shake{animation:bk-shake .4s}
+@keyframes bk-shake{0%,100%{transform:none}25%{transform:translateX(-8px)}50%{transform:translateX(8px)}75%{transform:translateX(-5px)}}
+.bk-menu{display:block;width:100%;min-height:56px;border:0;border-radius:14px;margin-top:8px;font-family:"Manrope",sans-serif;font-weight:800;font-size:1.1rem;background:var(--paper);color:var(--navy);cursor:pointer}
+.bk-menu.go{background:var(--leaf);color:var(--filled-ink)}
+.bk-debts{max-height:60vh;overflow-y:auto}
+.bk-debt{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--rule)}
+.bk-debt .bk-nm{flex:1;min-width:0;font-family:"Patrick Hand","Segoe Print",cursive;font-size:1.4rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bk-debt .bk-am{font-family:"Manrope",sans-serif;font-weight:800;color:var(--amber);font-variant-numeric:tabular-nums;white-space:nowrap}
+.bk-debt button{border:0;padding:10px 14px;min-height:44px;border-radius:12px;background:var(--leaf);color:var(--filled-ink);font-family:"Manrope",sans-serif;font-weight:800;cursor:pointer}
+.bk-empty{color:var(--muted);padding:10px 0}
+/* Fixed navy, not the token: the token turns pale in dark mode. */
+.bk-toast{position:fixed;left:50%;top:calc(env(safe-area-inset-top,0px) + 12px);transform:translateX(-50%);max-width:calc(100% - 24px);z-index:60;background:#1E2F55;color:#fff;padding:10px 16px;border-radius:99px;font-weight:700;display:flex;gap:12px;align-items:center;box-shadow:0 4px 16px rgba(0,0,0,.25)}
+.bk-toast #bkToastMsg{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bk-toast button{border:0;background:none;color:#FFD08A;font-family:inherit;font-weight:800;font-size:1rem;min-height:40px;cursor:pointer;flex:none}
+@media (prefers-reduced-motion:reduce){.bk-ln.new,.bk-sheet,.bk-shake,.bk-nudge{animation:none}.bk-act{transition:none}}
 </style>
 <!-- Moved to the head 16 Sep so a two-second visit is still counted. -->
 <!-- Analytics for the Silent Alpha pilot only (27 Aug) - added to observe real
@@ -693,7 +799,65 @@ body.iab-first .home-mic-btn{opacity:.55}
        Facebook group posts asked him "what is it, what do I do with it" -
        the stranger arriving from a link needs the name of the thing before
        the button. Two short lines, big first line, first use only. -->
-  <div id="whatIs" class="what-is" hidden><strong class="what-is-head">A free notebook for your business.</strong><span class="what-is-sub">You talk. It writes down what you sell, what you spend, and who owes you.</span></div>
+  <div id="whatIs" class="what-is" hidden><strong class="what-is-head">A free notebook for your business.</strong><span class="what-is-sub">Tap or talk. It writes down what you sell, what you spend, and who owes you.</span></div>
+  <!-- The Book (v169, 24 Sep). The home screen is an exercise-book page with
+       four equal buttons: three to tap (Sold, Spent, Owes me - the phone
+       keypad every trader already dials MoMo codes on) and Talk (the mic,
+       moved in here by app.js). Evidence, fact-checked 24 Sep: the design
+       that got 100% of low-literacy users through their tasks paired
+       pictures and numbers with voice (Medhi, ToCHI 2011); speech alone
+       fails inside Facebook's Android browser and on everyday Twi; the
+       notebook layout is what these users already understand (Parikh 2003).
+       Same records, same backup, same edit sheet as before. Filled in and
+       wired by app.js (search "The Book"); ?book=0 shows the old home. -->
+  <section id="book" class="bk" hidden>
+    <div class="bk-page" data-clarity-mask="True">
+      <div class="bk-head">
+        <button type="button" class="bk-day-btn" id="bkPrev" aria-label="Day before">&lsaquo;</button>
+        <span class="bk-date" id="bkDate">Today</span>
+        <button type="button" class="bk-day-btn" id="bkNext" aria-label="Next day">&rsaquo;</button>
+        <button type="button" class="bk-owe" id="bkOweBtn" aria-label="Who owes me"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="3.6"/><path d="M5 20a7 7 0 0 1 14 0"/></svg><b id="bkOwe">0</b><span aria-hidden="true">&rsaquo;</span></button>
+      </div>
+      <ol class="bk-lines" id="bkLines"></ol>
+      <div class="bk-sums">
+        <span class="bk-sum bk-s-in"><span class="bk-mk" aria-hidden="true">+</span><b id="bkIn">0</b></span>
+        <span class="bk-sum bk-s-out"><span class="bk-mk" aria-hidden="true">&minus;</span><b id="bkOut">0</b></span>
+        <span class="bk-sum bk-s-left"><span class="bk-mk" aria-hidden="true">=</span><b id="bkLeft">0</b></span>
+      </div>
+      <div class="bk-bs" id="bkBs" hidden></div>
+    </div>
+    <div class="bk-bar" id="bkBar">
+      <button type="button" class="bk-act bk-a-in" id="bkSold"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span id="bkSoldLbl">Sold</span></button>
+      <button type="button" class="bk-act bk-a-out" id="bkSpent"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14"/></svg><span id="bkSpentLbl">Spent</span></button>
+      <button type="button" class="bk-act bk-a-owe" id="bkOwes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="10" cy="8" r="3.6"/><path d="M3 20a7 7 0 0 1 14 0"/><path d="M19 7v6M16 10h6"/></svg><span id="bkOwesLbl">Owes me</span></button>
+    </div>
+
+    <div class="bk-scrim" id="bkScrim" hidden></div>
+    <div class="bk-sheet" id="bkEntry" hidden role="dialog" aria-modal="true" aria-labelledby="bkTitle" data-clarity-mask="True">
+      <div class="bk-sh-top"><span class="bk-sh-ico" id="bkIco"></span><span class="bk-sh-title" id="bkTitle">Sold</span><span class="bk-sh-day" id="bkShDay"></span><button type="button" class="bk-x" id="bkClose" aria-label="Close">&times;</button></div>
+      <div class="bk-who" id="bkWhoBox" hidden>
+        <input class="bk-field" id="bkWho" type="text" maxlength="30" autocomplete="off" enterkeyhint="done" aria-label="Who owes you">
+        <div class="bk-chips" id="bkWhoChips"></div>
+      </div>
+      <div class="bk-disp" id="bkDisp"><span class="bk-cur" id="bkCurSym"></span><span class="bk-n" id="bkAmt">0</span></div>
+      <div class="bk-chips bk-curs" id="bkCurs" hidden></div>
+      <div class="bk-keys" id="bkKeys"></div>
+      <button type="button" class="bk-write dim" id="bkWrite"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7"/></svg><span id="bkWriteLbl">Write it</span></button>
+      <div class="bk-extras" id="bkExtras"><span class="bk-chips" id="bkCats"></span><button type="button" class="bk-chip" id="bkWordsBtn">+ words</button></div>
+      <input class="bk-field bk-note" id="bkNote" type="text" maxlength="40" autocomplete="off" enterkeyhint="done" aria-label="What was it" hidden>
+    </div>
+    <div class="bk-sheet" id="bkLineSheet" hidden role="dialog" aria-modal="true" aria-labelledby="bkLineTitle" data-clarity-mask="True">
+      <div class="bk-sh-top"><span class="bk-sh-title" id="bkLineTitle"></span><button type="button" class="bk-x" id="bkLineClose" aria-label="Close">&times;</button></div>
+      <button type="button" class="bk-menu go" id="bkLinePaid">Paid</button>
+      <button type="button" class="bk-menu" id="bkLineEdit">Change</button>
+      <button type="button" class="bk-menu" id="bkLineCross">Cross it out</button>
+    </div>
+    <div class="bk-sheet" id="bkDebtSheet" hidden role="dialog" aria-modal="true" aria-labelledby="bkDebtTitle" data-clarity-mask="True">
+      <div class="bk-sh-top"><span class="bk-sh-ico bk-ico-owe"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="8" r="3.6"/><path d="M5 20a7 7 0 0 1 14 0"/></svg></span><span class="bk-sh-title" id="bkDebtTitle">Who owes me</span><button type="button" class="bk-x" id="bkDebtClose" aria-label="Close">&times;</button></div>
+      <div class="bk-debts" id="bkDebtList"></div>
+    </div>
+    <div class="bk-toast" id="bkToast" hidden data-clarity-mask="True"><span id="bkToastMsg"></span><button type="button" id="bkToastUndo">Undo</button></div>
+  </section>
   <div class="today-strip" id="todayStrip" role="group" aria-label="Today">
     <div class="ts-head"><span class="ts-title">Today</span><span class="ts-date" id="tsDate"></span></div>
     <div class="ts-tiles">
@@ -1096,7 +1260,7 @@ body.iab-first .home-mic-btn{opacity:.55}
      string is what forces a fresh script fetch even before any service worker logic
      runs, independent of it. Found live 27 Aug: without this, an already-visited
      browser can keep running old code from plain HTTP cache regardless of SW strategy. -->
-<script src="app.js?v=168"></script>
+<script src="app.js?v=169"></script>
 
 </body>
 </html>
