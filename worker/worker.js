@@ -1251,7 +1251,7 @@ async function handleTranscribe(request, env) {
 // 50 is a transcription/parsing error, not a fabrication) - evidence-checking
 // targets fabrication specifically, not every possible error; the review UI is
 // still what catches a wrong-but-grounded number.
-const WORKER_VERSION = 'w107';
+const WORKER_VERSION = 'w108';
 
 // Spanish (Venezuela) twin of EXTRACT_SYSTEM_PROMPT below: same event types,
 // same {value, evidence} rule, same JSON-only answer. Amounts are bare
@@ -2218,6 +2218,21 @@ function finalizeEvents(events, text, lang, country) {
       if (!out.some(o => o !== e && o.item && (saidAfter(o.item, e.price) || saidAfter(o.item, (Number(o.qty) || 1) * Number(o.price)) && Number(e.price) === (Number(o.qty) || 1) * Number(o.price)))) return;
       e.price = n;
     });
+  }
+  // "Ama owes me 50 and Kofi paid me 20": the model sometimes returns only the
+  // first clause (24 Sep, same sentence, both results on consecutive runs).
+  // "<Name> paid me <n>" is unambiguous, so a missing payment is added.
+  if (lang !== 'es') {
+    const paidRe = /\b([A-Z][a-z]+)\s+(?:has\s+)?(?:paid|payed)\s+me\s+(?:back\s+)?(?:small\s+)?(\d+(?:\.\d+)?)\b/g;
+    let pm;
+    while ((pm = paidRe.exec(raw))) {
+      const who = pm[1], n = Number(pm[2]);
+      if (/^(I|We|He|She|They|You|It|Customer|Someone)$/.test(who) || !(n > 0)) continue;
+      if (out.some(e => e.type === 'payment' && String(e.customer || '').toLowerCase() === who.toLowerCase())) continue;
+      // already there in another shape (e.g. a sale "payment from Kofi" 20): never twice
+      if (out.some(e => Number(e.price) === n && String(e.customer || e.supplier || e.item || '').toLowerCase().includes(who.toLowerCase()))) continue;
+      out.push({ type: 'payment', customer: who, price: n });
+    }
   }
   // "I owe 400 cedis" with no name: the placeholder, never the words "I owe"
   out.forEach(e => { if (e.type === 'debt_out' && /^(i|we)\s+(still\s+)?owe$/i.test(String(e.supplier || '').trim())) e.supplier = 'supplier'; });
