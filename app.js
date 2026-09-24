@@ -1704,7 +1704,9 @@ async function processVoiceBlobInner(blob, statusId, recordedMs, bytes, heardTex
         // The server says when the words were Twi (its text is already English).
         const spokenLang = serverLang === 'twi' && !ES ? 'twi' : guessSpokenLang(heard);
         // Remembered so the Book's button questions can be heard in Twi.
-        if (spokenLang === 'twi') { try { localStorage.setItem('kym_twi', '1'); } catch (e) { /* optional */ } }
+        // Only the server's own signal (Khaya route or 3+ Twi words), never the
+        // phone's word guess, which also matches English ("asked me to pay").
+        if (serverLang === 'twi' && !ES) { try { localStorage.setItem('kym_twi', '1'); } catch (e) { /* optional */ } }
         track('voice_extracted', { event_count: events.length, lang: spokenLang });
         ping('voice_' + spokenLang);
         if (events.length >= 1) {

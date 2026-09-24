@@ -710,6 +710,7 @@ async function handleAdminAsrBench(request, env) {
         if (u.protocol !== 'https:') throw new Error('https only');
         const res = await fetch(u.toString());
         if (!res.ok) throw new Error('fetch ' + res.status);
+        if (Number(res.headers.get('content-length') || 0) > 3 * 1024 * 1024) throw new Error('too big');
         bytes = new Uint8Array(await res.arrayBuffer());
         type = String(it.type || res.headers.get('content-type') || 'audio/wav').split(';')[0];
       }
@@ -1134,27 +1135,44 @@ async function transcribeAudio(audioBytes, audioType, env, lang, country) {
 }
 // Whisper's own language guess, or a non-Latin script in its text (it wrote
 // Twi in Japanese, Urdu and Thai script in the 24 Sep bench).
-// Twi-only words (sourced lexicon, 24 Sep): goods and numbers of 5+ letters
-// plus verb forms. Ghanaian English borrows single Twi words (kenkey,
-// kontomire), so it takes THREE different ones before a clip Whisper calls
-// English is sent to Khaya - it labelled about 3 in 20 real Twi clips English.
-const TWI_ONLY_WORDS = new Set('abenkwan abirekyie abomu aborobe aborodwomaa aburoo aduaba aduanan aduane aduasa aduokron aduonu aduonum aduosia aduoson aduowotwe adwene ahanan ahankron ahansia ahanson ahanu ahanum ahanwotwe ahasa ahoma ahwedee akekaduro akoko akokonam akrantee amango ampesie ankaa apatre asikyire atadee atadwe atosodee atua baako bankye bayere bidie bobesa borodee borofere burodo dokono dubaako dumiensa dumienu dunan dunkron dunsia dunson dunum dunwotwe efere emane emmore foroee fufuo gyeene kokonte kontommire koobi kookoo kosua krataa kresin kwadu kyenam kyenere mafiri magye mankani maton matua mede meleke meton metonn metoo metua mmiensa mmienu mmire momoni mpaboa nantwie nantwinam nenkyemoono nkatee nkatenkwan nkrante nkron nkuruma nkuto nkwan nkyene nneema nnema nnora nsafufuo nsuomnam ntoma ntoosi nufosuo nwotwe nyaadewa nyinaa obonko odwan odwannam okyena opepem opepepem paanoo praee prako prakonam samina sekan sidi sika wode yensin'.split(' '));
+// Twi-only words (sourced lexicon, 24 Sep): verb forms plus Twi number
+// words of 5+ letters. Goods names are NOT signals - fish and food sellers
+// say koobi, kyenam, akoko inside English sentences (red-team, 24 Sep).
+function foldTwi(text) { return String(text || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\u025b/g, 'e').replace(/\u0254/g, 'o'); }
+const TWI_VERB_WORDS = ['meton', 'maton', 'metonn', 'metoo', 'metua', 'matua', 'atua', 'wode', 'mede', 'nnema', 'nneema', 'nnora', 'okyena', 'nyinaa', 'magye', 'woatua', 'woaton', 'sidi'];
+let twiOnlyWords = null;
+function twiOnlyWordSet() {
+  if (!twiOnlyWords) twiOnlyWords = new Set(TWI_VERB_WORDS.concat(Object.keys(TWI_NUMBERS).filter(k => k.length >= 5)));
+  return twiOnlyWords;
+}
+// Plain English shop words. When most of what Whisper wrote is these, the
+// clip was English whatever language label Whisper put on it.
+const ENGLISH_SHOP_WORDS = new Set('i me my you he she they we it a an the and for of to in on at is was are be been have has had sold sell sells selling bought buy buys paid pay pays owe owes owed owing money cedis cedi pesewas each today yesterday tomorrow transport stock customer supplier took take gave give got get one two three four five six seven eight nine ten eleven twelve twenty thirty forty fifty sixty seventy eighty ninety hundred thousand bag bags bowl bowls box boxes bottle bottles airtime momo credit rice oil sugar bread water fish yam yams plantain plantains tomatoes pepper onions eggs him her them this that but so dey go come e na'.split(' '));
+function mostlyEnglish(text) {
+  const toks = foldTwi(text).split(/[^a-z0-9]+/).filter(Boolean);
+  if (toks.length < 2) return false;
+  let n = 0; for (const tk of toks) if (/^\d+$/.test(tk) || ENGLISH_SHOP_WORDS.has(tk)) n++;
+  return n / toks.length >= 0.6;
+}
 function soundsLikeTwi(g) {
+  const text = String((g && g.text) || '');
   const l = String((g && g.language) || '').toLowerCase();
-  if (l && l !== 'english' && l !== 'en') return true;
-  const toks = new Set(String((g && g.text) || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\u025b/g, 'e').replace(/\u0254/g, 'o').split(/[^a-z]+/));
-  let n = 0; for (const tk of toks) if (TWI_ONLY_WORDS.has(tk)) n++;
+  if (l && l !== 'english' && l !== 'en') return !mostlyEnglish(text);
+  let n = 0; for (const tk of new Set(foldTwi(text).split(/[^a-z]+/))) if (twiOnlyWordSet().has(tk)) n++;
   if (n >= 3) return true;
-  return /[^\u0000-\u024f\u0254\u025b\u1e00-\u1eff\u2000-\u206f\u20b5\s]/.test(String((g && g.text) || ''));
+  // A letter in a non-Latin script (Whisper wrote Twi in Japanese, Urdu and
+  // Thai script in the bench) - symbols like the naira sign do not count.
+  return /(?=\p{L})\P{Script=Latin}/u.test(text);
 }
 async function khayaTranscribe(audioBytes, audioType, env) {
   if (!env.KHAYA_API_KEY) return '';
   try {
+    const ctl = new AbortController(); const tm = setTimeout(() => ctl.abort(), 15000);
     const r = await fetch('https://translation-api.ghananlp.org/asr/v3/transcribe?language=twi', {
       method: 'POST',
       headers: { 'Ocp-Apim-Subscription-Key': env.KHAYA_API_KEY, 'Content-Type': (audioType || 'audio/webm').split(';')[0] },
-      body: audioBytes
-    });
+      body: audioBytes, signal: ctl.signal
+    }).finally(() => clearTimeout(tm));
     const raw = await r.text();
     if (!r.ok) { console.log('khaya fail', r.status, raw.slice(0, 80)); return ''; }
     let text = raw; try { const j = JSON.parse(raw); text = typeof j === 'string' ? j : (j.text || j.transcription || ''); } catch (e) { /* plain text */ }
@@ -1233,7 +1251,7 @@ async function handleTranscribe(request, env) {
 // 50 is a transcription/parsing error, not a fabrication) - evidence-checking
 // targets fabrication specifically, not every possible error; the review UI is
 // still what catches a wrong-but-grounded number.
-const WORKER_VERSION = 'w105';
+const WORKER_VERSION = 'w106';
 
 // Spanish (Venezuela) twin of EXTRACT_SYSTEM_PROMPT below: same event types,
 // same {value, evidence} rule, same JSON-only answer. Amounts are bare
@@ -1301,9 +1319,7 @@ Examples, one per type - every type below is equally likely, do NOT assume an ut
 [{"type":"expense","item":{"value":"stock","evidence":"stock"},"price":{"value":200,"evidence":"200 cedis"}}]
 [{"type":"debt_in","customer":{"value":"Ama","evidence":"Ama"},"price":{"value":120,"evidence":"120 cedis"}}]
 [{"type":"debt_in","customer":{"value":"Kofi","evidence":"Kofi"},"price":{"value":50,"evidence":"fifty cedis"},"note":{"value":"soap","evidence":"soap"}}]
-[{"type":"debt_out","supplier":{"value":"Mensah","evidence":"Mensah"},"price":{"value":400,"evidence":"400 cedis"}}]
-
-Twi goods words - these are ALWAYS the item sold or bought, NEVER a person's name: bayere yam, borodee plantain, bankye cassava, aburoo maize, emo rice, adua beans, nsuomnam fish, apatre tilapia, koobi salted dried tilapia, emane herring, adwene catfish, nam meat, nantwinam beef, akokonam chicken, akoko chicken, odwannam mutton, prakonam pork, abirekyie goat, odwan sheep, nantwie cow, prako pig, kosua egg, ntoosi tomato, nenkyemoono tomato, gyeene onion, mako pepper, nyaadewa garden egg, nkuruma okra, kontommire cocoyam leaves, mankani cocoyam, abe palm fruit, ngo palm oil, anwa cooking, adwe palm kernel, adwe ngo palm kernel oil, nkatee groundnut, paanoo bread, burodo bread, asikyire sugar, nkyene salt, samina soap, nsuo water, nsa drink, ntoma cloth, mpaboa shoes, atadee dress, kube coconut, kwadu banana, ankaa orange, aborobe pineapple, borofere pawpaw, amango mango, ankaa twadee lime, akekaduro ginger, anwo garlic, ahwedee sugarcane, aborodwomaa potato, esam flour, emmore dough, nufosuo milk, meleke milk, tii tea, bota butter, paya avocado pear, atadwe tiger nut, nkuto shea butter, nwa snail, koto crab, obonko shrimp, akrantee grasscutter, bese kola nut, kookoo cocoa, nsafufuo palm wine, bobesa wine, nkwan soup, foroee stew, abomu stew, koko porridge, fufuo fufu, atosodee vegetables, aduaba fruit, mmire mushroom, efere cucumber, kresin kerosene, bidie charcoal, yensin firewood, kyenere candle, sapo sponge, praee broom, kyenam fried fish, aduane food, sekan knife, nkrante cutlass, ahoma rope, ekye hat, krataa paper, tofe toffee, nku pomade, dokono kenkey, ampesie boiled yam, kokonte dried-cassava-flour swallow, abenkwan palm-nut soup, nkatenkwan groundnut soup, momoni fermented salted fish. Twi measures (a count word, not an item): kotoku bag, boto sack, baage bag, bokiti bucket, kenten basket, adaka box, galon gallon, toa bottle, kuruwa cup, ankore barrel, koraa calabash, kyensee metal pan, ahina pot, kukuo pot, kuo group, fa half, susu to measure, prete plate, olonka olonka - tin, margarine tin margarine tin.`;
+[{"type":"debt_out","supplier":{"value":"Mensah","evidence":"Mensah"},"price":{"value":400,"evidence":"400 cedis"}}]`;
 
 // Deterministic, model-independent safety layer - takes whatever the LLM
 // returned (which may be malformed, missing fields, contain the literal string
@@ -1410,7 +1426,7 @@ const TWI_NUMBERS = {
   // 24 Sep sourced lexicon (2+ independent publishers each: akandictionary.com,
   // LearnAkan, Harvard ELIAS, Wikivoyage, Boston U 200-word project, GhanaNLP
   // corpora): Akuapem and Fante forms and the -n- hundreds spellings.
-  biako: 1, kor: 1, ebien: 2, ebiasa: 3, esia: 6, esuon: 7, dubiako: 11, duebien: 12, duebiasa: 13, duanan: 14, duenum: 15, duesia: 16, duesuon: 17, duawotwe: 18, duakron: 19, eduonu: 20, eduasa: 30, eduanan: 40, eduonum: 50, eduosia: 60, eduosuon: 70, eduowotwe: 80, eduokron: 90, ahaebien: 200, ahaanan: 400, ahaenum: 500, ahansia: 600, ahaesia: 600, ahanson: 700, ahaesuon: 700, ahanwotwe: 800, ahaawotwe: 800, ahankron: 900, ahaakron: 900, mpemdu: 10000, opepepem: 1000000000
+  biako: 1, ebien: 2, ebiasa: 3, esia: 6, esuon: 7, dubiako: 11, duebien: 12, duebiasa: 13, duanan: 14, duenum: 15, duesia: 16, duesuon: 17, duawotwe: 18, duakron: 19, eduonu: 20, eduasa: 30, eduanan: 40, eduonum: 50, eduosia: 60, eduosuon: 70, eduowotwe: 80, eduokron: 90, ahaebien: 200, ahaanan: 400, ahaenum: 500, ahansia: 600, ahaesia: 600, ahanson: 700, ahaesuon: 700, ahanwotwe: 800, ahaawotwe: 800, ahankron: 900, ahaakron: 900, mpemdu: 10000, opepepem: 1000000000
 };
 function twiNumberCandidates(transcriptNorm) {
   const out = new Set();
@@ -1871,25 +1887,31 @@ function twiPrep(text) {
   // testing "\u0186de me ka" and "\u0190nn\u025b". START/END are plain boundaries instead.
   const START = '(^|[\\s.,;!?"(])';
   const END = '(?=[\\s.,;!?")]|$)';
+  // A name that looks like a verb form ("Mato paid me", "Matua owes me")
+  // is followed by an English verb; a Twi verb is not.
+  const NOT_NAME = '(?!\\s*,?\\s*(?:paid|pay|owes?|please|bought|sold|gave|took|come|came|go|said|and|is|was|has|dey)\\b)';
   // "\u0254de me ka" / "w\u0254de me ka" / Fante "\u0254dze me kaw" = he/she/someone owes me,
   // no name: the unnamed-customer path, not a customer called "\u0186de".
+  // Named first: "Kofi \u0254de me ka" = Kofi owes me (the name must not be lost).
+  t = t.replace(new RegExp('\\b([A-Z][a-z]+),?\\s+w?[o\\u0254]d(?:z)?e\\s+me\\s+kaw?' + END, 'g'), '$1 owes me');
   t = t.replace(new RegExp(START + '(?:w?[o\\u0254]d(?:z)?e)\\s+me\\s+kaw?' + END, 'gi'), '$1customer owes me');
   // "Mede Ama ka" = I owe Ama (the debtor comes before "de"; Christaller, JW).
   t = t.replace(new RegExp('\\bm[e\\u025b]d(?:z)?e\\s+([A-Za-z]+)\\s+kaw?' + END, 'gi'), 'I owe $1');
   // "Mafiri Ama nne\u025bma" = I gave Ama goods on credit (Christaller "mifiri no
   // ade"); "firi" alone is "from", so only this frame.
-  t = t.replace(/\b[Mm][aei]firi\s+([A-Z][a-z]+)\b/g, '$1 owes me for');
+  // Only with goods after the name: "Mefiri Kumasi" is "I come from Kumasi".
+  t = t.replace(/\b[Mm][aei]firi\s+([A-Z][a-z]+)\s+(?=nne[e\u025b]ma\b|ade\b)/g, '$1 owes me for ');
   // Paid: "W\u0254atua me" (someone has paid me) -> unnamed customer paid me.
   t = t.replace(new RegExp(START + '(?:w[o\\u0254]a|w[o\\u0254]|[o\\u0254]a|wa)tua\\s+me' + END, 'gi'), '$1customer paid me');
   // Named: "Kofi atua me" / "Kofi tuaa me" = Kofi (has) paid me.
   t = t.replace(/\b([A-Z][a-z]+)\s+(?:a|w[o\u0254]a)?tuaa?\s+me\b/g, '$1 paid me');
   // Sell before buy: t\u0254n vs t\u0254 differ by one "n". Joined first-person
   // forms: met\u0254n, mat\u0254n, m\u025bt\u0254n, meret\u0254n, met\u0254nn, met\u0254nee.
-  t = t.replace(new RegExp('\\bm[ae\\u025b](?:re)?t[o\\u0254]nn?(?:ee[e\\u025b]?)?' + END, 'gi'), 'I sold');
+  t = t.replace(new RegExp('\\bm[ae\\u025b](?:re)?t[o\\u0254]nn?(?:ee[e\\u025b]?)?' + END + NOT_NAME, 'gi'), 'I sold');
   // Buy: met\u0254, mat\u0254, m\u025bt\u0254, meret\u0254, met\u0254\u0254, met\u0254e\u025b.
   // Joined forms only: the spaced "me to" / "me too" is English far too
   // often ("he asked me to pay").
-  t = t.replace(new RegExp('\\bm[ae\\u025b](?:re)?t[o\\u0254](?:\\u0254|e[e\\u025b]?)?' + END, 'gi'), 'I bought');
+  t = t.replace(new RegExp('\\bm[ae\\u025b](?:re)?t[o\\u0254](?:\\u0254|e[e\\u025b]?)?' + END + NOT_NAME, 'gi'), 'I bought');
   // "Madi sika" = I have spent money. "di" alone is also "eat", so only with sika.
   t = t.replace(/\bm[ae\u025b]di\s+sika\b/gi, 'I spent money');
   // "Mede sidi du tuaa l\u0254re" = I used 10 cedis to pay for the lorry (the de ...
@@ -1901,7 +1923,7 @@ function twiPrep(text) {
   // that follows is what the goods sold for.
   t = t.replace(/[,;]?\s*\bm[ae\u025b]gye\b/gi, ' for');
   // I paid (out): matua / metuaa / m\u025btua.
-  t = t.replace(new RegExp('\\bm[ae\\u025b]tuaa?' + END, 'gi'), 'I paid');
+  t = t.replace(new RegExp('\\bm[ae\\u025b]tuaa?' + END + NOT_NAME, 'gi'), 'I paid');
   // Goods / things bought as stock.
   t = t.replace(/\bnne[e\u025b]ma\b/gi, 'goods');
   // Fante / Akuapem day words: nd\u025b (today), nnera / \u025bnnera (yesterday).
@@ -1922,7 +1944,7 @@ function twiPrep(text) {
     return (v && v < 1000) ? String(v * 1000) : m;
   });
   // numerals: a run of Twi number words is summed (hundreds+tens+units), "ne" joins
-  const isNum = w => Object.prototype.hasOwnProperty.call(TWI_NUMBERS, fold(w));
+  const isNum = w => Object.prototype.hasOwnProperty.call(TWI_NUMBERS, fold(w)) && !(fold(w).length <= 5 && /^[A-Z\u0186\u0190][a-z\u0254\u025b]/.test(w) && !/^(Baako|Mmienu|Mmiensa|Enan|Anum|Enum|Nsia|Nson|Nwotwe|Nkron|Edu|Aduonu|Aduasa|Oha|Apem)$/.test(w));
   const words = t.split(/(\s+|[.,;!?]+)/);
   const isSep = w => /^(\s+|[.,;!?]+)$/.test(w);
   const out = [];
@@ -2066,7 +2088,7 @@ function repairTranscript(text, lang, country) {
     // transfer 10 cedis") and the 24 Sep end-to-end test saved one as a
     // debt to a supplier called "credit". Buying credit is spending on
     // airtime; "on credit" (a debt) is not touched.
-    t = t.replace(/\b(buy|buys|bought|buying|m[e\u025b]\s*t[o\u0254]e?|m[e\u025b]t[o\u0254]e?)\s+((?:mtn|telecel|vodafone|airteltigo|at)\s+)?(credits?|kredits?|kredi|kredet)\b/gi, (m, v, net) => 'bought ' + (net || '') + 'airtime');
+    t = t.replace(/\b(buy|buys|bought|buying|m[ae\u025b]\s*t[o\u0254](?:[o\u0254]|e[e\u025b]?)?)\s+((?:mtn|telecel|vodafone|airteltigo|at)\s+)?(credits?|kredits?|kredi|kredet)\b(?!\s*(?:card|facility|sale))/gi, (m, v, net) => 'bought ' + (net || '') + 'airtime');
     t = t.replace(/\b(credits?|kredits?|kredi|kredet)\s+(transfer\w*|transmitting)\b/gi, 'airtime transfer');
     t = t.replace(/\b(job|shop|chap|chob) money\b/gi, 'chop money').replace(/\bchopmoney\b/gi, 'chop money');
     t = t.replace(/\b(blatt|bot|bord|bout|board)\s?stock\b/gi, 'bought stock');
@@ -2093,9 +2115,18 @@ function mentionsANumber(text) {
   return /\b(one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand)\b/.test(t);
 }
 
+// Sourced Twi goods and measures (24 Sep lexicon, 2+ publishers each). Only
+// added when the words contain one of them: English shop talk keeps exactly
+// the old prompt, and the free-tier token budget is not spent on every call.
+const TWI_GOODS_NOTE = "\n\nTwi goods words - these are ALWAYS the item sold or bought, NEVER a person's name: bayere yam, borodee plantain, bankye cassava, aburoo maize, emo rice, adua beans, nsuomnam fish, apatre tilapia, koobi salted dried tilapia, emane herring, adwene catfish, nam meat, nantwinam beef, akokonam chicken, akoko chicken, odwannam mutton, prakonam pork, abirekyie goat, odwan sheep, nantwie cow, prako pig, kosua egg, ntoosi tomato, nenkyemoono tomato, gyeene onion, mako pepper, nyaadewa garden egg, nkuruma okra, kontommire cocoyam leaves, mankani cocoyam, abe palm fruit, ngo palm oil, anwa cooking, adwe palm kernel, adwe ngo palm kernel oil, nkatee groundnut, paanoo bread, burodo bread, asikyire sugar, nkyene salt, samina soap, nsuo water, nsa drink, ntoma cloth, mpaboa shoes, atadee dress, kube coconut, kwadu banana, ankaa orange, aborobe pineapple, borofere pawpaw, amango mango, ankaa twadee lime, akekaduro ginger, anwo garlic, ahwedee sugarcane, aborodwomaa potato, esam flour, emmore dough, nufosuo milk, meleke milk, tii tea, bota butter, paya avocado pear, atadwe tiger nut, nkuto shea butter, nwa snail, koto crab, obonko shrimp, akrantee grasscutter, bese kola nut, kookoo cocoa, nsafufuo palm wine, bobesa wine, nkwan soup, foroee stew, abomu stew, koko porridge, fufuo fufu, atosodee vegetables, aduaba fruit, mmire mushroom, efere cucumber, kresin kerosene, bidie charcoal, yensin firewood, kyenere candle, sapo sponge, praee broom, kyenam fried fish, aduane food, sekan knife, nkrante cutlass, ahoma rope, ekye hat, krataa paper, tofe toffee, nku pomade, dokono kenkey, ampesie boiled yam, kokonte dried-cassava-flour swallow, abenkwan palm-nut soup, nkatenkwan groundnut soup, momoni fermented salted fish. Twi measures (a count word, not an item): kotoku bag, boto sack, baage bag, bokiti bucket, kenten basket, adaka box, galon gallon, toa bottle, kuruwa cup, ankore barrel, koraa calabash, kyensee metal pan, ahina pot, kukuo pot, kuo group, fa half, prete plate, olonka olonka - tin, margarine tin margarine tin.";
+const TWI_GOODS_WORDS = new Set("bayere borodee bankye aburoo emo adua nsuomnam apatre koobi emane adwene nam nantwinam akokonam akoko odwannam prakonam abirekyie odwan nantwie prako kosua ntoosi nenkyemoono gyeene mako nyaadewa nkuruma kontommire mankani abe ngo anwa adwe nkatee paanoo burodo asikyire nkyene samina nsuo nsa ntoma mpaboa atadee kube kwadu ankaa aborobe borofere amango akekaduro anwo ahwedee aborodwomaa esam emmore nufosuo meleke tii bota paya atadwe nkuto nwa koto obonko akrantee bese kookoo nsafufuo bobesa nkwan foroee abomu koko fufuo atosodee aduaba mmire efere kresin bidie yensin kyenere sapo praee kyenam aduane sekan nkrante ahoma ekye krataa tofe nku dokono ampesie kokonte abenkwan nkatenkwan momoni".split(' '));
+function mentionsTwiGoods(text) {
+  for (const tk of foldTwi(text).split(/[^a-z]+/)) if (TWI_GOODS_WORDS.has(tk)) return true;
+  return false;
+}
 async function runExtractionModel(text, env, temperature, lang, country) {
   const messages = [
-    { role: 'system', content: lang === 'es' ? (country === 'CO' ? EXTRACT_SYSTEM_PROMPT_ES_CO : EXTRACT_SYSTEM_PROMPT_ES) : EXTRACT_SYSTEM_PROMPT },
+    { role: 'system', content: lang === 'es' ? (country === 'CO' ? EXTRACT_SYSTEM_PROMPT_ES_CO : EXTRACT_SYSTEM_PROMPT_ES) : (EXTRACT_SYSTEM_PROMPT + (mentionsTwiGoods(text) ? TWI_GOODS_NOTE : '')) },
     { role: 'user', content: text }
   ];
   // Groq's free tier first (18 Sep), Cloudflare's own model when Groq is
