@@ -611,6 +611,76 @@ async function handleAdminPurgeTest(request, env) {
   return cors(new Response(JSON.stringify({ removed: before, wv: WORKER_VERSION }), { headers: { 'Content-Type': 'application/json' } }));
 }
 
+// Speech-engine bench (24 Sep). The owner's family can no longer be the
+// test set, so engines are compared on real recorded Akan from open
+// datasets: the same clip goes to Whisper (Groq, with and without our
+// shop prompt) and to Khaya's Twi ASR, and each transcript is scored
+// against the dataset's own reference text (word error rate). Owner-only,
+// POST, at most 12 clips, https audio under 3 MB. Nothing is stored.
+function benchWer(ref, hyp) {
+  const norm = s => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/ɛ/g, 'e').replace(/ɔ/g, 'o').replace(/[^a-z0-9 ]+/g, ' ').split(/\s+/).filter(Boolean);
+  const r = norm(ref), h = norm(hyp);
+  if (!r.length) return null;
+  let prev = Array.from({ length: h.length + 1 }, (_, j) => j);
+  for (let i = 1; i <= r.length; i++) {
+    const cur = [i];
+    for (let j = 1; j <= h.length; j++) cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (r[i - 1] === h[j - 1] ? 0 : 1));
+    prev = cur;
+  }
+  return Math.round((prev[h.length] / r.length) * 1000) / 1000;
+}
+async function benchGroq(bytes, type, env, withPrompt) {
+  if (!env.GROQ_API_KEY) return { error: 'no groq key' };
+  const form = new FormData();
+  form.append('file', new Blob([bytes], { type }), 'clip.' + (/mpeg|mp3/.test(type) ? 'mp3' : /ogg/.test(type) ? 'ogg' : /flac/.test(type) ? 'flac' : 'wav'));
+  form.append('model', 'whisper-large-v3');
+  form.append('response_format', 'verbose_json');
+  form.append('temperature', '0');
+  if (withPrompt) form.append('prompt', GROQ_PROMPT_EN);
+  try {
+    const r = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', { method: 'POST', headers: { Authorization: 'Bearer ' + env.GROQ_API_KEY }, body: form });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) return { error: 'groq ' + r.status };
+    return { text: String(j.text || '').trim(), language: j.language || '' };
+  } catch (e) { return { error: String(e).slice(0, 80) }; }
+}
+async function benchKhaya(bytes, type, env) {
+  if (!env.KHAYA_API_KEY) return { error: 'no khaya key' };
+  try {
+    const r = await fetch('https://translation-api.ghananlp.org/asr/v3/transcribe?language=twi', { method: 'POST', headers: { 'Ocp-Apim-Subscription-Key': env.KHAYA_API_KEY, 'Content-Type': type }, body: bytes });
+    const raw = await r.text();
+    if (!r.ok) return { error: 'khaya ' + r.status + ' ' + raw.slice(0, 80) };
+    let text = raw; try { const j = JSON.parse(raw); text = typeof j === 'string' ? j : (j.text || j.transcription || raw); } catch (e) { /* plain text */ }
+    return { text: String(text || '').trim() };
+  } catch (e) { return { error: String(e).slice(0, 80) }; }
+}
+async function handleAdminAsrBench(request, env) {
+  const url = new URL(request.url);
+  const key = url.searchParams.get('key') || '';
+  if (!env.ADMIN_KEY || key !== env.ADMIN_KEY) return cors(new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401 }));
+  let body = {}; try { body = await request.json(); } catch (e) { /* empty */ }
+  const items = (Array.isArray(body.items) ? body.items : []).slice(0, 12);
+  const out = [];
+  for (const it of items) {
+    const row = { ref: String(it.ref || '').slice(0, 400) };
+    try {
+      const u = new URL(String(it.url || ''));
+      if (u.protocol !== 'https:') throw new Error('https only');
+      const res = await fetch(u.toString());
+      if (!res.ok) throw new Error('fetch ' + res.status);
+      const bytes = new Uint8Array(await res.arrayBuffer());
+      if (bytes.length > 3 * 1024 * 1024) throw new Error('too big');
+      const type = String(it.type || res.headers.get('content-type') || 'audio/wav').split(';')[0];
+      const [plain, prompted, khaya] = await Promise.all([benchGroq(bytes, type, env, false), benchGroq(bytes, type, env, true), benchKhaya(bytes, type, env)]);
+      row.whisper = plain; row.whisperPrompted = prompted; row.khaya = khaya;
+      for (const k of ['whisper', 'whisperPrompted', 'khaya']) if (row[k] && typeof row[k].text === 'string') row[k].wer = benchWer(row.ref, row[k].text);
+    } catch (e) { row.error = String(e.message || e).slice(0, 120); }
+    out.push(row);
+  }
+  const avg = k => { const v = out.map(r => r[k] && r[k].wer).filter(x => typeof x === 'number'); return v.length ? Math.round((v.reduce((a, b) => a + b, 0) / v.length) * 1000) / 1000 : null; };
+  return cors(new Response(JSON.stringify({ n: out.length, meanWer: { whisper: avg('whisper'), whisperPrompted: avg('whisperPrompted'), khaya: avg('khaya') }, rows: out, wv: WORKER_VERSION }), { headers: { 'Content-Type': 'application/json' } }));
+}
+
 async function handleAdminRecentEntries(request, env) {
   if (!env.COUNTMY_DB) return cors(new Response(JSON.stringify({ error: 'not configured' }), { status: 503 }));
   const url = new URL(request.url);
@@ -1068,7 +1138,7 @@ async function handleTranscribe(request, env) {
 // 50 is a transcription/parsing error, not a fabrication) - evidence-checking
 // targets fabrication specifically, not every possible error; the review UI is
 // still what catches a wrong-but-grounded number.
-const WORKER_VERSION = 'w96';
+const WORKER_VERSION = 'w97';
 
 // Spanish (Venezuela) twin of EXTRACT_SYSTEM_PROMPT below: same event types,
 // same {value, evidence} rule, same JSON-only answer. Amounts are bare
@@ -2807,6 +2877,7 @@ export default {
       else if (path === '/admin/entries/recent' && request.method === 'GET') adminResp = await handleAdminRecentEntries(request, env);
       else if (path === '/admin/programme' && request.method === 'GET') adminResp = await handleProgrammeReport(request, env);
       else if (path === '/admin/purge-test' && request.method === 'POST') adminResp = await handleAdminPurgeTest(request, env);
+      else if (path === '/admin/asr-bench' && request.method === 'POST') adminResp = await handleAdminAsrBench(request, env);
       if (adminResp) {
         if (adminResp.status === 401) await bumpAdminFail(env, ip);
         return adminResp;
