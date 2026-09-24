@@ -1205,7 +1205,7 @@ async function handleTranscribe(request, env) {
 // 50 is a transcription/parsing error, not a fabrication) - evidence-checking
 // targets fabrication specifically, not every possible error; the review UI is
 // still what catches a wrong-but-grounded number.
-const WORKER_VERSION = 'w100';
+const WORKER_VERSION = 'w101';
 
 // Spanish (Venezuela) twin of EXTRACT_SYSTEM_PROMPT below: same event types,
 // same {value, evidence} rule, same JSON-only answer. Amounts are bare
@@ -1826,6 +1826,45 @@ const EN_TENS = { twenty: 20, thirty: 30, forty: 40, fifty: 50, sixty: 60, seven
 function twiPrep(text) {
   let t = String(text || '');
   const fold = w => w.toLowerCase().replace(/\u0254/g, 'o').replace(/\u025b/g, 'e');
+  // Sourced Twi lexicon, 24 Sep (twi_lexicon_phrases: every rule below has
+  // 2+ independent sources - Christaller's 1881 dictionary, the JW Twi Bible,
+  // LearnAkan/LearnAkanDictionary, Harvard ELIAS, Wikivoyage). Khaya writes
+  // Twi with the verb prefix joined ("Mat\u0254n", "Mede Ama ka"), which the
+  // spaced rules further down never matched. Measured on 17 sourced
+  // sentences through /extract before and after.
+  // JavaScript's \b treats the Akan letters \u0254 and \u025b as non-letters, so a
+  // rule starting or ending on one of them never matched - found 24 Sep
+  // testing "\u0186de me ka" and "\u0190nn\u025b". START/END are plain boundaries instead.
+  const START = '(^|[\\s.,;!?"(])';
+  const END = '(?=[\\s.,;!?")]|$)';
+  // "\u0254de me ka" / "w\u0254de me ka" / Fante "\u0254dze me kaw" = he/she/someone owes me,
+  // no name: the unnamed-customer path, not a customer called "\u0186de".
+  t = t.replace(new RegExp(START + '(?:w?[o\\u0254]d(?:z)?e)\\s+me\\s+kaw?' + END, 'gi'), '$1customer owes me');
+  // "Mede Ama ka" = I owe Ama (the debtor comes before "de"; Christaller, JW).
+  t = t.replace(new RegExp('\\bm[e\\u025b]d(?:z)?e\\s+([A-Za-z]+)\\s+kaw?' + END, 'gi'), 'I owe $1');
+  // "Mafiri Ama nne\u025bma" = I gave Ama goods on credit (Christaller "mifiri no
+  // ade"); "firi" alone is "from", so only this frame.
+  t = t.replace(/\b[Mm][aei]firi\s+([A-Z][a-z]+)\b/g, '$1 owes me for');
+  // Paid: "W\u0254atua me" (someone has paid me) -> unnamed customer paid me.
+  t = t.replace(new RegExp(START + '(?:w[o\\u0254]a|w[o\\u0254]|[o\\u0254]a|wa)tua\\s+me' + END, 'gi'), '$1customer paid me');
+  // Named: "Kofi atua me" / "Kofi tuaa me" = Kofi (has) paid me.
+  t = t.replace(/\b([A-Z][a-z]+)\s+(?:a|w[o\u0254]a)?tuaa?\s+me\b/g, '$1 paid me');
+  // Sell before buy: t\u0254n vs t\u0254 differ by one "n". Joined first-person
+  // forms: met\u0254n, mat\u0254n, m\u025bt\u0254n, meret\u0254n, met\u0254nn, met\u0254nee.
+  t = t.replace(new RegExp('\\bm[ae\\u025b](?:re)?t[o\\u0254]nn?(?:ee[e\\u025b]?)?' + END, 'gi'), 'I sold');
+  // Buy: met\u0254, mat\u0254, m\u025bt\u0254, meret\u0254, met\u0254\u0254, met\u0254e\u025b.
+  // Joined forms only: the spaced "me to" / "me too" is English far too
+  // often ("he asked me to pay").
+  t = t.replace(new RegExp('\\bm[ae\\u025b](?:re)?t[o\\u0254](?:\\u0254|e[e\\u025b]?)?' + END, 'gi'), 'I bought');
+  // "Madi sika" = I have spent money. "di" alone is also "eat", so only with sika.
+  t = t.replace(/\bm[ae\u025b]di\s+sika\b/gi, 'I spent');
+  // I paid (out): matua / metuaa / m\u025btua.
+  t = t.replace(new RegExp('\\bm[ae\\u025b]tuaa?' + END, 'gi'), 'I paid');
+  // Goods / things bought as stock.
+  t = t.replace(/\bnne[e\u025b]ma\b/gi, 'goods');
+  // Fante / Akuapem day words: nd\u025b (today), nnera / \u025bnnera (yesterday).
+  t = t.replace(new RegExp(START + '(?:[e\\u025b]nn[e\\u025b]|nn[e\\u025b]|nd[e\\u025b])' + END, 'gi'), '$1today');
+  t = t.replace(new RegExp(START + '(?:[e\\u025b]nn[o\\u0254]ra|nn[o\\u0254]ra|[e\\u025b]?nnera)' + END, 'gi'), '$1yesterday');
   // "mpem <number>" = that number x 1000 (mpem du = 10,000,
   // akandictionary.com; learnakan.com's numbering lesson, the same
   // compound). Genuinely multiplicative, unlike the additive run below
@@ -1863,6 +1902,10 @@ function twiPrep(text) {
     i = j - 1;
   }
   t = out.join('');
+  // "sidi" = cedi(s) (LearnAkan, Wikivoyage "M\u025bma wo sidi aduonu"); in Twi the
+  // amount follows it, so "sidi 20" becomes "20 cedis" - otherwise "sidi"
+  // was being saved as the item sold.
+  t = t.replace(/\bsidi\s+(\d+(?:\.\d+)?)/gi, '$1 cedis').replace(/\bsidi\b/gi, 'cedis');
   // "obi" (someone/somebody, learnakan.com) marks an UNNAMED
   // customer - the same case the model prompt already handles for the
   // English "a customer owes me"; converting it here feeds that same path
@@ -1878,7 +1921,10 @@ function twiPrep(text) {
   // instead of being answered. hwan/hena are dialect variants of "who".
   t = t.replace(/\b(hwan|hena)\s+na\s+[o\u0254]?de\s+me\s+ka\b/gi, 'who owes me');
   t = t.replace(/\b([oɔ]b[eɛ]tua|obetua)\s+([oɔ]ky[eɛ]na|okyena)\b/gi, 'will pay tomorrow').replace(/\b([oɔ]b[eɛ]tua|obetua)\b/gi, 'will pay').replace(/\b([oɔ]ky[eɛ]na|okyena)\b/gi, 'tomorrow');
-  t = t.replace(/\bme\s+t[oɔ]n\b/gi, 'I sold').replace(/\bme\s+t[oɔ]\b/gi, 'I bought');
+  // "me to" (buy) removed 24 Sep: it rewrote the English "he asked me to
+  // pay" as "he asked I bought pay". Twi now reaches here from Khaya, which
+  // writes the joined "met\u0254" handled above; only an \u0254 spelling is kept.
+  t = t.replace(/\bme\s+t[oɔ]n\b/gi, 'I sold').replace(/\bme\s+tɔ(?=[\s.,;!?]|$)/gi, 'I bought');
   // Pidgin tense markers
   t = t.replace(/\b(don|done)\s+pay\b/gi, 'paid').replace(/\b(don|done)\s+buy\b/gi, 'bought');
   // "mmiako mmiako" (one by one/individually, the reduplicated distributive
