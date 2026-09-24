@@ -1251,7 +1251,7 @@ async function handleTranscribe(request, env) {
 // 50 is a transcription/parsing error, not a fabrication) - evidence-checking
 // targets fabrication specifically, not every possible error; the review UI is
 // still what catches a wrong-but-grounded number.
-const WORKER_VERSION = 'w106';
+const WORKER_VERSION = 'w107';
 
 // Spanish (Venezuela) twin of EXTRACT_SYSTEM_PROMPT below: same event types,
 // same {value, evidence} rule, same JSON-only answer. Amounts are bare
@@ -2200,6 +2200,25 @@ function finalizeEvents(events, text, lang, country) {
       return e;
     });
   }
+  // "I sold 2 kenkey 10 cedis and transport 5" came back with transport at 10
+  // (24 Sep, reproducible, English prompt unchanged): the model reused the
+  // sale's number. People talk in "item number" fragments (the prompt's own
+  // rule), so when an item is said with a number straight after it, that
+  // number is its price - unless another event already accounts for it, or
+  // it is this event's own qty x price.
+  if (lang !== 'es' && out.length > 1) {
+    const saidAfter = (item, n) => new RegExp('\\b' + esc(item) + '\\s+(?:for\\s+)?' + esc(String(n)) + '\\b').test(tt);
+    out.forEach(e => {
+      if (!e.item || !(Number(e.price) > 0)) return;
+      const m = new RegExp('\\b' + esc(e.item) + '\\s+(?:for\\s+)?(\\d+(?:\\.\\d+)?)\\b').exec(tt);
+      if (!m) return;
+      const n = Number(m[1]);
+      if (Number(e.price) === n || (Number(e.qty) || 1) * Number(e.price) === n) return;
+      // only when the number it has now belongs, by position, to another item
+      if (!out.some(o => o !== e && o.item && (saidAfter(o.item, e.price) || saidAfter(o.item, (Number(o.qty) || 1) * Number(o.price)) && Number(e.price) === (Number(o.qty) || 1) * Number(o.price)))) return;
+      e.price = n;
+    });
+  }
   // "I owe 400 cedis" with no name: the placeholder, never the words "I owe"
   out.forEach(e => { if (e.type === 'debt_out' && /^(i|we)\s+(still\s+)?owe$/i.test(String(e.supplier || '').trim())) e.supplier = 'supplier'; });
   // "Kojo took 3 plantain 8 each, will pay Friday": credit, not a sale
@@ -2340,7 +2359,10 @@ function finalizeEvents(events, text, lang, country) {
     // "Bought 50 chicks 1,000", "bought 3 bags of rice 700": goods bought to
     // sell or raise are stock, not a running cost. The app reads note 'stock'
     // and keeps it out of the day's expenses (see spendKindFromText).
-    if (/\b(bought|buy|purchased|restock(ed)?|stocked)\b/.test(tt)) out = out.map(e => (e.type === 'expense' && !DRIVER_OUT.test(String(e.item || '').toLowerCase().trim()) && !/\b(fuel|petrol|diesel|airtime|data|credit|food|lunch|water|chop)\b/.test(String(e.item || '').toLowerCase())) ? Object.assign({}, e, { note: (e.note ? e.note + ' ' : '') + 'stock' }) : e);
+    if (/\b(bought|buy|purchased|restock(ed)?|stocked)\b/.test(tt)) out = out.map(e => (e.type === 'expense' && !DRIVER_OUT.test(String(e.item || '').toLowerCase().trim()) && !/\b(fuel|petrol|diesel|airtime|data|credit|food|lunch|water|chop|transport|trotro|fare|fares|lorry|taxi|okada|bus|bolt|uber|rent|susu|light|electricity|toll|toilet|fees?|tax|money)\b/.test(String(e.item || '').toLowerCase())) ? Object.assign({}, e, { note: (e.note ? e.note + ' ' : '') + 'stock' }) : e);
+    // 24 Sep: the line above is one verdict for the whole sentence, so in
+    // "bought stock 400, transport 15" the bus fare was being filed as stock
+    // too. Transport, rent, susu, tolls and fees are never goods to resell.
     // "Trip Madina Circle 90" with no verb: the model files a place name as a
     // cost. One number, the sentence starts with a trip word: it is a sale.
     if (out.length === 1 && nums.length === 1 && out[0].type === 'expense' && /^\s*(trip|trips|passengers?|load|fares?|ride)\b/.test(tt)) out = [{ type: 'sale', item: out[0].item || 'trip', qty: 1, price: out[0].price }];
