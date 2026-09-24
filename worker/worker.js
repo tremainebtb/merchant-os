@@ -1233,7 +1233,7 @@ async function handleTranscribe(request, env) {
 // 50 is a transcription/parsing error, not a fabrication) - evidence-checking
 // targets fabrication specifically, not every possible error; the review UI is
 // still what catches a wrong-but-grounded number.
-const WORKER_VERSION = 'w104';
+const WORKER_VERSION = 'w105';
 
 // Spanish (Venezuela) twin of EXTRACT_SYSTEM_PROMPT below: same event types,
 // same {value, evidence} rule, same JSON-only answer. Amounts are bare
@@ -2521,7 +2521,10 @@ async function handleExtract(request, env) {
   if (result.error) {
     return cors(new Response(JSON.stringify({ error: result.error, detail: result.detail }), { status: 502 }));
   }
-  return cors(new Response(JSON.stringify({ events: result.events, wv: WORKER_VERSION }), {
+  // sl: 'twi' when the words were Twi (24 Sep) - the returned text is already
+  // turned into English, so the phone can no longer tell by itself.
+  const sl = soundsLikeTwi({ language: '', text: String((body && body.text) || '') }) ? 'twi' : '';
+  return cors(new Response(JSON.stringify({ events: result.events, sl, wv: WORKER_VERSION }), {
     headers: { 'Content-Type': 'application/json' }
   }));
 }
@@ -2583,7 +2586,8 @@ async function handleTranscribeAndExtractInner(request, env) {
   else text = twiPrep(englishNumbersToDigits(text));
   const extracted = (lang === 'es' && /^\s*[\u00bf]?\s*(a c[o\u00f3]mo|cu[a\u00e1]nt[oa]s?|qui[e\u00e9]n|qu[e\u00e9])\b/i.test(text) && !/\d/.test(text)) ? { events: [] } : await extractFromText(text, env, lang, country);
   if (extracted.events) extracted.events = finalizeEvents(extracted.events, text, lang, country);
-  return cors(new Response(JSON.stringify({ text, events: extracted.events || [], wv: WORKER_VERSION, rep: text !== String(transcribed.text || '') }), {
+  const sl = (transcribed.engine === 'khaya' || soundsLikeTwi({ language: '', text: String(transcribed.text || '') })) ? 'twi' : '';
+  return cors(new Response(JSON.stringify({ text, events: extracted.events || [], sl, wv: WORKER_VERSION, rep: text !== String(transcribed.text || '') }), {
     headers: { 'Content-Type': 'application/json' }
   }));
 }

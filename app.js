@@ -890,7 +890,7 @@ async function transcribeAndExtract(blob, heardText) {
       const lp = ES ? null : localPaymentEvent(heardText);
       return { text: heardText, events: lp ? [lp] : [], via: 'browser', degraded: true };
     }
-    if (res.ok) return { text: heardText, events: shapeEvents(data.events), via: 'browser' };
+    if (res.ok) return { text: heardText, events: shapeEvents(data.events), via: 'browser', sl: data.sl || '' };
     // The text step failed (daily quota, hiccup). With a clip, try the audio
     // path; without one, the phone's own parser takes over below.
     track('extract_unavailable', { http: res.status });
@@ -931,7 +931,7 @@ async function transcribeAndExtract(blob, heardText) {
     e.quota = /daily free allocation|quota/i.test(String((data && (data.detail || data.error)) || ''));
     throw e;
   }
-  return { text: data.text || '', events: shapeEvents(data.events), via: 'whisper' };
+  return { text: data.text || '', events: shapeEvents(data.events), via: 'whisper', sl: data.sl || '' };
 }
 // Real bug, 18 Sep (found by the red-team pass): a debt comes back from the
 // server as {customer} or {supplier}, but every check on the phone looked
@@ -1657,7 +1657,7 @@ async function processVoiceBlob(blob, statusId, recordedMs, bytes, heardText) {
 async function processVoiceBlobInner(blob, statusId, recordedMs, bytes, heardText) {
   try {
         setMicStatus(t('Working out what happened\u2026', 'Anotando lo que dijiste\u2026'), null, statusId);
-        let { text: heard, events: heardEvents, via } = await transcribeAndExtract(blob, heardText);
+        let { text: heard, events: heardEvents, via, sl: serverLang } = await transcribeAndExtract(blob, heardText);
         let events = Array.isArray(heardEvents) ? heardEvents : [];
         if (!events.length && heard) heard = repairHeard(heard);
         ownerLog('result', `via=${via} heard=${JSON.stringify(heard).slice(0, 160)} events=${JSON.stringify(events).slice(0, 120)}`);
@@ -1666,7 +1666,7 @@ async function processVoiceBlobInner(blob, statusId, recordedMs, bytes, heardTex
         // audio itself, where Whisper knows the local words.
         if (via === 'browser' && !events.length && blob && blob.size && !/\d/.test(wordsToNumber(heard || ''))) {
           track('stt_browser_retry');
-          try { const r2 = await transcribeAndExtract(blob); if (r2.text && r2.text.trim()) { heard = r2.text; events = r2.events; via = 'whisper'; } } catch (e) { /* keep the phone's words */ }
+          try { const r2 = await transcribeAndExtract(blob); if (r2.text && r2.text.trim()) { heard = r2.text; events = r2.events; via = 'whisper'; serverLang = r2.sl || serverLang; } } catch (e) { /* keep the phone's words */ }
         }
         ping(via === 'browser' ? 'stt_browser' : 'stt_whisper');
         if (!heard.trim()) {
@@ -1701,7 +1701,10 @@ async function processVoiceBlobInner(blob, statusId, recordedMs, bytes, heardTex
         // Which language was actually spoken (16 Sep). A guess from the
         // transcript's own words, counted as en/twi/pidgin - the words
         // themselves never leave the phone for this.
-        const spokenLang = guessSpokenLang(heard);
+        // The server says when the words were Twi (its text is already English).
+        const spokenLang = serverLang === 'twi' && !ES ? 'twi' : guessSpokenLang(heard);
+        // Remembered so the Book's button questions can be heard in Twi.
+        if (spokenLang === 'twi') { try { localStorage.setItem('kym_twi', '1'); } catch (e) { /* optional */ } }
         track('voice_extracted', { event_count: events.length, lang: spokenLang });
         ping('voice_' + spokenLang);
         if (events.length >= 1) {
@@ -3509,10 +3512,20 @@ const BK_CATS = [
   ['\ud83d\udcf1', t('Airtime', tc('Saldo', 'Recargas')), 'running'],
   ['\ud83c\udfe0', t('Took home', 'Para la casa'), 'home']
 ];
-// Recorded prompts per button (Twi first) go here once they are recorded by
-// someone who speaks it - never machine-made Twi. Until then the button's
-// question is spoken by say() in English or Spanish.
-const BOOK_CLIPS = {};
+// Spoken Twi questions (24 Sep). The owner's family can no longer be asked
+// to record, so: the sentences come from the 2+-source Twi lexicon (the
+// "Woaton ahe?" frame is printed in Christaller's dictionary), spoken once by
+// GhanaNLP's Khaya Twi voice and kept as static files (no per-use cost).
+// Checked by playing each clip back into Khaya's own Twi recogniser (11-22%
+// letters off - the same as it scores on human Twi speakers). Only the
+// questions the lexicon rated high/medium-high; Spent stays English (the
+// Twi "di" also means eat). Played only on phones that have spoken Twi to
+// CountMy (kym_twi, set when a voice entry is recognised as Twi) - reading
+// Twi is rarer than reading English (2021 census: 52.8% of literate
+// Ghanaians read a Ghanaian language, 96% English), so there is no written
+// Twi label; the help for a Twi speaker is heard, not read.
+const BOOK_CLIPS = { in: 'audio/tw/in.mp3', owe: 'audio/tw/owe.mp3', pay: 'audio/tw/pay.mp3' };
+function bkTwiSpeaker() { try { return !ES && localStorage.getItem('kym_twi') === '1'; } catch (e) { return false; } }
 const BK_ICON = {
   in: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',
   out: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round"><path d="M5 12h14"/></svg>',
@@ -3721,7 +3734,8 @@ function bkOpen(kind, debt) {
 // voice-on-every-screen half of the evidence. Then it stays quiet.
 function bkPrompt(kind) {
   try {
-    const k = 'kym_bk_said_' + kind, n = parseInt(localStorage.getItem(k), 10) || 0;
+    const twi = bkTwiSpeaker() && !!BOOK_CLIPS[kind];
+    const k = 'kym_bk_said_' + (twi ? 'tw_' : '') + kind, n = parseInt(localStorage.getItem(k), 10) || 0;
     if (n >= 3) return;
     localStorage.setItem(k, String(n + 1));
     const q = {
@@ -3730,7 +3744,7 @@ function bkPrompt(kind) {
       owe: t('Who owes you? How much?', tc('\u00bfQui\u00e9n te qued\u00f3 debiendo? \u00bfCu\u00e1nto?', '\u00bfA qui\u00e9n le fiaste? \u00bfCu\u00e1nto?')),
       pay: t('How much did they pay?', '\u00bfCu\u00e1nto pag\u00f3?')
     }[kind];
-    if (BOOK_CLIPS[kind]) { new Audio(BOOK_CLIPS[kind]).play().catch(() => speakShort(q)); return; }
+    if (twi) { stopSpeaking(); new Audio(BOOK_CLIPS[kind]).play().catch(() => speakShort(q)); return; }
     speakShort(q);
   } catch (e) { /* speech is a bonus */ }
 }
