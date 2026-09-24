@@ -958,7 +958,11 @@ async function groqTranscribe(audioBytes, audioType, env, lang, country) {
   const form = new FormData();
   form.append('file', new Blob([audioBytes], { type }), 'voice.' + ext);
   form.append('model', 'whisper-large-v3');
-  form.append('response_format', 'json');
+  // verbose_json (24 Sep) also returns the language Whisper thinks it heard.
+  // Whisper has no Twi, so on real Akan recordings it names Yoruba, Swahili,
+  // Malay, Haitian, even Japanese or Thai - that is the signal to hand the
+  // clip to Khaya (see transcribeAudio).
+  form.append('response_format', 'verbose_json');
   form.append('temperature', '0');
   if (lang === 'es') {
     form.append('language', 'es');
@@ -973,7 +977,7 @@ async function groqTranscribe(audioBytes, audioType, env, lang, country) {
     const r = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', { method: 'POST', headers: { Authorization: 'Bearer ' + env.GROQ_API_KEY }, body: form, signal: ctl.signal });
     const j = await r.json().catch(() => ({}));
     if (!r.ok) { console.log('groq stt fail', r.status, JSON.stringify(j).slice(0, 200)); return null; }
-    return { text: String(j.text || '') };
+    return { text: String(j.text || ''), language: String(j.language || '') };
   } catch (err) { console.log('groq stt threw', String(err).slice(0, 120)); return null; }
   finally { clearTimeout(tm); }
 }
@@ -1012,7 +1016,23 @@ async function groqChat(messages, env, temperature) {
 async function transcribeAudio(audioBytes, audioType, env, lang, country) {
   if (audioBytes.length === 0) return { text: '', error: 'no audio received' };
   const viaGroq = await groqTranscribe(audioBytes, audioType, env, lang, country);
-  if (viaGroq) return { text: await khayaFallback(viaGroq.text, audioBytes, audioType, env), engine: 'groq' };
+  // Measured 24 Sep on 22 real Asante Twi recordings (Ashesi Financial
+  // Inclusion set, /admin/asr-bench): letters wrong - Khaya 11%, Whisper
+  // with our shop prompt 52%, plain Whisper 70%; Khaya accepted the phones'
+  // own webm and mp4 exactly as it did wav. Whisper never returned empty
+  // text (the old and only trigger for Khaya), so Khaya had never helped.
+  // Now: when Whisper says the speech is not English, Khaya's transcript is
+  // used. English and Pidgin stay on Whisper, which is better on English
+  // words and digits. If Khaya fails or its quota is spent, Whisper's text
+  // is kept - nothing gets worse than before.
+  if (viaGroq) {
+    if (lang !== 'es' && soundsLikeTwi(viaGroq)) {
+      const k = await khayaTranscribe(audioBytes, audioType, env);
+      console.log('route', JSON.stringify({ heardAs: viaGroq.language.slice(0, 20), khaya: k ? 'ok' : 'none' }));
+      if (k) return { text: k, engine: 'khaya', whisper: viaGroq.text };
+    }
+    return { text: await khayaFallback(viaGroq.text, audioBytes, audioType, env), engine: 'groq' };
+  }
 
   // whisper-large-v3-turbo's input schema wants 'audio' as an array of raw byte
   // values OR base64 - live-tested 27 Aug: passing a plain JS array (Array.from a
@@ -1092,6 +1112,27 @@ async function transcribeAudio(audioBytes, audioType, env, lang, country) {
   text = await khayaFallback(text, audioBytes, audioType, env);
   return { text, engine: 'cf' };
 }
+// Whisper's own language guess, or a non-Latin script in its text (it wrote
+// Twi in Japanese, Urdu and Thai script in the 24 Sep bench).
+function soundsLikeTwi(g) {
+  const l = String((g && g.language) || '').toLowerCase();
+  if (l && l !== 'english' && l !== 'en') return true;
+  return /[^\u0000-\u024f\u0254\u025b\u1e00-\u1eff\u2000-\u206f\u20b5\s]/.test(String((g && g.text) || ''));
+}
+async function khayaTranscribe(audioBytes, audioType, env) {
+  if (!env.KHAYA_API_KEY) return '';
+  try {
+    const r = await fetch('https://translation-api.ghananlp.org/asr/v3/transcribe?language=twi', {
+      method: 'POST',
+      headers: { 'Ocp-Apim-Subscription-Key': env.KHAYA_API_KEY, 'Content-Type': (audioType || 'audio/webm').split(';')[0] },
+      body: audioBytes
+    });
+    const raw = await r.text();
+    if (!r.ok) { console.log('khaya fail', r.status, raw.slice(0, 80)); return ''; }
+    let text = raw; try { const j = JSON.parse(raw); text = typeof j === 'string' ? j : (j.text || j.transcription || ''); } catch (e) { /* plain text */ }
+    return String(text || '').trim();
+  } catch (e) { console.log('khaya threw', String(e).slice(0, 80)); return ''; }
+}
 async function khayaFallback(text, audioBytes, audioType, env) {
   if (!text.trim() && env.KHAYA_API_KEY) {
     try {
@@ -1164,7 +1205,7 @@ async function handleTranscribe(request, env) {
 // 50 is a transcription/parsing error, not a fabrication) - evidence-checking
 // targets fabrication specifically, not every possible error; the review UI is
 // still what catches a wrong-but-grounded number.
-const WORKER_VERSION = 'w98';
+const WORKER_VERSION = 'w99';
 
 // Spanish (Venezuela) twin of EXTRACT_SYSTEM_PROMPT below: same event types,
 // same {value, evidence} rule, same JSON-only answer. Amounts are bare
@@ -1929,6 +1970,9 @@ function repairTranscript(text, lang, country) {
     if (country === 'CO') t = t.replace(/\bpesos?\b/gi, 'pesos');
   } else {
     t = t.replace(/\b(studies|sities|sadis|sedis|sidis|cedes|ceedis|seedies|cds|cd|cidis|cities)\b/gi, 'cedis');
+    // Heard on real Twi recordings, 24 Sep bench ("5 sedes", "10 series",
+    // "FCDC"): only after a number, so a real "series" elsewhere is left alone.
+    t = t.replace(/(\d|\b(?:one|two|three|four|five|six|seven|eight|nine|ten|twenty|thirty|forty|fifty|hundred|thousand))\s+(series|sedes|cdc)\b/gi, '$1 cedis');
     t = t.replace(/\b(job|shop|chap|chob) money\b/gi, 'chop money').replace(/\bchopmoney\b/gi, 'chop money');
     t = t.replace(/\b(blatt|bot|bord|bout|board)\s?stock\b/gi, 'bought stock');
     t = t.replace(/\b(uma|umo|momu|mumu)\s+(received|sent|paid)\b/gi, 'momo $2');
