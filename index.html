@@ -56,7 +56,7 @@
      app.js?v=. Lets anyone - a reviewer, a tester in Kumasi, a future session -
      answer "which CountMy am I looking at?" from view-source or the console,
      the same way the Worker answers with "wv". -->
-<meta name="countmy-version" content="v172">
+<meta name="countmy-version" content="v173">
 <!-- Real finding, 28 Aug: the bare "CountMy" title carried no keywords at all
      for what people actually search - a free sales/expense ledger for
      Ghanaian shop owners. The <title> tag is the single strongest on-page
@@ -92,7 +92,7 @@
   });
 })();
 </script>
-<meta name="description" content="Your business remembers. A free money notebook for anyone in business in Ghana - traders, farmers, artisans, drivers. You talk, it keeps the record. Little data, no signup, your records stay on your phone.">
+<meta name="description" content="A free notebook for your business in Ghana - traders, farmers, artisans, drivers. Tap or talk: what you sold, what you spent, who owes you. It adds up your day. Little data, no signup, your records stay on your phone.">
 <meta name="theme-color" content="#D9541A">
 <link rel="alternate" hreflang="es" href="https://countmy.app/?lang=es">
 <link rel="alternate" hreflang="en" href="https://countmy.app/">
@@ -109,20 +109,20 @@
 
 <!-- Open Graph / Twitter Card - added 27 Aug so sending countmy.app in WhatsApp,
      iMessage, Slack etc actually shows a title, description, and preview image
-     instead of a bare link. og-image.png is a real 1200x630 asset (see
+     instead of a bare link. og-book.png (24 Sep, source tools/og-card.html) is a real 1200x630 asset (see
      og-image.html-derived render) showing the actual app UI, not a stock/AI
      graphic - the whole point is looking like a real product, not a scam link. -->
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://countmy.app">
-<meta property="og:title" content="CountMy - Your business remembers">
-<meta property="og:description" content="Just tell CountMy what happened. It remembers for you. Free, little data, no signup - for traders, farmers and every small business in Ghana.">
-<meta property="og:image" content="https://countmy.app/og-image.png">
+<meta property="og:title" content="CountMy - A free notebook for your business">
+<meta property="og:description" content="Tap Sold, Spent or Owes me, type the amount - or just talk. It adds up your day. Free, no signup, English, Twi and Pidgin.">
+<meta property="og:image" content="https://countmy.app/og-book.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="CountMy - Your business remembers">
-<meta name="twitter:description" content="Just tell CountMy what happened. It remembers for you. Free, little data, no signup - for traders, farmers and every small business in Ghana.">
-<meta name="twitter:image" content="https://countmy.app/og-image.png">
+<meta name="twitter:title" content="CountMy - A free notebook for your business">
+<meta name="twitter:description" content="Tap Sold, Spent or Owes me, type the amount - or just talk. It adds up your day. Free, no signup, English, Twi and Pidgin.">
+<meta name="twitter:image" content="https://countmy.app/og-book.png">
 <!-- Structured data, added 28 Aug - real gap found via a live SEO check: zero
      JSON-LD on the page before this, so Google had nothing to build a rich
      result from (price, rating, category) and no explicit signal this is a
@@ -1279,7 +1279,7 @@ body.book-on .act-snap{background:var(--surface);color:var(--navy);border:1.5px 
      string is what forces a fresh script fetch even before any service worker logic
      runs, independent of it. Found live 27 Aug: without this, an already-visited
      browser can keep running old code from plain HTTP cache regardless of SW strategy. -->
-<script src="app.js?v=172"></script>
+<script src="app.js?v=173"></script>
 
 </body>
 </html>
