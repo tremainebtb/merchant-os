@@ -1205,7 +1205,7 @@ async function handleTranscribe(request, env) {
 // 50 is a transcription/parsing error, not a fabrication) - evidence-checking
 // targets fabrication specifically, not every possible error; the review UI is
 // still what catches a wrong-but-grounded number.
-const WORKER_VERSION = 'w101';
+const WORKER_VERSION = 'w102';
 
 // Spanish (Venezuela) twin of EXTRACT_SYSTEM_PROMPT below: same event types,
 // same {value, evidence} rule, same JSON-only answer. Amounts are bare
@@ -1857,7 +1857,11 @@ function twiPrep(text) {
   // often ("he asked me to pay").
   t = t.replace(new RegExp('\\bm[ae\\u025b](?:re)?t[o\\u0254](?:\\u0254|e[e\\u025b]?)?' + END, 'gi'), 'I bought');
   // "Madi sika" = I have spent money. "di" alone is also "eat", so only with sika.
-  t = t.replace(/\bm[ae\u025b]di\s+sika\b/gi, 'I spent');
+  t = t.replace(/\bm[ae\u025b]di\s+sika\b/gi, 'I spent money');
+  // "magye" = I (have) received / collected (gye: LearnAkanDictionary, and
+  // Christaller's "maton ... magye" sell-then-receive frame): the amount
+  // that follows is what the goods sold for.
+  t = t.replace(/[,;]?\s*\bm[ae\u025b]gye\b/gi, ' for');
   // I paid (out): matua / metuaa / m\u025btua.
   t = t.replace(new RegExp('\\bm[ae\\u025b]tuaa?' + END, 'gi'), 'I paid');
   // Goods / things bought as stock.
