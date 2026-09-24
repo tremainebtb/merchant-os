@@ -1205,7 +1205,7 @@ async function handleTranscribe(request, env) {
 // 50 is a transcription/parsing error, not a fabrication) - evidence-checking
 // targets fabrication specifically, not every possible error; the review UI is
 // still what catches a wrong-but-grounded number.
-const WORKER_VERSION = 'w99';
+const WORKER_VERSION = 'w100';
 
 // Spanish (Venezuela) twin of EXTRACT_SYSTEM_PROMPT below: same event types,
 // same {value, evidence} rule, same JSON-only answer. Amounts are bare
@@ -1973,6 +1973,13 @@ function repairTranscript(text, lang, country) {
     // Heard on real Twi recordings, 24 Sep bench ("5 sedes", "10 series",
     // "FCDC"): only after a number, so a real "series" elsewhere is left alone.
     t = t.replace(/(\d|\b(?:one|two|three|four|five|six|seven|eight|nine|ten|twenty|thirty|forty|fifty|hundred|thousand))\s+(series|sedes|cdc)\b/gi, '$1 cedis');
+    // "Credit" in Ghana is phone airtime ("buy credit", "credit transfer") -
+    // the Ashesi Twi recordings say it ("M\u025bt\u0254 credit 5 cedis", "Mee y\u025b credit
+    // transfer 10 cedis") and the 24 Sep end-to-end test saved one as a
+    // debt to a supplier called "credit". Buying credit is spending on
+    // airtime; "on credit" (a debt) is not touched.
+    t = t.replace(/\b(buy|buys|bought|buying|m[e\u025b]\s*t[o\u0254]e?|m[e\u025b]t[o\u0254]e?)\s+((?:mtn|telecel|vodafone|airteltigo|at)\s+)?(credits?|kredits?|kredi|kredet)\b/gi, (m, v, net) => 'bought ' + (net || '') + 'airtime');
+    t = t.replace(/\b(credits?|kredits?|kredi|kredet)\s+(transfer\w*|transmitting)\b/gi, 'airtime transfer');
     t = t.replace(/\b(job|shop|chap|chob) money\b/gi, 'chop money').replace(/\bchopmoney\b/gi, 'chop money');
     t = t.replace(/\b(blatt|bot|bord|bout|board)\s?stock\b/gi, 'bought stock');
     t = t.replace(/\b(uma|umo|momu|mumu)\s+(received|sent|paid)\b/gi, 'momo $2');
