@@ -104,7 +104,29 @@ const HOME_CUR = CO ? 'COP' : 'USD';
 // shows the old home on one phone, for comparing. See "The Book" below.
 var BOOK_DEFAULT = true;
 var BK_IAB_TALK = false; // set by the in-app browser block (Book + Facebook Android)
-var BOOK_ON = (function () { try { return BOOK_DEFAULT && new URLSearchParams(location.search).get('book') !== '0'; } catch (e) { return BOOK_DEFAULT; } })();
+// Home-screen test (25 Sep). The owner: "don't waste time - results, no
+// guessing". Two designs, decided by what real visitors do, not by opinion:
+// 'book' (the exercise-book page, v169+) and 'today' (Today numbers + one
+// big Tell CountMy - ChatGPT's first choice, and the home of v103-v168).
+// Only brand-new phones are split, 50/50, and each keeps its design;
+// anyone who has opened CountMy before stays on the Book they know.
+// ?book=1 / ?book=0 force a design on one phone without being saved.
+// Measured per design through the version tag (v175book / v175today) on
+// every ping - /admin/source-daily splits by it.
+var HOME_VARIANT = (function () {
+  try {
+    const q = new URLSearchParams(location.search).get('book');
+    if (q === '0') return 'today';
+    if (q === '1') return 'book';
+    const saved = localStorage.getItem('kym_home');
+    if (saved === 'book' || saved === 'today') return saved;
+    const isNew = !localStorage.getItem('kym_device_id') && !localStorage.getItem('kym_visits');
+    const v = isNew && Math.random() < 0.5 ? 'today' : 'book';
+    localStorage.setItem('kym_home', v);
+    return v;
+  } catch (e) { return 'book'; }
+})();
+var BOOK_ON = BOOK_DEFAULT && HOME_VARIANT === 'book';
 // Real bug, found 24 Sep: afterEntrySaved() called escapeHtml, which never
 // existed, so the "send it to your own WhatsApp" prompt after a first save
 // threw inside its try and silently never showed.
@@ -3985,6 +4007,13 @@ function bookNudgeTiles() {
   } catch (e) { track('book_error', { where: 'setup', reason: (e && e.name) || 'unknown' }); }
 })();
 
+// The Today design has no tap buttons on its first screen, so its line keeps
+// the wording it was measured with (v168), not the Book's "Tap or talk".
+if (!BOOK_ON) {
+  const sub = document.querySelector('#whatIs .what-is-sub');
+  if (sub) sub.textContent = t('You talk. It writes down what you sell, what you spend, and who owes you.', 'Tú hablas. CountMy anota lo que vendes, lo que gastas y quién te debe.');
+}
+
 if (inAppBrowser()) {
   try {
     ping('iab'); track('iab_open');
@@ -4293,7 +4322,10 @@ function bumpVisitCount() {
 
 (async function init() {
   db = await openDB();
-  window.KYM_VERSION = (document.querySelector('meta[name="countmy-version"]') || {}).content || 'unknown';
+  // The home design rides on the version tag so every ping, the backend and
+  // Clarity can split results by it (see HOME_VARIANT).
+  window.KYM_VERSION = ((document.querySelector('meta[name="countmy-version"]') || {}).content || 'unknown') + (BOOK_ON ? 'book' : 'today');
+  try { if (window.clarity && !window.KYM_IS_OWNER_DEVICE) window.clarity('set', 'home', BOOK_ON ? 'book' : 'today'); } catch (e) { /* optional */ }
   // Programme code from the link she arrived on (a partner's card or QR carries
   // ?p=<code>). Stored once, first code wins, sent with every ping so the
   // partner can be shown adoption among its own traders. Never a name.
