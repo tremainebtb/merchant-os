@@ -18,9 +18,10 @@ routes = [
 # WhatsApp Cloud API (19 Sep). Plain vars: the phone number id is not a secret
 # and the verify token only gates Meta's one-time GET handshake. The access
 # token (WHATSAPP_TOKEN) is a dashboard secret and never lives here.
-# Evening reminder (25 Sep): 19:00 UTC is 19:00 in Ghana all year.
+# Evening reminder (25 Sep): 18:30 UTC = 6:30pm in Ghana (GMT all year).
+# Stalls close ~6pm; the NCA messaging code keeps messages 8am-7pm.
 [triggers]
-crons = ["0 19 * * *"]
+crons = ["30 18 * * *"]
 
 [vars]
 WHATSAPP_PHONE_ID = "1373693199154891"

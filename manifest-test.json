@@ -1,0 +1,16 @@
+{
+  "name": "CountMy",
+  "short_name": "CountMy",
+  "start_url": "./?test=1",
+  "display": "standalone",
+  "background_color": "#F8F3EC",
+  "theme_color": "#D9541A",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

@@ -3460,7 +3460,7 @@ async function handleWaWebhook(request, env, ctx) {
 }
 
 export default {
-  // 19:00 UTC = 19:00 in Ghana (GMT all year): the evening reminder.
+  // 18:30 UTC = 6:30pm in Ghana (GMT all year): the evening reminder.
   async scheduled(event, env, ctx) {
     if (env.COUNTMY_DB) ctx.waitUntil(pushAll(env, false));
   },

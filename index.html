@@ -56,7 +56,7 @@
      app.js?v=. Lets anyone - a reviewer, a tester in Kumasi, a future session -
      answer "which CountMy am I looking at?" from view-source or the console,
      the same way the Worker answers with "wv". -->
-<meta name="countmy-version" content="v180">
+<meta name="countmy-version" content="v181">
 <!-- Real finding, 28 Aug: the bare "CountMy" title carried no keywords at all
      for what people actually search - a free sales/expense ledger for
      Ghanaian shop owners. The <title> tag is the single strongest on-page
@@ -759,6 +759,13 @@ body.book-on .act-snap{background:var(--surface);color:var(--navy);border:1.5px 
       document.documentElement.className += ' home-' + home + (localStorage.getItem('kym_has_records') === '1' ? ' has-records' : '');
     } catch (e) { /* app.js decides instead */ }
   })();
+  // A Home Screen app keeps its own storage, so an owner or test phone that
+  // installs CountMy carries its flag into it: the install starts there.
+  try {
+    var mf = document.querySelector('link[rel="manifest"]');
+    if (mf && window.KYM_IS_OWNER_DEVICE) mf.href = 'manifest-owner.json';
+    else if (mf && localStorage.getItem('kym_test') === '1') mf.href = 'manifest-test.json';
+  } catch (e) { /* optional */ }
   // GA4, Clarity and the Meta Pixel stay off for the owner AND for test phones.
   window.KYM_NO_ANALYTICS = window.KYM_IS_OWNER_DEVICE || (function() { try { return localStorage.getItem('kym_test') === '1'; } catch (e) { return false; } })();
 
@@ -772,6 +779,8 @@ body.book-on .act-snap{background:var(--surface);color:var(--navy);border:1.5px 
     try {
       var ua = navigator.userAgent || '';
       var inApp = /FBAN|FBAV|FB_IAB|Instagram|Messenger\/|WhatsApp|Telegram|Snapchat|TikTok|GSA\//i.test(ua) || (/Android/i.test(ua) && /;\s*wv\)/.test(ua)) || (/iPhone|iPad|iPod/i.test(ua) && !/Safari\//i.test(ua) && !/CriOS|FxiOS|EdgiOS/i.test(ua));
+      // Added to the Home Screen (iPhone or Android): not an in-app browser.
+      if (navigator.standalone === true || (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches)) inApp = false;
       if (!inApp) return;
       var p = new URLSearchParams(location.search);
       if (p.get('iab') === 'stay') { window.KYM_IAB_STAY = true; return; }
@@ -843,7 +852,7 @@ body.book-on .act-snap{background:var(--surface);color:var(--navy);border:1.5px 
     y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
   })(window, document, "clarity", "script", window.CLARITY_ID);
 </script>
-<script src="app.js?v=180" defer></script>
+<script src="app.js?v=181" defer></script>
 </head>
 <body>
 <main class="wrap">

@@ -657,6 +657,10 @@ function inAppBrowser() {
   // inside themselves): Android WebView says "; wv)"; an iPhone WKWebView
   // has no "Safari/" token and is not Chrome or Firefox for iOS.
   if (/Android/i.test(ua) && /;\s*wv\)/.test(ua)) return true;
+  // 25 Sep: CountMy added to an iPhone Home Screen also has no Safari token
+  // and was treated as Facebook's browser (Open-in-Safari card, no reminders -
+  // the only place iPhone reminders can work). Installed = not in-app.
+  if (isStandalone()) return false;
   if (/iPhone|iPad|iPod/i.test(ua) && !/Safari\//i.test(ua) && !/CriOS|FxiOS|EdgiOS/i.test(ua)) return true;
   return false;
 }
@@ -4590,7 +4594,7 @@ async function enableEveningReminder() {
     const key = ((await (await fetch(API_BASE + '/push/key')).json()) || {}).key;
     if (!key) return false;
     const sub = (await reg.pushManager.getSubscription()) || await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64uToBytes(key) });
-    const res = await fetch(API_BASE + '/push/sub', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ device: getDeviceId(), endpoint: sub.endpoint, lang: ES ? 'es' : 'en', test: isTestDevice() }) });
+    const res = await fetch(API_BASE + '/push/sub', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ device: getDeviceId(), endpoint: sub.endpoint, lang: ES ? 'es' : 'en', test: (isTestDevice() || window.KYM_IS_OWNER_DEVICE) ? 1 : 0 }) });
     if (!res.ok) return false;
     if (reg.active) reg.active.postMessage({ kymPrefs: { es: !!ES } });
     try { localStorage.setItem('kym_push', '1'); } catch (e) { /* optional */ }
@@ -4601,15 +4605,15 @@ async function enableEveningReminder() {
 function reminderButtonHtml() {
   let on = false; try { on = localStorage.getItem('kym_push') === '1'; } catch (e) { /* optional */ }
   if (on || !pushSupported()) return '';
-  return ` <button type="button" class="remind-btn remind-alt" id="eveBtn">${t('Remind me every evening (7pm)', 'Recu\u00e9rdame cada noche (7pm)')}</button>`;
+  return ` <button type="button" class="remind-btn remind-alt" id="eveBtn">${t('Remind me every evening (6:30pm)', 'Recu\u00e9rdame cada noche (6:30pm)')}</button>`;
 }
 function wireReminderButton(box) {
   const b = box.querySelector('#eveBtn'); if (!b) return;
   b.addEventListener('click', async () => {
     b.disabled = true;
     const ok = await enableEveningReminder();
-    b.textContent = ok ? t('Done. See you at 7pm.', 'Listo. Nos vemos a las 7pm.') : t('Your phone said no. That is fine.', 'Tu tel\u00e9fono dijo que no. No pasa nada.');
-    if (ok) speakShort(t('Done. I will remind you at 7 in the evening.', 'Listo. Te recuerdo a las 7 de la noche.'));
+    b.textContent = ok ? t('Done. See you at 6:30pm.', 'Listo. Nos vemos a las 6:30pm.') : t('Your phone said no. That is fine.', 'Tu tel\u00e9fono dijo que no. No pasa nada.');
+    if (ok) speakShort(t('Done. I will remind you at half past six in the evening.', 'Listo. Te recuerdo a las seis y media de la tarde.'));
   });
 }
 
