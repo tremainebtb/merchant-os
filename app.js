@@ -113,7 +113,10 @@ var BK_IAB_TALK = false; // set by the in-app browser block (Book + Facebook And
 // ?book=1 / ?book=0 force a design on one phone without being saved.
 // Measured per design through the version tag (v175book / v175today) on
 // every ping - /admin/source-daily splits by it.
-var HOME_VARIANT = (function () {
+// 25 Sep: the head of index.html now decides the design before first paint
+// (a slow phone used to show the Today tiles for seconds, then jump to the
+// Book). Same rules, one place; this copy only runs if that script did not.
+var HOME_VARIANT = (window.KYM_HOME === 'book' || window.KYM_HOME === 'today') ? window.KYM_HOME : (function () {
   try {
     const q = new URLSearchParams(location.search).get('book');
     if (q === '0') return 'today';
@@ -127,6 +130,9 @@ var HOME_VARIANT = (function () {
   } catch (e) { return 'book'; }
 })();
 var BOOK_ON = BOOK_DEFAULT && HOME_VARIANT === 'book';
+// Set here, not in init: the in-Facebook ping fires before init runs and was
+// reaching the server with an empty version, so it could not be split by design.
+window.KYM_VERSION = ((document.querySelector('meta[name="countmy-version"]') || {}).content || 'unknown') + (BOOK_ON ? 'book' : 'today');
 // Real bug, found 24 Sep: afterEntrySaved() called escapeHtml, which never
 // existed, so the "send it to your own WhatsApp" prompt after a first save
 // threw inside its try and silently never showed.
@@ -296,10 +302,16 @@ const DB_NAME = 'merchantos';
 const STORE = 'entries';
 let db;
 
+// 25 Sep QA: when a cheap phone's storage never answers, the app used to
+// wait forever - no Write it, not even the "open" ping. Six seconds, then an
+// error the caller can show.
 function openDB() {
   return new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB_NAME, 1);
+    let req;
+    try { req = indexedDB.open(DB_NAME, 1); } catch (e) { reject(e); return; }
+    const timer = setTimeout(() => reject(new Error('idb open timeout')), 6000);
     req.onsuccess = () => {
+      clearTimeout(timer);
       const d = req.result;
       // the browser (Facebook's iPhone webview, 18 Sep) can close the
       // connection under us; forget it so the next call reopens
@@ -313,7 +325,7 @@ function openDB() {
       store.createIndex('day', 'day');
       store.createIndex('type', 'type');
     };
-    req.onerror = () => reject(req.error);
+    req.onerror = () => { clearTimeout(timer); reject(req.error); };
   });
 }
 // Every transaction goes through here: a connection that has been closed
@@ -341,10 +353,35 @@ function todayKey(ts) {
 // touches storage (see worker.js handleSync), this is best-effort/fire-and-
 // forget, and it never blocks or fails the real local save if it's offline
 // or the request fails.
+// No data, slow data (25 Sep): a save made offline, or whose backup request
+// failed, used to be skipped for good - never backed up, so it could not
+// follow her to another browser or survive a lost phone. Such ids now wait
+// in a small queue and are sent when the phone is back online, when the app
+// opens, and when she comes back to it.
+function unsyncedQueue() { try { return JSON.parse(localStorage.getItem('kym_unsynced') || '[]'); } catch (e) { return []; } }
+function setUnsynced(list) { try { if (list.length) localStorage.setItem('kym_unsynced', JSON.stringify(list.slice(-2000))); else localStorage.removeItem('kym_unsynced'); } catch (e) { /* storage full or blocked */ } }
+function markUnsynced(id, deleted) { if (!id) return; const q = unsyncedQueue().filter(x => x.id !== id); q.push({ id, del: deleted ? 1 : 0 }); setUnsynced(q); }
+function markSynced(id) { const q = unsyncedQueue(); if (q.some(x => x.id === id)) setUnsynced(q.filter(x => x.id !== id)); }
+let flushing = false;
+async function flushUnsynced() {
+  if (flushing || window.KYM_IS_OWNER_DEVICE || !navigator.onLine) return;
+  const q = unsyncedQueue(); if (!q.length) return;
+  flushing = true;
+  try {
+    const byId = new Map((await getAllEntries()).map(e => [e.id, e]));
+    for (const x of q) {
+      if (x.del) syncEntryToServer({ id: x.id }, true);
+      else if (byId.has(x.id)) syncEntryToServer(byId.get(x.id), false);
+      else markSynced(x.id); // gone from the phone: nothing left to send
+    }
+  } catch (e) { /* next time */ }
+  flushing = false;
+}
+window.addEventListener('online', () => { flushUnsynced(); });
 function syncEntryToServer(entry, deleted) {
   try {
     if (window.KYM_IS_OWNER_DEVICE) return;
-    if (!navigator.onLine) return;
+    if (!navigator.onLine) { markUnsynced(entry && entry.id, deleted); return; }
     const shop = getShopId() || getDeviceId();
     fetch(`${API_BASE}/sync`, {
       method: 'POST',
@@ -359,8 +396,9 @@ function syncEntryToServer(entry, deleted) {
       // Only on a real server confirmation - claiming "backed up" because a
       // request was merely sent would be the same broken promise the apps
       // that lost people's records made.
-      if (res && res.ok) { markBackedUp(); renderBackupStatus(); }
-    }).catch(() => {});
+      if (res && res.ok) { markSynced(entry.id); markBackedUp(); renderBackupStatus(); }
+      else markUnsynced(entry && entry.id, deleted);
+    }).catch(() => { markUnsynced(entry && entry.id, deleted); });
   } catch (err) {
     // Local storage already committed. A backup setup failure must not hold it open.
   }
@@ -387,7 +425,8 @@ function syncNotSaved(entryLike) {
     body: JSON.stringify({
       shop,
       entry: { id: newId(), ...entryLike, status: 'not_saved' },
-      deleted: false
+      deleted: false,
+      test: isTestDevice()
     }),
     keepalive: true // same gap as ping() and syncEntryToServer - see the 23 Sep note above
   }).catch(() => {});
@@ -395,7 +434,8 @@ function syncNotSaved(entryLike) {
 
 function addEntry(entry) {
   return new Promise(async (resolve, reject) => {
-    const tx = await dbTx('readwrite');
+    let tx;
+    try { tx = await dbTx('readwrite'); } catch (e) { reject(e); return; }
     const req = tx.objectStore(STORE).add(entry);
     let reqError = null;
     req.onerror = (e) => { reqError = req.error; e.preventDefault(); tx.abort(); };
@@ -407,7 +447,8 @@ function addEntry(entry) {
 
 function deleteEntry(id) {
   return new Promise(async (resolve, reject) => {
-    const tx = await dbTx('readwrite');
+    let tx;
+    try { tx = await dbTx('readwrite'); } catch (e) { reject(e); return; }
     tx.objectStore(STORE).delete(id);
     // Delete-only payload, deliberately just the id: the entry's real content
     // was already mirrored server-side when it was first created (or last
@@ -420,7 +461,8 @@ function deleteEntry(id) {
 
 function updateEntry(id, patch) {
   return new Promise(async (resolve, reject) => {
-    const tx = await dbTx('readwrite');
+    let tx;
+    try { tx = await dbTx('readwrite'); } catch (e) { reject(e); return; }
     const store = tx.objectStore(STORE);
     const req = store.get(id);
     let merged = null;
@@ -435,7 +477,8 @@ function updateEntry(id, patch) {
 
 function getAllEntries() {
   return new Promise(async (resolve, reject) => {
-    const tx = await dbTx('readonly');
+    let tx;
+    try { tx = await dbTx('readonly'); } catch (e) { reject(e); return; }
     const req = tx.objectStore(STORE).getAll();
     req.onsuccess = () => resolve(req.result.sort((a, b) => b.ts - a.ts));
     req.onerror = () => reject(req.error);
@@ -618,6 +661,24 @@ function inAppBrowser() {
   if (/iPhone|iPad|iPod/i.test(ua) && !/Safari\//i.test(ua) && !/CriOS|FxiOS|EdgiOS/i.test(ua)) return true;
   return false;
 }
+// Records follow the person (25 Sep). Her book lives in the browser that
+// wrote it, so Facebook's browser, Chrome and WhatsApp's browser each had a
+// separate, empty one: the Talk button (opens Chrome) and the "tomorrow,
+// press this" WhatsApp link both landed on a blank book. Every save is
+// already backed up under this phone's random id; links that leave carry it
+// (k) plus the home design (h), and the other browser restores the same book.
+// Never added when a typed Shop ID is in use (that can be guessed).
+function withBookKey(url) {
+  try {
+    if (!url || url === '#' || getShopId()) return url;
+    const add = 'k=' + encodeURIComponent(getDeviceId()) + '&h=' + HOME_VARIANT;
+    const m = /^instagram:\/\/.*[?&]url=([^&]+)/.exec(url);
+    if (m) { const inner = decodeURIComponent(m[1]); return url.replace(m[1], encodeURIComponent(inner + (inner.indexOf('?') >= 0 ? '&' : '?') + add)); }
+    const i = url.indexOf('#Intent');
+    const head = i < 0 ? url : url.slice(0, i), tail = i < 0 ? '' : url.slice(i);
+    return head + (head.indexOf('?') >= 0 ? '&' : '?') + add + tail;
+  } catch (e) { return url; }
+}
 function isAndroid() { try { if (/[?&]iabtest=android/.test(location.search)) return true; } catch (e) { /* optional */ } return /Android/i.test(navigator.userAgent || ''); }
 function chromeIntentUrl() {
   const bare = location.href.replace(/^https?:\/\//, '');
@@ -638,8 +699,8 @@ function showOpenInChrome(reason) {
     ? t('Facebook\u2019s browser cannot use the microphone.', 'El navegador de Facebook no puede usar el micr\u00f3fono.')
     : t('You are inside Facebook\u2019s browser \u2014 the microphone may not work here.', 'Est\u00e1s dentro del navegador de Facebook: puede que el micr\u00f3fono no funcione aqu\u00ed.');
   box.innerHTML = isAndroid()
-    ? `<p>${lead}</p><a class="iab-open" href="${chromeIntentUrl()}">${t('Open in Chrome', 'Abrir en Chrome')}</a><p class="iab-sub">${t('Same page, and your voice will work.', 'Es la misma p\u00e1gina, y ah\u00ed s\u00ed funciona la voz.')}</p><label class="iab-note"><input type="file" accept="audio/*" capture id="iabNoteInput">\uD83C\uDF99 ${t('Or record a voice note here', 'O graba una nota de voz aqu\u00ed')}</label>`
-    : `<p>${lead}</p><a class="iab-open" href="${window.KYM_SAFARI_URL || ('x-safari-https://' + location.host + location.pathname + '?from=iab')}">${t('Open in Safari', 'Abrir en Safari')}</a><p class="iab-sub">${t('Same page, and your voice will work. If nothing opens: tap <b>\u22ef</b> at the top, then <b>Open in Safari</b>.', 'Es la misma p\u00e1gina, y ah\u00ed s\u00ed funciona la voz. Si no se abre: toca <b>\u22ef</b> arriba y luego <b>Abrir en Safari</b>.')}</p>`;
+    ? `<p>${lead}</p><a class="iab-open" href="${withBookKey(chromeIntentUrl())}">${t('Open in Chrome', 'Abrir en Chrome')}</a><p class="iab-sub">${t('Same page, and your voice will work.', 'Es la misma p\u00e1gina, y ah\u00ed s\u00ed funciona la voz.')}</p><label class="iab-note"><input type="file" accept="audio/*" capture id="iabNoteInput">\uD83C\uDF99 ${t('Or record a voice note here', 'O graba una nota de voz aqu\u00ed')}</label>`
+    : `<p>${lead}</p><a class="iab-open" href="${withBookKey(window.KYM_SAFARI_URL || ('x-safari-https://' + location.host + location.pathname + '?from=iab'))}">${t('Open in Safari', 'Abrir en Safari')}</a><p class="iab-sub">${t('Same page, and your voice will work. If nothing opens: tap <b>\u22ef</b> at the top, then <b>Open in Safari</b>.', 'Es la misma p\u00e1gina, y ah\u00ed s\u00ed funciona la voz. Si no se abre: toca <b>\u22ef</b> arriba y luego <b>Abrir en Safari</b>.')}</p>`;
   box.hidden = false;
   const noteIn = document.getElementById('iabNoteInput');
   if (noteIn && !noteIn.dataset.wired) {
@@ -842,7 +903,10 @@ const FILLER = /\b(a|an|the|for|of|on|to|me|i|owe|owes|owing|dey|de|go|pay|will|
 
 // Spanish filler for the typed fields. (?<![\w\u00c0-\u00ff]) instead of \b: JS
 // word boundaries are ASCII-only, so "\ba\b" used to eat the "a" in "mercancía".
-const FILLER_ES = /(?<![\w\u00c0-\u00ff])(d[o\u00f3]lares?|bol[i\u00edv]vares?|bolos?|bs|pesos?|lucas?|luca|verdes?|plata|de a|cada una|cada uno|vend[i\u00ed]|compr[e\u00e9]|gast[e\u00e9]|pagu[e\u00e9]|me debe|me qued[o\u00f3] debiendo|le fi[e\u00e9] a|le debo a|fiao|fiado|de|del|la|el|los|las|un|una|unos|unas|y|con|por|para|en|a|me|le|se|es|hoy)(?![\w\u00c0-\u00ff])/gi;
+// 25 Sep: no lookbehind - iOS before 16.4 cannot parse one and the whole
+// script died on those iPhones. The leading character is captured instead;
+// it is replaced by a space like the word itself, so the result is the same.
+const FILLER_ES = /(^|[^\w\u00c0-\u00ff])(d[o\u00f3]lares?|bol[i\u00edv]vares?|bolos?|bs|pesos?|lucas?|luca|verdes?|plata|de a|cada una|cada uno|vend[i\u00ed]|compr[e\u00e9]|gast[e\u00e9]|pagu[e\u00e9]|me debe|me qued[o\u00f3] debiendo|le fi[e\u00e9] a|le debo a|fiao|fiado|de|del|la|el|los|las|un|una|unos|unas|y|con|por|para|en|a|me|le|se|es|hoy)(?![\w\u00c0-\u00ff])/gi;
 // Spanish money shorthand for the typed fields: "20 mil" / "20 lucas" = 20000,
 // "un palo" = 1000000, "medio palo" = 500000 (Colombia).
 function scaleSpanishMoney(text) {
@@ -2396,7 +2460,7 @@ async function render() {
   // the language promise moves under the mic where the decision is made.
   const micLbl = document.querySelector('#homeMicBtn .home-mic-label');
   if (micLbl && !document.getElementById('homeMicBtn').classList.contains('recording')) {
-    const want = BOOK_ON ? ((BK_IAB_TALK && firstUse) ? t('Talk (opens Chrome)', 'Habla (abre Chrome)') : t('Talk', 'Habla')) : firstUse ? t('Press and talk', 'Toca y habla') : t('Tell CountMy', 'Cu\u00e9ntale a CountMy');
+    const want = BOOK_ON ? ((BK_IAB_TALK && firstUse) ? t('Talk', 'Habla') : t('Talk', 'Habla')) : firstUse ? t('Press and talk', 'Toca y habla') : t('Tell CountMy', 'Cu\u00e9ntale a CountMy');
     micLbl.textContent = want; micLbl.dataset.idle = want;
   }
   const secondRow = document.querySelector('.second-row'); if (secondRow) secondRow.hidden = firstUse;
@@ -2414,6 +2478,10 @@ async function render() {
   // AND what CountMy writes back - the result shown, not described.
   // Returning users keep their greeting and daily question unchanged.
   document.getElementById('whatIs').hidden = !firstUse;
+  // The head script reads this before anything draws, so the page does not
+  // jump when this block appears or goes (25 Sep: taps landed on moved buttons).
+  try { if (firstUse) localStorage.removeItem('kym_has_records'); else localStorage.setItem('kym_has_records', '1'); } catch (e) { /* optional */ }
+  document.documentElement.classList.toggle('has-records', !firstUse);
   if (hg) hg.hidden = firstUse;
   const askLine = document.querySelector('.ask-line'); if (askLine) askLine.hidden = firstUse;
   const strip = document.getElementById('todayStrip'); if (strip) strip.hidden = firstUse;
@@ -2722,7 +2790,7 @@ function reminderMessage(name, amount, note, cur) {
 }
 
 function shareFooter(campaign) {
-  if (campaign === 'backup') return t('\n\nTomorrow, press this: https://countmy.app/?r=wa\nFree. Made in Ghana.', '\n\nMa\u00f1ana toca aqu\u00ed: https://countmy.app/?lang=es&r=wa');
+  if (campaign === 'backup') return t('\n\nTomorrow, press this - your book opens with it: ' + withBookKey('https://countmy.app/?r=wa') + '\nFree. Made in Ghana.', '\n\nMa\u00f1ana toca aqu\u00ed y se abre tu cuaderno: ' + withBookKey('https://countmy.app/?lang=es&r=wa'));
   return t('\n\nI keep my business money with CountMy. It is free: https://countmy.app/?utm_source=whatsapp&utm_medium=share&utm_campaign=' + campaign,
     '\n\nLlevo las cuentas de mi negocio con CountMy. Es gratis: https://countmy.app/?lang=es&utm_source=whatsapp&utm_medium=share&utm_campaign=' + campaign);
 }
@@ -2999,14 +3067,13 @@ async function afterEntrySaved(entry) {
     // back. The first save offers a WhatsApp message to herself with the
     // link at the bottom: tomorrow she finds CountMy where she looks every day.
     if (all.length === 1 && !ES) {
-      const box = document.getElementById('milestone');
-      if (box) {
-        clearOtherPrompts('milestone');
-        box.innerHTML = `${escapeHtml(t('Saved. Send it to your own WhatsApp, so you find CountMy again tomorrow?', ''))} <button type="button" class="remind-btn" id="firstWaBtn">${t('Send to my WhatsApp', '')}</button>`;
-        box.hidden = false;
-        document.getElementById('firstWaBtn').addEventListener('click', () => { track('first_wa_send'); exportBackup(); });
-        return;
-      }
+      // 25 Sep red team: this sat below the fold on a small phone (y=701 on a
+      // 560px screen), so nobody saw the only way back. It floats now.
+      clearOtherPrompts('milestone');
+      const box = floatNotice(`${escapeHtml(t('Saved. Send it to your own WhatsApp, so you find your book again tomorrow?', ''))} <button type="button" class="remind-btn" id="firstWaBtn">${t('Send to my WhatsApp', '')}</button>`, 0);
+      track('first_wa_offer');
+      box.querySelector('#firstWaBtn').addEventListener('click', () => { track('first_wa_send'); box.hidden = true; exportBackup(); });
+      return;
     }
     if (all.length <= FIRST_ENTRIES_TARGET) showEntryMilestone(all.length);
   } catch (e) { /* never let a nicety break a save */ }
@@ -3729,6 +3796,10 @@ function bookRender(entries) {
   const leftNow = Math.round((inSum - outSum) * 100) / 100;
   bk$('bkLeft').textContent = (leftNow < 0 ? BK_MINUS : '') + bkMoney(Math.abs(leftNow));
   bk$('bkOwe').textContent = bkMoney(owed);
+  // 25 Sep: a person icon with 0 and a row of + - = mean nothing to someone
+  // who does not read symbols. They appear once there is something to show.
+  bk$('bkOweBtn').hidden = !entries.some(e => e.type === 'debt_in' && bkHome(e));
+  { const sums = document.querySelector('.bk-sums'); if (sums) sums.hidden = !rows.length; }
   const bs = bk$('bkBs');
   bs.hidden = !(bsIn || bsOut);
   if (!bs.hidden) bs.textContent = 'Bs: ' + [bsIn ? '+' + fmt(bsIn, 'VES').replace('Bs. ', '') : '', bsOut ? BK_MINUS + fmt(bsOut, 'VES').replace('Bs. ', '') : ''].filter(Boolean).join('  ');
@@ -4152,7 +4223,7 @@ if (inAppBrowser()) {
           return;
         }
         ping('iab_tap'); track('iab_tap', { via: 'book_talk' });
-        location.href = window.KYM_CHROME_URL || chromeIntentUrl();
+        location.href = withBookKey(window.KYM_CHROME_URL || chromeIntentUrl());
       };
       ['homeMicBtn', 'askBtn'].forEach(id => { const el = document.getElementById(id); if (el) el.addEventListener('click', toChrome, true); });
     } else if (android) {
@@ -4172,18 +4243,18 @@ if (inAppBrowser()) {
         + `<p>${t('Type what you sold or spent. It keeps the record.', 'Escribe lo que vendiste o gastaste. CountMy guarda la cuenta.')}</p>`
         + `<form class="iab-type" id="iabTypeForm" autocomplete="off"><input id="iabTypeIn" type="text" inputmode="text" enterkeyhint="done" placeholder="${t('Sold 3 bowls of waakye, 60 cedis', tc('Vend\u00ed 3 arepas a 2 d\u00f3lares', 'Vend\u00ed 5 camisas de a 10 mil'))}" aria-label="${t('What happened?', '\u00bfQu\u00e9 pas\u00f3?')}"><button type="submit" class="iab-save">${t('Save', 'Guardar')}</button></form>`
         + `<button type="button" class="iab-example" id="iabExample">${t('Try the example', 'Probar el ejemplo')}</button>`
-        + `<p class="iab-sub">${t('Free. It will not ask for your MoMo PIN or password.', 'Gratis. No te pide clave ni PIN.')}</p>`
+        + `<p class="iab-sub">${t('Free. No sign-up. No loan.', 'Gratis. No te pide clave ni PIN.')}</p>`
         + `<p class="iab-or">${t('Want to talk instead?', '\u00bfPrefieres hablar?')}</p>`
-        + `<a class="iab-open iab-open-small" id="iabTopBtn" href="${window.KYM_CHROME_URL || chromeIntentUrl()}"><svg class="chrome-ball" viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="22" fill="#fff"/><path d="M24 2a22 22 0 0 1 19.05 11H24a11 11 0 0 0-9.53 5.5L7.2 6.3A21.94 21.94 0 0 1 24 2z" fill="#EA4335"/><path d="M43.05 13A22 22 0 0 1 24 46l7.4-12.83A11 11 0 0 0 33.5 13z" fill="#FBBC04"/><path d="M14.47 18.5A11 11 0 0 0 24 35l-7.4 12.82A22 22 0 0 1 7.2 6.3z" fill="#34A853"/><circle cx="24" cy="24" r="8.5" fill="#4285F4"/></svg><span>${t('Open in Chrome', 'Abrir en Chrome')}</span></a>`
-        + `<a class="iab-alt" id="iabAltBtn" href="${window.KYM_ANYBROWSER_URL || '#'}">${t('No Chrome? Open in another browser', '\u00bfSin Chrome? Abrir en otro navegador')}</a>`;
+        + `<a class="iab-open iab-open-small" id="iabTopBtn" href="${withBookKey(window.KYM_CHROME_URL || chromeIntentUrl())}"><svg class="chrome-ball" viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="22" fill="#fff"/><path d="M24 2a22 22 0 0 1 19.05 11H24a11 11 0 0 0-9.53 5.5L7.2 6.3A21.94 21.94 0 0 1 24 2z" fill="#EA4335"/><path d="M43.05 13A22 22 0 0 1 24 46l7.4-12.83A11 11 0 0 0 33.5 13z" fill="#FBBC04"/><path d="M14.47 18.5A11 11 0 0 0 24 35l-7.4 12.82A22 22 0 0 1 7.2 6.3z" fill="#34A853"/><circle cx="24" cy="24" r="8.5" fill="#4285F4"/></svg><span>${t('Open in Chrome', 'Abrir en Chrome')}</span></a>`
+        + `<a class="iab-alt" id="iabAltBtn" href="${withBookKey(window.KYM_ANYBROWSER_URL || '#')}">${t('No Chrome? Open in another browser', '\u00bfSin Chrome? Abrir en otro navegador')}</a>`;
       document.body.classList.add('iab-first');
       // every other tap on this screen also goes to Chrome - the mic cannot work here
-      const go = (ev) => { ev.preventDefault(); ping('iab_tap'); track('iab_tap', { via: 'other' }); location.href = window.KYM_CHROME_URL || chromeIntentUrl(); };
+      const go = (ev) => { ev.preventDefault(); ping('iab_tap'); track('iab_tap', { via: 'other' }); location.href = withBookKey(window.KYM_CHROME_URL || chromeIntentUrl()); };
       ['homeMicBtn', 'askBtn', 'seeBtn'].forEach(id => { const el = document.getElementById(id); if (el) el.addEventListener('click', go, true); });
       document.querySelectorAll('.ts-tile').forEach(el => el.addEventListener('click', go, true));
     } else if (iosApp === 'instagram') {
       top.innerHTML = `<p>${t('Tap once to open CountMy in Safari \u2014 your voice works best there.', 'Toca una vez para abrir CountMy en Safari: ah\u00ed la voz funciona mejor.')}</p>`
-        + `<a class="iab-open" id="iabTopBtn" href="${window.KYM_IG_URL || '#'}">${t('Open in Safari', 'Abrir en Safari')}</a>`
+        + `<a class="iab-open" id="iabTopBtn" href="${withBookKey(window.KYM_IG_URL || '#')}">${t('Open in Safari', 'Abrir en Safari')}</a>`
         + `<p class="iab-sub">${t('If nothing opens: tap <b>\u22ef</b> at the top right, then <b>Open in external browser</b>. ' + (BOOK_ON ? 'Or just tap Talk above \u2014 voice works here too.' : 'Or just tap the orange button below \u2014 voice works here too.'), 'Si no se abre: toca <b>\u22ef</b> arriba a la derecha y luego <b>Abrir en el navegador</b>. ' + (BOOK_ON ? 'O toca Habla arriba: aqu\u00ed tambi\u00e9n funciona la voz.' : 'O toca el bot\u00f3n naranja abajo: aqu\u00ed tambi\u00e9n funciona la voz.'))}</p>`;
     } else {
       // Facebook / Messenger on iPhone: no way out but the menu; the mic
@@ -4217,7 +4288,9 @@ if (inAppBrowser()) {
         ti.value = '';
       };
       tf.addEventListener('submit', (ev) => { ev.preventDefault(); submitTyped(); });
-      if (tx) tx.addEventListener('click', () => { ti.value = ti.placeholder; ping('iab_example'); track('iab_example'); submitTyped(); });
+      // 25 Sep: this used to SAVE the waakye example into her real book (and count
+      // as a save in the home test). Now it only fills the box for her to change.
+      if (tx) tx.addEventListener('click', () => { ti.value = ti.placeholder; ping('iab_example'); track('iab_example'); try { ti.focus(); ti.select(); } catch (e) { /* optional */ } });
     }
     const ab = document.getElementById('iabAltBtn'); if (ab) ab.addEventListener('click', () => { ping('iab_tap'); track('iab_tap_any'); });
   } catch (e) { /* never block */ }
@@ -4411,7 +4484,7 @@ document.querySelectorAll('.today-row.tappable').forEach(row => {
 // recomputed the moment the app is looked at again.
 document.addEventListener('visibilitychange', () => {
   // Never while a Book sheet is open: its header already says which day.
-  if (document.visibilityState === 'visible') { if (BOOK_ON && bk$('bkScrim').hidden) bookResetDay(); render(); }
+  if (document.visibilityState === 'visible') { if (BOOK_ON && bk$('bkScrim').hidden) bookResetDay(); render(); flushUnsynced(); }
 });
 
 // Real feedback, 30 Aug: the "Free. No signup." trust line under the mic is
@@ -4428,8 +4501,56 @@ function bumpVisitCount() {
   } catch { return 1; }
 }
 
+// A short message that floats over the bottom of the screen, so it is seen
+// whatever the design and however far down the page it would have been.
+function floatNotice(html, ms) {
+  let el = document.getElementById('floatNote');
+  if (!el) { el = document.createElement('div'); el.id = 'floatNote'; el.className = 'milestone float'; el.setAttribute('role', 'status'); document.body.appendChild(el); }
+  el.innerHTML = html + '<button type="button" class="float-x" aria-label="' + t('Close', 'Cerrar') + '">\u00d7</button>';
+  el.hidden = false;
+  el.querySelector('.float-x').addEventListener('click', () => { el.hidden = true; });
+  clearTimeout(el._t); if (ms) el._t = setTimeout(() => { el.hidden = true; }, ms);
+  return el;
+}
+async function restoreFromKey() {
+  const k = window.KYM_RESTORE_KEY;
+  if (!k) return;
+  // Take the key out of the address bar at once, so it is not bookmarked or
+  // copied along with the page.
+  try { const u = new URLSearchParams(location.search); u.delete('k'); u.delete('h'); const q = u.toString(); history.replaceState(null, '', location.pathname + (q ? '?' + q : '') + location.hash); } catch (e) { /* optional */ }
+  if (getShopId()) return;
+  if (!window.KYM_ADOPTED && localStorage.getItem('kym_device_id') === k) return; // her own link, same browser
+  if (!navigator.onLine) return;
+  try {
+    const ctl = typeof AbortController === 'function' ? new AbortController() : null;
+    const timer = ctl ? setTimeout(() => ctl.abort(), 9000) : null;
+    const res = await fetch(API_BASE + '/restore', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ k }), signal: ctl ? ctl.signal : undefined });
+    if (timer) clearTimeout(timer);
+    if (!res.ok) return;
+    const got = ((await res.json()) || {}).entries || [];
+    if (!got.length) return;
+    const have = new Set((await getAllEntries()).map(e => e.id));
+    const add = got.filter(e => e && e.id && !have.has(e.id));
+    if (!add.length) return;
+    await new Promise((resolve, reject) => {
+      dbTx('readwrite').then(tx => {
+        const st = tx.objectStore(STORE);
+        add.forEach(e => st.put(e));
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+        tx.onabort = () => reject(tx.error || new Error('restore aborted'));
+      }, reject);
+    });
+    ping('restore'); track('restore', { n: add.length });
+    const msg = t('Your book is here: ' + add.length + (add.length === 1 ? ' record.' : ' records.'), 'Tu cuaderno est\u00e1 aqu\u00ed: ' + add.length + (add.length === 1 ? ' registro.' : ' registros.'));
+    floatNotice(escapeHtml(msg), 7000);
+    try { speakShort(msg); } catch (e) { /* optional */ }
+  } catch (e) { track('restore_error', { reason: (e && e.name) || 'unknown' }); }
+}
+
 (async function init() {
-  db = await openDB();
+  try { db = await openDB(); } catch (e) { track('idb_error', { where: 'open', reason: (e && (e.name || e.message)) || 'unknown' }); }
+  await restoreFromKey();
   // The home design rides on the version tag so every ping, the backend and
   // Clarity can split results by it (see HOME_VARIANT).
   window.KYM_VERSION = ((document.querySelector('meta[name="countmy-version"]') || {}).content || 'unknown') + (BOOK_ON ? 'book' : 'today');
@@ -4499,7 +4620,7 @@ function bumpVisitCount() {
     return;
   }
   updateOfflineBadge();
-  await render();
+  try { await render(); } catch (e) { track('render_error', { reason: (e && (e.name || e.message)) || 'unknown' }); }
   // Real feedback, 1 Sep ("there's too much going on... if you're a trader
   // you don't need to define everything, they already know what it means"):
   // the subtext under each of the 4 category buttons ("What you sold, how
@@ -4521,6 +4642,7 @@ function bumpVisitCount() {
   refreshPaidStatus();
   maybeShowEodPrompt();
   ping('open');
+  flushUnsynced();
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('service-worker.js').catch(() => {});
   }
