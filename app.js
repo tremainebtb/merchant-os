@@ -2495,6 +2495,7 @@ async function render() {
     if (exRes && firstUse) exRes.textContent = !ES ? '3 waakye, 60 cedis' : tc('3 refrescos, $6', '5 camisas, $50.000');
   }
   document.getElementById('trustLine').hidden = !firstUse;
+  { const how = document.getElementById('howItWorks'); if (how) how.hidden = !(firstUse && BOOK_ON && !ES); }
   if (typeof renderInstallBanner === 'function') renderInstallBanner();
 
   // Real advice, 28 Aug, sought independently from two AI reviews after
@@ -3899,6 +3900,16 @@ function bkDemoSync() {
     } catch (e) { /* animation sync is cosmetic */ }
   });
 }
+// "How it works" (25 Sep): seen = scrolled into view; the button opens the
+// real Sold sheet, so the first try is one tap from where they were reading.
+(function wireHow() {
+  const how = document.getElementById('howItWorks'); if (!how) return;
+  document.getElementById('howTry').addEventListener('click', () => { track('how_try'); ping('how_try'); try { bkOpen('in'); } catch (e) { document.getElementById('bkSold').click(); } });
+  if ('IntersectionObserver' in window) {
+    const io = new IntersectionObserver(es => { if (es.some(e => e.isIntersecting) && !how.hidden) { track('how_seen'); ping('how_seen'); io.disconnect(); } }, { threshold: 0.4 });
+    io.observe(how);
+  }
+})();
 function bkDemoStop() {
   if (!document.documentElement.classList.contains('demo-on')) return;
   document.documentElement.classList.remove('demo-on');
