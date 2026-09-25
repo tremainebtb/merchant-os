@@ -56,7 +56,7 @@
      app.js?v=. Lets anyone - a reviewer, a tester in Kumasi, a future session -
      answer "which CountMy am I looking at?" from view-source or the console,
      the same way the Worker answers with "wv". -->
-<meta name="countmy-version" content="v178">
+<meta name="countmy-version" content="v179">
 <!-- Real finding, 28 Aug: the bare "CountMy" title carried no keywords at all
      for what people actually search - a free sales/expense ledger for
      Ghanaian shop owners. The <title> tag is the single strongest on-page
@@ -572,6 +572,21 @@ body.iab-first .home-mic-btn{opacity:.55}
 @media (max-height:680px){:root{--bk-key:46px}}
 html.home-book .today-strip,html.home-book .ask-line,html.home-book .try-line,html.home-book #exampleChat,html.home-book .mic-lang-line,html.home-book #demoBtn,html.home-book #homeGreeting{display:none !important}
 html.has-records #whatIs{display:none}
+html.has-records .intro-listen{display:none}
+.wrap{position:relative}
+.intro-listen{position:absolute;top:20px;right:12px;display:flex;gap:4px;z-index:2}
+.intro-listen button{border:1.5px solid var(--rule);background:var(--surface);color:var(--navy);border-radius:999px;min-height:38px;padding:4px 9px;font:800 .82rem "Manrope",system-ui,sans-serif;cursor:pointer;white-space:nowrap}
+.remind-btn.remind-alt{background:var(--surface);color:var(--leaf-deep);border:2px solid var(--leaf)}
+/* Demo loop on the empty first page (25 Sep) */
+.bk-bar{position:relative}
+.bk-demo-hand{position:absolute;left:calc((100% - 16px) / 6 - 6px);top:46%;width:40px;height:40px;pointer-events:none;opacity:0;z-index:3;filter:drop-shadow(0 2px 3px rgba(0,0,0,.35))}
+html.demo-on .bk-demo-hand{animation:bkHand 6s ease-in-out infinite}
+html.demo-on #bkSold{animation:bkPress 6s ease-in-out infinite}
+html.demo-on .bk-ln.ghost{animation:bkWrite 6s ease-in-out infinite}
+@keyframes bkHand{0%{opacity:0;transform:translate(46px,56px)}12%{opacity:1;transform:translate(0,0)}17%{transform:translate(0,0) scale(1)}20%{transform:translate(0,0) scale(.82)}24%{transform:translate(0,0) scale(1)}45%{opacity:1}55%,100%{opacity:0;transform:translate(0,0)}}
+@keyframes bkPress{0%,17%,26%,100%{transform:none;box-shadow:0 0 0 0 rgba(255,255,255,0)}20%{transform:scale(.95);box-shadow:0 0 0 0 rgba(255,255,255,.55)}32%{box-shadow:0 0 0 14px rgba(255,255,255,0)}}
+@keyframes bkWrite{0%,24%{clip-path:inset(0 100% 0 0);opacity:.95}46%{clip-path:inset(0 0 0 0);opacity:.95}84%{clip-path:inset(0 0 0 0);opacity:.95}96%{clip-path:inset(0 0 0 0);opacity:0}100%{clip-path:inset(0 100% 0 0);opacity:0}}
+@media (prefers-reduced-motion:reduce){html.demo-on .bk-demo-hand,html.demo-on #bkSold,html.demo-on .bk-ln.ghost{animation:none}}
 .milestone.float{position:fixed;left:12px;right:12px;bottom:calc(14px + env(safe-area-inset-bottom, 0px));z-index:80;margin:0;border:2px solid var(--leaf);border-radius:14px;box-shadow:0 10px 30px rgba(20,14,6,.28);padding:14px 40px 14px 16px;max-width:560px;margin-inline:auto}
 .milestone.float .remind-btn{display:block;width:100%;margin-top:10px;min-height:52px;font-size:1.05rem}
 .float-x{position:absolute;top:4px;right:6px;width:36px;height:36px;border:0;background:none;font-size:1.5rem;line-height:1;color:inherit;cursor:pointer}
@@ -737,17 +752,9 @@ body.book-on .act-snap{background:var(--surface);color:var(--navy);border:1.5px 
         var hh = u.get('h');
         if ((hh === 'book' || hh === 'today') && !localStorage.getItem('kym_home')) localStorage.setItem('kym_home', hh);
       }
-      var q = u.get('book'), home;
-      if (q === '0') home = 'today';
-      else if (q === '1') home = 'book';
-      else {
-        home = localStorage.getItem('kym_home');
-        if (home !== 'book' && home !== 'today') {
-          var isNew = !localStorage.getItem('kym_device_id') && !localStorage.getItem('kym_visits');
-          home = isNew && Math.random() < 0.5 ? 'today' : 'book';
-          localStorage.setItem('kym_home', home);
-        }
-      }
+      // Home test ended 25 Sep: everyone on the Book (?book=0 for testing only).
+      var home = u.get('book') === '0' ? 'today' : 'book';
+      if (home === 'book') localStorage.setItem('kym_home', 'book');
       window.KYM_HOME = home;
       document.documentElement.className += ' home-' + home + (localStorage.getItem('kym_has_records') === '1' ? ' has-records' : '');
     } catch (e) { /* app.js decides instead */ }
@@ -836,7 +843,7 @@ body.book-on .act-snap{background:var(--surface);color:var(--navy);border:1.5px 
     y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
   })(window, document, "clarity", "script", window.CLARITY_ID);
 </script>
-<script src="app.js?v=178" defer></script>
+<script src="app.js?v=179" defer></script>
 </head>
 <body>
 <main class="wrap">
@@ -854,6 +861,7 @@ body.book-on .act-snap{background:var(--surface);color:var(--navy);border:1.5px 
        different sizes. Down to one line: the name, self-explained in the
        same breath, nothing above it, nothing to read before it. -->
   <h1 class="pitch"><svg class="mark" viewBox="0 0 64 64" aria-hidden="true"><rect x="15" y="9" width="30" height="12" rx="6" fill="#E8641F" transform="rotate(-7 30 15)"/><rect x="10" y="26" width="38" height="12" rx="6" fill="#F2B233"/><rect class="navy" x="17" y="43" width="32" height="12" rx="6" transform="rotate(4 33 49)"/></svg><span>Count<span class="my">My</span></span></h1>
+  <div class="intro-listen" id="introListen" hidden><button type="button" data-lang="tw" aria-label="Listen in Twi">&#128266; Twi</button><button type="button" data-lang="en" aria-label="Listen in English">&#128266; Eng</button></div>
   <!-- Cold arrival (16 Sep). Clarity: 8 sessions, 76% scroll, 0 taps - people
        who click a link scroll looking for what this is and find nothing. The
        aunt handed a phone does not need this line; the stranger does. One
@@ -900,6 +908,7 @@ body.book-on .act-snap{background:var(--surface);color:var(--navy);border:1.5px 
          across keeps each button near the 20 mm older adults need; Talk gets
          its own full-width row below (#bkTalkRow). -->
     <div class="bk-bar" id="bkBar">
+      <svg class="bk-demo-hand" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 11V4.5a1.5 1.5 0 0 1 3 0V10m0-1.5a1.5 1.5 0 0 1 3 0V11m0-1a1.5 1.5 0 0 1 3 0v1.2m0 0a1.5 1.5 0 0 1 3 0V15a7 7 0 0 1-7 7h-1.4a6 6 0 0 1-4.6-2.2L4.3 16a1.6 1.6 0 0 1 2.4-2.1L9 16V11" fill="#fff" stroke="#1E2F55" stroke-width="1.5" stroke-linejoin="round"/></svg>
       <button type="button" class="bk-act bk-a-in" id="bkSold"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 15h2a2 2 0 1 0 0-4h-3c-.6 0-1.1.2-1.4.6L3 17"/><path d="m7 21 1.6-1.4c.3-.4.8-.6 1.4-.6h4c1.1 0 2.1-.4 2.8-1.2l4.6-4.4a2 2 0 0 0-2.75-2.91l-4.2 3.9"/><path d="m2 16 6 6"/><circle cx="16" cy="9" r="2.9"/><circle cx="6" cy="5" r="3"/></svg><span id="bkSoldLbl">Sold</span></button>
       <button type="button" class="bk-act bk-a-out" id="bkSpent"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="9" width="15" height="10" rx="2"/><circle cx="9.5" cy="14" r="2.3"/><path d="M15 8l6-6"/><path d="M16 2h5v5"/></svg><span id="bkSpentLbl">Spent</span></button>
       <button type="button" class="bk-act bk-a-owe" id="bkOwes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="7.5" r="3.3"/><path d="M2 20.5a6 6 0 0 1 12 0"/><rect x="15.5" y="8.5" width="6.5" height="12" rx="1"/><path d="M17.5 12h2.5M17.5 15h2.5"/></svg><span id="bkOwesLbl">Owes me</span></button>

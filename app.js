@@ -121,12 +121,11 @@ var HOME_VARIANT = (window.KYM_HOME === 'book' || window.KYM_HOME === 'today') ?
     const q = new URLSearchParams(location.search).get('book');
     if (q === '0') return 'today';
     if (q === '1') return 'book';
-    const saved = localStorage.getItem('kym_home');
-    if (saved === 'book' || saved === 'today') return saved;
-    const isNew = !localStorage.getItem('kym_device_id') && !localStorage.getItem('kym_visits');
-    const v = isNew && Math.random() < 0.5 ? 'today' : 'book';
-    localStorage.setItem('kym_home', v);
-    return v;
+    // Home test ended 25 Sep (owner's call): inside Facebook's browser the
+    // Today arm was a typing box, not the design it claimed to be, so the
+    // test could not answer its question. Everyone is on the Book.
+    localStorage.setItem('kym_home', 'book');
+    return 'book';
   } catch (e) { return 'book'; }
 })();
 var BOOK_ON = BOOK_DEFAULT && HOME_VARIANT === 'book';
@@ -3070,7 +3069,8 @@ async function afterEntrySaved(entry) {
       // 25 Sep red team: this sat below the fold on a small phone (y=701 on a
       // 560px screen), so nobody saw the only way back. It floats now.
       clearOtherPrompts('milestone');
-      const box = floatNotice(`${escapeHtml(t('Saved. Send it to your own WhatsApp, so you find your book again tomorrow?', ''))} <button type="button" class="remind-btn" id="firstWaBtn">${t('Send to my WhatsApp', '')}</button>`, 0);
+      const box = floatNotice(`${escapeHtml(t('Saved. Send it to your own WhatsApp, so you find your book again tomorrow?', ''))} <button type="button" class="remind-btn" id="firstWaBtn">${t('Send to my WhatsApp', '')}</button>${reminderButtonHtml()}`, 0);
+      wireReminderButton(box);
       track('first_wa_offer');
       box.querySelector('#firstWaBtn').addEventListener('click', () => { track('first_wa_send'); box.hidden = true; exportBackup(); });
       return;
@@ -3814,9 +3814,11 @@ function bookRender(entries) {
   if (more && !more.dataset.bk) { more.dataset.bk = '1'; more.textContent = t('More: I owe a supplier', 'M\u00e1s: le debo al proveedor'); }
   if (more && document.getElementById('typeChoices').hidden) more.hidden = !entries.length;
   // An empty first page shows one faint example line: what a line looks like.
+  bkDemo(!entries.length && bkViewDay === bkToday);
   if (!entries.length && bkViewDay === bkToday) {
     const ex = !ES ? { amount: 60, item: '3 waakye' } : CO ? { amount: 50000, item: '5 camisas' } : { amount: 6, item: '3 refrescos' };
     ol.appendChild(bkLineEl({ e: { id: 'ghost', type: 'sale', amount: ex.amount, item: ex.item }, ghost: true }));
+    bkDemoSync();
   }
   if (bkNewId) {
     const fresh = ol.querySelector('[data-bk="' + bkNewId + '"]');
@@ -3824,6 +3826,47 @@ function bookRender(entries) {
     bkNewId = null;
   }
 }
+
+// 25 Sep: on the empty first page a finger taps the real Sold button and the
+// example line writes itself into the book, on a 6-second loop - showing
+// what to do without a word to read. Stops for good at her first touch,
+// after 5 loops, or at once for people who asked their phone for less motion.
+let bkDemoTimer = null;
+function bkDemo(on) {
+  const root = document.documentElement;
+  let off = false;
+  try { off = sessionStorage.getItem('kym_demo_off') === '1' || (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches); } catch (e) { /* optional */ }
+  if (!on || off) { root.classList.remove('demo-on'); clearTimeout(bkDemoTimer); return; }
+  if (root.classList.contains('demo-on')) { bkDemoSync(); return; }
+  root.classList.add('demo-on');
+  bkDemoT0 = null;
+  bkDemoSync();
+  track('demo_shown');
+  clearTimeout(bkDemoTimer);
+  bkDemoTimer = setTimeout(() => root.classList.remove('demo-on'), 30000);
+}
+// The example line is rebuilt on every render, which restarted its animation
+// and put the writing BEFORE the finger's tap (measured 25 Sep). All three
+// parts share one start time, so the tap always comes first.
+let bkDemoT0 = null;
+function bkDemoSync() {
+  requestAnimationFrame(() => {
+    try {
+      if (!document.getAnimations || !document.timeline) return;
+      const mine = document.getAnimations().filter(a => /^bk(Hand|Press|Write)$/.test(a.animationName || ''));
+      if (!mine.length) return;
+      if (bkDemoT0 == null) bkDemoT0 = document.timeline.currentTime;
+      mine.forEach(a => { a.startTime = bkDemoT0; });
+    } catch (e) { /* animation sync is cosmetic */ }
+  });
+}
+function bkDemoStop() {
+  if (!document.documentElement.classList.contains('demo-on')) return;
+  document.documentElement.classList.remove('demo-on');
+  clearTimeout(bkDemoTimer);
+  try { sessionStorage.setItem('kym_demo_off', '1'); } catch (e) { /* optional */ }
+}
+['pointerdown', 'touchstart', 'keydown'].forEach(ev => document.addEventListener(ev, bkDemoStop, { passive: true, capture: true }));
 
 function bkLineEl(r) {
   const e = r.e;
@@ -4501,6 +4544,29 @@ function bumpVisitCount() {
   } catch { return 1; }
 }
 
+// Listen (25 Sep): a spoken explanation, recorded once and shipped with the
+// app, so it plays the same on every phone - no voice to install, no reading.
+// Choosing Twi also turns on the Twi prompts on the Sold/Owes me/Paid sheets.
+// Switched on once both clips are recorded and checked (Twi via Khaya ASR).
+const LISTEN_READY = false;
+let introAudio = null;
+function playIntro(lang) {
+  try {
+    if (introAudio) { introAudio.pause(); introAudio = null; }
+    stopSpeaking();
+    introAudio = new Audio(lang === 'tw' ? 'audio/tw/intro.mp3' : 'audio/en/intro.mp3');
+    introAudio.play().catch(() => {});
+    if (lang === 'tw') { try { localStorage.setItem('kym_twi', '1'); } catch (e) { /* optional */ } }
+    ping(lang === 'tw' ? 'listen_tw' : 'listen_en'); track('listen', { lang });
+  } catch (e) { /* optional */ }
+}
+(function wireListen() {
+  const box = document.getElementById('introListen');
+  if (!box || ES || !BOOK_ON || !LISTEN_READY) return;
+  box.hidden = false;
+  box.querySelectorAll('button').forEach(b => b.addEventListener('click', () => playIntro(b.dataset.lang)));
+})();
+
 // A short message that floats over the bottom of the screen, so it is seen
 // whatever the design and however far down the page it would have been.
 function floatNotice(html, ms) {
@@ -4512,6 +4578,41 @@ function floatNotice(html, ms) {
   clearTimeout(el._t); if (ms) el._t = setTimeout(() => { el.hidden = true; }, ms);
   return el;
 }
+function pushSupported() {
+  try { return !inAppBrowser() && 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window; } catch (e) { return false; }
+}
+function b64uToBytes(s) { const p = '='.repeat((4 - s.length % 4) % 4); const b = atob((s + p).replace(/-/g, '+').replace(/_/g, '/')); return Uint8Array.from(b, c => c.charCodeAt(0)); }
+async function enableEveningReminder() {
+  try {
+    const perm = await Notification.requestPermission();
+    if (perm !== 'granted') { track('push_denied'); return false; }
+    const reg = await navigator.serviceWorker.ready;
+    const key = ((await (await fetch(API_BASE + '/push/key')).json()) || {}).key;
+    if (!key) return false;
+    const sub = (await reg.pushManager.getSubscription()) || await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64uToBytes(key) });
+    const res = await fetch(API_BASE + '/push/sub', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ device: getDeviceId(), endpoint: sub.endpoint, lang: ES ? 'es' : 'en', test: isTestDevice() }) });
+    if (!res.ok) return false;
+    if (reg.active) reg.active.postMessage({ kymPrefs: { es: !!ES } });
+    try { localStorage.setItem('kym_push', '1'); } catch (e) { /* optional */ }
+    ping('push_on'); track('push_on');
+    return true;
+  } catch (e) { track('push_error', { reason: (e && (e.name || e.message)) || 'unknown' }); return false; }
+}
+function reminderButtonHtml() {
+  let on = false; try { on = localStorage.getItem('kym_push') === '1'; } catch (e) { /* optional */ }
+  if (on || !pushSupported()) return '';
+  return ` <button type="button" class="remind-btn remind-alt" id="eveBtn">${t('Remind me every evening (7pm)', 'Recu\u00e9rdame cada noche (7pm)')}</button>`;
+}
+function wireReminderButton(box) {
+  const b = box.querySelector('#eveBtn'); if (!b) return;
+  b.addEventListener('click', async () => {
+    b.disabled = true;
+    const ok = await enableEveningReminder();
+    b.textContent = ok ? t('Done. See you at 7pm.', 'Listo. Nos vemos a las 7pm.') : t('Your phone said no. That is fine.', 'Tu tel\u00e9fono dijo que no. No pasa nada.');
+    if (ok) speakShort(t('Done. I will remind you at 7 in the evening.', 'Listo. Te recuerdo a las 7 de la noche.'));
+  });
+}
+
 async function restoreFromKey() {
   const k = window.KYM_RESTORE_KEY;
   if (!k) return;
@@ -4643,6 +4744,15 @@ async function restoreFromKey() {
   maybeShowEodPrompt();
   ping('open');
   flushUnsynced();
+  if (new URLSearchParams(location.search).get('r') === 'push') { ping('push_open'); track('push_open'); }
+  try {
+    const asked = Number(localStorage.getItem('kym_push_asked') || 0);
+    if (!ES && pushSupported() && localStorage.getItem('kym_push') !== '1' && hasAnyRecord && Date.now() - asked > 3 * 86400000 && (Number(localStorage.getItem('kym_visits')) || 0) >= 2) {
+      localStorage.setItem('kym_push_asked', String(Date.now()));
+      const box = floatNotice(escapeHtml(t('Want a reminder every evening to write your sales?', '')) + reminderButtonHtml(), 0);
+      wireReminderButton(box);
+    }
+  } catch (e) { /* optional */ }
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('service-worker.js').catch(() => {});
   }

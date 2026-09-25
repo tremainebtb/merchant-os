@@ -696,12 +696,15 @@ function renderTests() {
   const z = () => ({ dev: 0, iab: 0, tap: 0, saved: 0 });
   const add = (a, r) => { a.dev += r.devices; a.iab += r.in_app; a.tap += r.tapped; a.saved += r.saved; };
   const arms = { book: { all: z(), paid: z(), org: z() }, today: { all: z(), paid: z(), org: z() } };
-  rows.forEach(r => { const d = design(r.ver); if (!d) return; add(arms[d].all, r); add(arms[d][isPaid(r.source) ? 'paid' : 'org'], r); });
+  // Ended 25 Sep (owner): everyone moved to the Book. Only phones that arrived
+  // up to and including 25 Sep count; the numbers below are the final ones.
+  rows.forEach(r => { const d = design(r.ver); if (!d || r.day > '2026-09-25') return; add(arms[d].all, r); add(arms[d][isPaid(r.source) ? 'paid' : 'org'], r); });
   const B = arms.book.all, T = arms.today.all;
   const p = (B.dev && T.dev) ? fisherP(B.saved, B.dev - B.saved, T.saved, T.dev - T.saved) : 1;
   const ready = (B.dev >= 100 && T.dev >= 100) || Date.now() > Date.parse('2026-10-02T23:59:00Z');
   let pill, verdict;
-  if (!ready) { pill = '<span class="st run">Collecting</span>'; verdict = 'Too early to call. Decides at 100 new phones per design, or on 2 Oct.'; }
+  if (Date.now() > Date.parse('2026-09-25T17:00:00Z')) { pill = '<span class="st">Ended 25 Sep</span>'; verdict = 'Ended early: inside the Facebook browser the Today design was a typing box, so the test could not answer its question. Everyone is on the Book. Too few phones for a winner either way (chance it is luck: ' + (p * 100).toFixed(0) + '%).'; }
+  else if (!ready) { pill = '<span class="st run">Collecting</span>'; verdict = 'Too early to call. Decides at 100 new phones per design, or on 2 Oct.'; }
   else if (p < 0.1) { const w = B.saved / B.dev > T.saved / T.dev ? 'Book' : 'Today'; pill = `<span class="st win">${w} wins</span>`; verdict = w + ' saves more (chance it is luck: ' + (p * 100).toFixed(1) + '%).'; }
   else { pill = '<span class="st warn">No difference</span>'; verdict = 'No real difference (chance it is luck: ' + (p * 100).toFixed(1) + '%). Rule: keep the Book.'; }
   const maxRate = Math.max(0.01, B.dev ? B.saved / B.dev : 0, T.dev ? T.saved / T.dev : 0);
@@ -814,10 +817,10 @@ const EVENT_WORDS = {
   stt_browser: "were heard by the phone's own recogniser (free)", stt_whisper: 'were heard by the server', iab_note: 'recorded a voice note inside Facebook',
   tap: 'tapped a button (Sold, Spent, Owes me or Talk)', mic_denied: 'said no to the microphone', mic_nomic: 'have no microphone in that browser', mic_silent: 'tapped but nothing was heard',
   mic_timeout: 'waited too long for the voice server', mic_server: 'hit a voice server error', mic_network: 'lost the connection mid-voice', mic_busy: 'tapped while it was already working', mic_empty: 'recorded nothing',
-  save: 'saved a record', ask: 'asked a question', share_shop: 'shared a business page', shop_created: 'made a business page', restore: 'got their book back in another browser',
+  save: 'saved a record', ask: 'asked a question', share_shop: 'shared a business page', shop_created: 'made a business page', restore: 'got their book back in another browser', push_on: 'turned on the evening reminder', push_open: 'opened CountMy from the evening reminder', listen_tw: 'listened to the Twi explanation', listen_en: 'listened to the English explanation',
   voice_en: 'spoke English', voice_twi: 'spoke Twi', voice_pidgin: 'spoke Pidgin', voice_es: 'spoke Spanish', install: 'installed it to the home screen'
 };
-const EVENT_ORDER = ['open', 'iab', 'iab_typed', 'iab_example', 'iab_tap', 'iab_tap_ios', 'iab_auto', 'iab_escaped', 'iab_stay', 'iab_auto_ios', 'iab_escaped_ios', 'iab_mic_ok', 'iab_note', 'tap', 'stt_browser', 'stt_whisper', 'mic_nomic', 'mic_denied', 'mic_silent', 'mic_busy', 'mic_empty', 'mic_timeout', 'mic_server', 'mic_network', 'voice_en', 'voice_twi', 'voice_pidgin', 'voice_es', 'save', 'restore', 'ask', 'share_shop', 'shop_created', 'install'];
+const EVENT_ORDER = ['open', 'iab', 'iab_typed', 'iab_example', 'iab_tap', 'iab_tap_ios', 'iab_auto', 'iab_escaped', 'iab_stay', 'iab_auto_ios', 'iab_escaped_ios', 'iab_mic_ok', 'iab_note', 'tap', 'stt_browser', 'stt_whisper', 'mic_nomic', 'mic_denied', 'mic_silent', 'mic_busy', 'mic_empty', 'mic_timeout', 'mic_server', 'mic_network', 'voice_en', 'voice_twi', 'voice_pidgin', 'voice_es', 'save', 'restore', 'listen_tw', 'listen_en', 'push_on', 'push_open', 'ask', 'share_shop', 'shop_created', 'install'];
 function renderWeekEvents() {
   const el = $('weekEvents');
   const rows = ((ST && ST.weekEvents) || []).filter(r => r.devices > 0);
