@@ -770,12 +770,16 @@ async function handleAdminOverview(request, env) {
   await ensureSpendTable(env);
   const DAY = 86400000, now = Date.now();
   const today = Math.floor(now / DAY);
-  const days = Math.min(120, Math.max(7, parseInt(url.searchParams.get('days') || '30', 10) || 30));
+  const days = Math.min(400, Math.max(1, parseInt(url.searchParams.get('days') || '30', 10) || 30));
+  // Compare with the range just before (default) or the same dates a year
+  // earlier (cmp=year). Any other number = that many days back.
+  const cmpParam = url.searchParams.get('cmp') || 'prev';
+  const cmp = cmpParam === 'year' ? 365 : cmpParam === 'prev' ? days : Math.min(400, Math.max(1, parseInt(cmpParam, 10) || days));
   // Windows end at the end of today (UTC), so "last 7 days" = today and the
   // six days before it, and the previous window is the same length before that.
   const curFrom = (today - days + 1) * DAY, curTo = (today + 1) * DAY;
-  const prevFrom = curFrom - days * DAY;
-  const seriesFrom = prevFrom - 7 * DAY;
+  const prevFrom = curFrom - cmp * DAY, prevTo = curTo - cmp * DAY;
+  const seriesFrom = Math.min(prevFrom, (today - 30) * DAY) - 7 * DAY;
   const db = env.COUNTMY_DB;
   const q = (sql, ...b) => db.prepare(sql).bind(...b);
   const [devRes, actRes, recRes, srcEvRes, spendRes, healthRes, dcRes] = await db.batch([
@@ -876,9 +880,28 @@ async function handleAdminOverview(request, env) {
       war_end: 0
     };
   };
-  const cur = windowStats(curFrom, curTo), prev = windowStats(prevFrom, curFrom);
-  cur.war_end = S.war[n - 1];
-  prev.war_end = S.war[n - 1 - days] || 0;
+  const cur = windowStats(curFrom, curTo), prev = windowStats(prevFrom, prevTo);
+  // Weekly active recorders on any given day: businesses with a saved
+  // record in the 7 days up to and including it.
+  const warAt = d => { let c = 0; for (const [, set] of recDays) { for (const x of set) if (x <= d && x > d - 7) { c++; break; } } return c; };
+  cur.war_end = warAt(today);
+  prev.war_end = warAt(today - cmp);
+  // Period over period (owner asked 25 Sep): day, week, month-to-date and
+  // year-to-date, each against the same span one period earlier.
+  const nowD = new Date(now);
+  const y = nowD.getUTCFullYear(), m = nowD.getUTCMonth(), dom = nowD.getUTCDate();
+  const monthStart = Date.UTC(y, m, 1), prevMonthStart = Date.UTC(y, m - 1, 1);
+  const prevMonthDays = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  const prevMonthEnd = prevMonthStart + Math.min(dom, prevMonthDays) * DAY;
+  const yearStart = Date.UTC(y, 0, 1), prevYearStart = Date.UTC(y - 1, 0, 1);
+  const prevYearEnd = prevYearStart + (curTo - yearStart);
+  const pair = (label, a, b, pa, pb, wd, pwd) => ({ label, from: iso(dayOf(a)), to: iso(dayOf(b - 1)), prevFrom: iso(dayOf(pa)), prevTo: iso(dayOf(pb - 1)), cur: { ...windowStats(a, b), war_end: warAt(wd) }, prev: { ...windowStats(pa, pb), war_end: warAt(pwd) } });
+  const pop = [
+    pair('dod', today * DAY, curTo, (today - 1) * DAY, today * DAY, today, today - 1),
+    pair('wow', (today - 6) * DAY, curTo, (today - 13) * DAY, (today - 6) * DAY, today, today - 7),
+    pair('mom', monthStart, curTo, prevMonthStart, prevMonthEnd, today, dayOf(prevMonthEnd) - 1),
+    pair('yoy', yearStart, curTo, prevYearStart, prevYearEnd, today, today - 365)
+  ];
 
   // Acquisition by source, current window, with spend.
   const spend = (spendRes.results || []).map(r => ({ day: r.day, source: r.source, amount: Number(r.amount) || 0, currency: r.currency || 'GBP', note: r.note || '' }));
@@ -919,8 +942,9 @@ async function handleAdminOverview(request, env) {
 
   const h = (healthRes.results || [])[0] || {};
   const out = {
-    generatedAt: now, days, wv: WORKER_VERSION,
-    range: { from: iso(dayOf(curFrom)), to: iso(today), prevFrom: iso(dayOf(prevFrom)) },
+    generatedAt: now, days, cmp, cmpMode: cmpParam === 'year' ? 'year' : 'prev', wv: WORKER_VERSION,
+    range: { from: iso(dayOf(curFrom)), to: iso(today), prevFrom: iso(dayOf(prevFrom)), prevTo: iso(dayOf(prevTo) - 1) },
+    pop,
     cur, prev,
     series: { from: iso(d0), ...S },
     sources: [...bySrc.values()].sort((x, y) => y.people - x.people || y.spend - x.spend),
@@ -1482,7 +1506,7 @@ async function handleTranscribe(request, env) {
 // 50 is a transcription/parsing error, not a fabrication) - evidence-checking
 // targets fabrication specifically, not every possible error; the review UI is
 // still what catches a wrong-but-grounded number.
-const WORKER_VERSION = 'w111';
+const WORKER_VERSION = 'w112';
 
 // Spanish (Venezuela) twin of EXTRACT_SYSTEM_PROMPT below: same event types,
 // same {value, evidence} rule, same JSON-only answer. Amounts are bare
