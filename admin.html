@@ -502,7 +502,9 @@ function sparkline(vals, color) {
 }
 // Line/area chart with a hover crosshair. series: [{name, vals, color, area, bars}]
 function lineChart(el, dates, series, opts = {}) {
-  const W = Math.max(320, el.clientWidth || 800), H = opts.h || 220, pL = 34, pR = 12, pT = 12, pB = 24;
+  const W = Math.max(320, el.clientWidth || 800), H = opts.h || 220;
+  el._w = el.clientWidth;
+  const pL = 34, pR = 12, pT = 12, pB = 24;
   const iW = W - pL - pR, iH = H - pT - pB, n = dates.length;
   const vis = series.filter(s => !s.off);
   let max = 1; vis.forEach(s => s.vals.forEach(v => { max = Math.max(max, v); }));
@@ -848,7 +850,15 @@ $('spendForm').addEventListener('submit', async e => {
     render();
   } catch (err) { msg.textContent = 'Could not reach the server.'; }
 });
-let rt; window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => { if (OV) renderCharts(); }, 150); });
+// Redraw a chart whenever its box really changes width (rotation, a late
+// scrollbar, fonts arriving), so it is never drawn at a stale size.
+let rt;
+const ro = 'ResizeObserver' in window ? new ResizeObserver(entries => {
+  if (!OV || !entries.some(e => e.target.clientWidth > 0 && Math.abs(e.target.clientWidth - (e.target._w || 0)) > 2)) return;
+  clearTimeout(rt); rt = setTimeout(renderCharts, 120);
+}) : null;
+if (ro) { ro.observe($('nsChart')); ro.observe($('actChart')); }
+else window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => { if (OV) renderCharts(); }, 150); });
 
 // ---------- Recovery tools (unchanged behaviour) ----------
 const TYPE_LABEL = { sale: 'Sale', expense: 'Expense', debt_in: 'Customer owes', debt_out: 'Owed to supplier' };
