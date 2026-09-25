@@ -204,7 +204,7 @@ async function handlePing(request, env) {
   // ping was silently rejected with a 400 here (ping() swallows the error),
   // so Spanish usage never once showed up in the spoken-language stats.
   if (!['open', 'save', 'share_shop', 'shop_created', 'ask', 'tap', 'install', 'voice_en', 'voice_twi', 'voice_pidgin', 'voice_es',
-    'restore', 'push_on', 'push_open', 'iab', 'iab_tap', 'iab_tap_ios', 'iab_typed', 'iab_example', 'stt_browser', 'stt_whisper', 'iab_auto', 'iab_auto_ios', 'iab_stay', 'iab_escaped', 'iab_escaped_ios', 'iab_mic_ok', 'iab_note', 'mic_denied', 'mic_nomic', 'mic_busy', 'mic_empty', 'mic_silent', 'mic_timeout', 'mic_server', 'mic_network'].includes(eventType)) {
+    'restore', 'push_on', 'push_open', 'listen_tw', 'listen_en', 'iab', 'iab_tap', 'iab_tap_ios', 'iab_typed', 'iab_example', 'stt_browser', 'stt_whisper', 'iab_auto', 'iab_auto_ios', 'iab_stay', 'iab_escaped', 'iab_escaped_ios', 'iab_mic_ok', 'iab_note', 'mic_denied', 'mic_nomic', 'mic_busy', 'mic_empty', 'mic_silent', 'mic_timeout', 'mic_server', 'mic_network'].includes(eventType)) {
     return cors(new Response(JSON.stringify({ error: 'invalid event' }), { status: 400 }));
   }
   const shopHash = (await sha256Hex(shop)).slice(0, 32);
@@ -1660,6 +1660,7 @@ async function handleTranscribe(request, env) {
 // 50 is a transcription/parsing error, not a fabrication) - evidence-checking
 // targets fabrication specifically, not every possible error; the review UI is
 // still what catches a wrong-but-grounded number.
+// w115 re-pushed 25 Sep: Workers Builds did not pick up w114/w115.
 const WORKER_VERSION = 'w115';
 
 // Spanish (Venezuela) twin of EXTRACT_SYSTEM_PROMPT below: same event types,
