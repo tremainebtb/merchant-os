@@ -4094,6 +4094,21 @@ function bkOpen(kind, debt) {
   bookHideToast(); bkCloseSheets();
   bkTargetDay = bkViewDay;
   bkKind = kind; bkDebt = debt || null; bkTyped = ''; bkPrefilled = false;
+  bkSheetOpenAt = Date.now(); bkSheetSaved = false;
+  // A floating offer (WhatsApp / reminder) sits above the sheet and covered
+  // the lower keys and Write it on the 2nd record. It steps aside while the
+  // keypad is open and comes back when the sheet closes.
+  try { const fn = document.getElementById('floatNote'); if (fn && !fn.hidden) { fn.hidden = true; fn._aside = true; } } catch (e) { /* optional */ }
+  // First sheet ever: one line on what to do (removed after the first save).
+  try {
+    let hint = document.getElementById('bkHint');
+    const first = localStorage.getItem('kym_bk_hint_done') !== '1' && (kind === 'in' || kind === 'out' || kind === 'owe');
+    if (first && !hint) {
+      hint = document.createElement('p'); hint.id = 'bkHint'; hint.className = 'bk-hint';
+      const disp = bk$('bkDisp'); disp.parentNode.insertBefore(hint, disp.nextSibling);
+    }
+    if (hint) { hint.hidden = !first; hint.textContent = kind === 'owe' ? t('Type the name, then how much, then tap \u2713 Write it', 'Escribe el nombre, luego cu\u00e1nto, y toca \u2713 Anotar') : t('Type how much, then tap \u2713 Write it', 'Escribe cu\u00e1nto y toca \u2713 Anotar'); }
+  } catch (e) { /* optional */ }
   bkCur = !ES ? undefined : debt ? (debt.cur || HOME_CUR) : (CO ? 'COP' : bkSavedCur());
   if (kind === 'pay') { bkTyped = String(bkLeftOn(debt)); bkPrefilled = true; }
   const sh = bk$('bkEntry');
@@ -4152,7 +4167,19 @@ function bkPrompt(kind) {
     speakShort(q);
   } catch (e) { /* speech is a bonus */ }
 }
+// 25 Sep: 2 of 6 people who opened a Sold/Spent sheet left without saving,
+// and we could not see why. Each close without a save is now counted.
+let bkSheetOpenAt = 0, bkSheetSaved = false;
 function bkCloseSheets() {
+  try {
+    if (bkSheetOpenAt && !bk$('bkEntry').hidden && !bkSheetSaved) {
+      const typed = (typeof bkAmount === 'function' && bkAmount() > 0);
+      ping(typed ? 'sheet_abandon_typed' : 'sheet_abandon_empty');
+      track('sheet_abandon', { typed: typed ? 1 : 0, kind: bkKind, secs: Math.round((Date.now() - bkSheetOpenAt) / 1000) });
+    }
+  } catch (e) { /* measurement is optional */ }
+  bkSheetOpenAt = 0;
+  try { const fn = document.getElementById('floatNote'); if (fn && fn._aside) { fn._aside = false; fn.hidden = false; } } catch (e) { /* optional */ }
   ['bkEntry', 'bkLineSheet', 'bkDebtSheet'].forEach(id => { bk$(id).hidden = true; });
   bk$('bkScrim').hidden = true;
   if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
@@ -4212,6 +4239,8 @@ async function bkWrite() {
     return;
   }
   bkBusy = false;
+  bkSheetSaved = true;
+  try { localStorage.setItem('kym_bk_hint_done', '1'); } catch (e) { /* optional */ }
   bkCloseSheets();
   try { await render(); } catch (e) { /* saved; the next render catches up */ }
   bkChime(); bkTick(25);
@@ -4712,11 +4741,31 @@ function playIntro(lang) {
     let src;
     if (!hasAnyRecord) src = lang === 'tw' ? 'audio/tw/intro.mp3' : 'audio/en/intro.mp3';
     else if (lang === 'tw' && TW_READY.has('twi_on')) src = TW_CLIPS.twi_on;
-    if (src) { introAudio = new Audio(src); introAudio.play().catch(() => {}); }
-    else if (lang === 'tw') { introAudio = new Audio('audio/tw/intro.mp3'); introAudio.play().catch(() => {}); }
+    if (!src && lang === 'tw') src = 'audio/tw/intro.mp3';
+    if (src) {
+      introAudio = new Audio(src);
+      const a = introAudio;
+      a.addEventListener('ended', () => { if (introAudio !== a) return; ping('listen_end'); if (!hasAnyRecord) guideToSold(); });
+      a.play().catch(() => {});
+    }
     else speakShort('English.');
     ping(lang === 'tw' ? 'listen_tw' : 'listen_en'); track('listen', { lang, has_records: hasAnyRecord ? 1 : 0 });
   } catch (e) { /* optional */ }
+}
+// The next step, shown where it happens: the Sold button pulses with a
+// "Your turn" bubble for 8 seconds, or until she taps anything.
+function guideToSold() {
+  try {
+    const bar = document.getElementById('bkBar'); if (!bar) return;
+    let tip = document.getElementById('bkGuide');
+    if (!tip) { tip = document.createElement('span'); tip.id = 'bkGuide'; tip.className = 'bk-guide'; tip.setAttribute('aria-hidden', 'true'); bar.appendChild(tip); }
+    tip.textContent = voiceLang() === 'tw' && !ES ? 'Sold \u2193' : t('Your turn: tap Sold \u2193', 'Te toca: toca Vend\u00ed \u2193');
+    document.documentElement.classList.add('guide-on');
+    track('guide_shown');
+    const off = () => { document.documentElement.classList.remove('guide-on'); document.removeEventListener('pointerdown', off, true); };
+    document.addEventListener('pointerdown', off, true);
+    setTimeout(off, 8000);
+  } catch (e) { /* guidance is optional */ }
 }
 function markVoiceButtons() {
   const box = document.getElementById('introListen'); if (!box) return;

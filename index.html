@@ -56,7 +56,7 @@
      app.js?v=. Lets anyone - a reviewer, a tester in Kumasi, a future session -
      answer "which CountMy am I looking at?" from view-source or the console,
      the same way the Worker answers with "wv". -->
-<meta name="countmy-version" content="v187">
+<meta name="countmy-version" content="v188">
 <!-- Real finding, 28 Aug: the bare "CountMy" title carried no keywords at all
      for what people actually search - a free sales/expense ledger for
      Ghanaian shop owners. The <title> tag is the single strongest on-page
@@ -617,6 +617,12 @@ html.has-records #howItWorks{display:none}
 .debt-momo-in{display:flex;gap:8px}
 .debt-momo-in input{flex:1;min-width:0;min-height:48px;font-size:1.1rem;padding:8px 12px;border:1.5px solid var(--rule);border-radius:10px;background:var(--surface);color:var(--ink)}
 .debt-momo-in button{min-height:48px;padding:0 18px;border:0;border-radius:10px;background:#1E7B45;color:#fff;font:800 1rem "Manrope",system-ui,sans-serif}
+.bk-guide{position:absolute;left:0;bottom:calc(100% + 6px);display:none;background:#1E2F55;color:#fff;font:800 1rem "Manrope",system-ui,sans-serif;padding:8px 12px;border-radius:12px;white-space:nowrap;z-index:4;box-shadow:0 4px 14px rgba(0,0,0,.25)}
+html.guide-on .bk-guide{display:block}
+html.guide-on #bkSold{animation:bkGuidePulse 1.1s ease-in-out infinite}
+@keyframes bkGuidePulse{0%,100%{box-shadow:0 0 0 0 rgba(30,123,69,.55)}50%{box-shadow:0 0 0 12px rgba(30,123,69,0)}}
+.bk-hint{margin:4px 0 10px;text-align:center;font:700 1rem "Manrope",system-ui,sans-serif;color:var(--navy)}
+.bk-write:not(.dim){animation:none}
 .milestone.float{position:fixed;left:12px;right:12px;bottom:calc(14px + env(safe-area-inset-bottom, 0px));z-index:80;margin:0;border:2px solid var(--leaf);border-radius:14px;box-shadow:0 10px 30px rgba(20,14,6,.28);padding:14px 40px 14px 16px;max-width:560px;margin-inline:auto}
 .milestone.float .remind-btn{display:block;width:100%;margin-top:10px;min-height:52px;font-size:1.05rem}
 .float-x{position:absolute;top:4px;right:6px;width:36px;height:36px;border:0;background:none;font-size:1.5rem;line-height:1;color:inherit;cursor:pointer}
@@ -877,7 +883,7 @@ body.book-on .act-snap{background:var(--surface);color:var(--navy);border:1.5px 
     y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
   })(window, document, "clarity", "script", window.CLARITY_ID);
 </script>
-<script src="app.js?v=187" defer></script>
+<script src="app.js?v=188" defer></script>
 </head>
 <body>
 <main class="wrap">
