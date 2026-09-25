@@ -1968,7 +1968,14 @@ function pixel(kind) {
     // A saved record is the conversion Meta optimises ads for. The standard
     // 'Lead' event is selectable in Ads Manager immediately, the custom one
     // only after Meta has indexed it - so both fire, still with no parameters.
-    if (kind === 'save') window.fbq('track', 'Lead');
+    // 25 Sep (red-team of the ads): 'Lead' fired on EVERY save, so one regular
+    // user counted as many "leads" and taught Meta to find repeat recorders,
+    // not new people. It now fires once per phone - the first saved record.
+    if (kind === 'save') {
+      let first = true;
+      try { first = localStorage.getItem('kym_lead_sent') !== '1'; if (first) localStorage.setItem('kym_lead_sent', '1'); } catch (e) { /* storage blocked: count it */ }
+      if (first) window.fbq('track', 'Lead');
+    }
   } catch (e) { /* never interrupt */ }
 }
 function track(event, params) {
