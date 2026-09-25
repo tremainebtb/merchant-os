@@ -175,6 +175,11 @@ td.src small{display:block;color:var(--muted);font-size:.7rem;font-family:"IBM P
 .spend .msg{font-size:.78rem;color:var(--muted)}
 
 /* Cohorts */
+.pop td,.pop th{vertical-align:top}
+.pop td .pv{display:block;font-size:.72rem;color:var(--muted);margin-top:2px}
+.pop td .delta{margin-top:4px}
+.pop td b{font:800 1rem "Manrope",sans-serif;font-variant-numeric:tabular-nums}
+.pop th small{display:block;font:500 .68rem "Work Sans",sans-serif;text-transform:none;letter-spacing:0;color:var(--muted);margin-top:2px}
 .coh td{text-align:center;padding:7px 6px;font-size:.78rem;border-bottom:0}
 .coh td.c{border-radius:5px;font:700 .78rem "Manrope",sans-serif;font-variant-numeric:tabular-nums}
 .coh td:first-child{text-align:left;color:var(--ink-soft)}
@@ -241,9 +246,15 @@ footer a{color:var(--muted)}
     </div>
     <div class="spacer"></div>
     <div class="seg" id="range" role="group" aria-label="Date range">
+      <button data-days="1" aria-pressed="false" title="Today">1D</button>
       <button data-days="7" aria-pressed="false">7D</button>
       <button data-days="30" aria-pressed="true">30D</button>
       <button data-days="90" aria-pressed="false">90D</button>
+      <button data-days="365" aria-pressed="false">365D</button>
+    </div>
+    <div class="seg" id="cmpSeg" role="group" aria-label="Compare with">
+      <button data-cmp="prev" aria-pressed="true" title="Compare with the same number of days just before">vs before</button>
+      <button data-cmp="year" aria-pressed="false" title="Compare with the same dates one year earlier">vs last year</button>
     </div>
     <div class="live" id="live"><i></i><span id="updated">Loading</span></div>
     <button class="ibtn" id="refreshBtn" title="Refresh"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M13.5 8a5.5 5.5 0 1 1-1.6-3.9M13.5 2.5v3h-3"/></svg><span class="lbl">Refresh</span></button>
@@ -280,6 +291,14 @@ footer a{color:var(--muted)}
       </section>
 
       <div class="s12 kpis" id="kpis"></div>
+
+      <section class="card s12">
+        <div class="card-h">
+          <div><div class="eyebrow">Period over period</div><h2 class="t">Day, week, month and year compared</h2></div>
+          <span class="sub">Each against the same span one period earlier</span>
+        </div>
+        <div class="tw" id="pop"></div>
+      </section>
 
       <section class="card s7">
         <div class="card-h">
@@ -355,7 +374,7 @@ footer a{color:var(--muted)}
             <div><b>Came back.</b> Businesses active in the range on a day after their first day.</div>
             <div><b>Habit.</b> Businesses that recorded in the range and have recorded on two or more different days.</div>
             <div><b>Cost per activated business.</b> Ad spend in the range divided by the new phones from the ads that saved a record. Free visitors are left out, so the ads are not flattered. Spend comes from the ledger (read from Ads Manager).</div>
-            <div><b>Change vs previous.</b> Against the same number of days just before the range. Below 5 on either side it shows the raw change, because percentages on tiny numbers mislead.</div>
+            <div><b>Change vs previous.</b> Against the same number of days just before the range, or the same dates a year earlier ("vs last year"). Before launch there is nothing to compare, so it says "no earlier data". Below 5 on either side it shows the raw change, because percentages on tiny numbers mislead.</div>
             <div><b>* on a change.</b> The previous range starts before launch, so it is only partly comparable.</div>
             <div><b>Funnel.</b> Only the phones that arrived in the range, followed to today.</div>
           </div>
@@ -396,7 +415,9 @@ const KEY_STORAGE = 'countmy_admin_key';
 const THEME_STORAGE = 'countmy_admin_theme';
 const RANGE_STORAGE = 'countmy_admin_days';
 const DAY = 86400000;
-let OV = null, ST = null, SD = null, DAYS = 30;
+let OV = null, ST = null, SD = null, DAYS = 30, CMP = 'prev';
+const CMP_STORAGE = 'countmy_admin_cmp';
+const LAUNCH = '2026-09-16';
 function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
 function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* private mode */ } }
 function lsDel(k) { try { localStorage.removeItem(k); } catch (e) { /* private mode */ } }
@@ -456,7 +477,7 @@ async function load() {
   const my = ++loadSeq;
   $('live').classList.remove('stale');
   $('updated').textContent = 'Loading';
-  const [ov, st, sd] = await Promise.allSettled([getJSON('/admin/overview?days=' + DAYS), getJSON('/admin/stats'), getJSON('/admin/source-daily?days=30')]);
+  const [ov, st, sd] = await Promise.allSettled([getJSON('/admin/overview?days=' + DAYS + '&cmp=' + CMP), getJSON('/admin/stats'), getJSON('/admin/source-daily?days=30')]);
   if (my !== loadSeq) return false;
   if (ov.status === 'rejected') throw ov.reason;
   OV = ov.value; ST = st.status === 'fulfilled' ? st.value : null; SD = sd.status === 'fulfilled' ? sd.value : null;
@@ -466,8 +487,8 @@ async function load() {
 
 // Window slices of the daily series: the current range is the last DAYS
 // entries, the previous range the DAYS before that.
-function cur(name) { const a = OV.series[name]; return a.slice(a.length - OV.days); }
-function prevSlice(name) { const a = OV.series[name]; return a.slice(a.length - 2 * OV.days, a.length - OV.days); }
+const chartDays = () => Math.max(OV.days, 14);
+function cur(name) { const a = OV.series[name]; return a.slice(a.length - chartDays()); }
 function seriesDates() { const d0 = Math.floor(Date.parse(OV.series.from + 'T00:00:00Z') / DAY); const n = OV.series.newp.length; return Array.from({ length: n }, (_, i) => isoDay(d0 + i)); }
 function spendIn(from, to) { return (OV.spend || []).filter(r => r.day >= from && (!to || r.day < to)).reduce((t, r) => t + r.amount, 0); }
 
@@ -475,9 +496,11 @@ function spendIn(from, to) { return (OV.spend || []).filter(r => r.day >= from &
 // on 2 vs 1 is noise dressed up as a trend.
 function delta(now, before, opts = {}) {
   const { pp = false, lowerIsBetter = false, money: m = false } = opts;
-  // The previous range starts before launch (16 Sep 2026): nothing to compare.
-  if (OV && OV.range.prevFrom < '2026-09-16' && !(OV.prev.newp || OV.prev.active || OV.prev.records)) return { cls: '', txt: 'no earlier data' };
-  if (OV && OV.range.prevFrom < '2026-09-16') opts.partial = true;
+  // The comparison span is before launch (16 Sep 2026): nothing to compare.
+  // Partly before launch: shown, but marked with * (only partly comparable).
+  const pf = opts.prevFrom || (OV && OV.range.prevFrom), pt = opts.prevTo || (OV && OV.range.prevTo);
+  if (pt && pt < LAUNCH) return { cls: '', txt: 'no earlier data' };
+  if (pf && pf < LAUNCH) opts.partial = true;
   if (now == null || before == null || (isNaN(now) || isNaN(before))) return { cls: '', txt: 'no previous data' };
   const diff = now - before;
   if (Math.abs(diff) < 1e-9) return { cls: '', txt: 'no change' };
@@ -550,13 +573,13 @@ function render() {
   const c = OV.cur, p = OV.prev, days = OV.days;
   const updated = new Date(OV.generatedAt);
   $('updated').textContent = 'Updated ' + updated.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
-  $('footRange').textContent = nice(OV.range.from) + ' to ' + nice(OV.range.to) + ' (' + days + ' days), compared with the ' + days + ' days before. Launch: 16 Sep 2026. Worker ' + OV.wv + '.';
+  $('footRange').textContent = nice(OV.range.from) + ' to ' + nice(OV.range.to) + ' (' + days + (days === 1 ? ' day' : ' days') + '), compared with ' + nice(OV.range.prevFrom) + ' to ' + nice(OV.range.prevTo) + (OV.cmpMode === 'year' ? ' (a year earlier)' : '') + '. Launch: 16 Sep 2026. Worker ' + OV.wv + '.';
 
   // North star
   $('nsVal').textContent = fmt(c.war_end);
   const nd = delta(c.war_end, p.war_end);
-  $('nsDelta').className = 'delta ' + nd.cls; $('nsDelta').textContent = nd.txt === 'no earlier data' ? nd.txt : nd.txt + ' vs ' + days + ' days ago';
-  $('nsSub').textContent = fmt(c.recorders) + ' different businesses recorded in the last ' + days + ' days';
+  $('nsDelta').className = 'delta ' + nd.cls; $('nsDelta').textContent = nd.txt === 'no earlier data' ? nd.txt : nd.txt + ' vs ' + (OV.cmpMode === 'year' ? 'a year ago' : OV.cmp + (OV.cmp === 1 ? ' day ago' : ' days ago'));
+  $('nsSub').textContent = fmt(c.recorders) + ' different businesses recorded ' + (days === 1 ? 'today' : 'in the last ' + days + ' days');
 
   // Today
   const L = OV.series.newp.length - 1;
@@ -571,6 +594,7 @@ function render() {
   $('todayChips').innerHTML = `<span class="chip">Last record ${ago(h.lastEntry)}</span><span class="chip">${fmt(h.events24h)} actions in 24 h</span>`;
 
   renderKpis();
+  renderPop();
   renderFunnel();
   renderTests();
   renderSources();
@@ -585,7 +609,7 @@ function render() {
 }
 
 function renderCharts() {
-  const dates = seriesDates().slice(-OV.days);
+  const dates = seriesDates().slice(-chartDays());
   lineChart($('nsChart'), dates, [
     { name: 'Weekly active recorders', vals: cur('war'), color: cssVar('--flame'), area: true, w: 2.5 },
     { name: 'Recorded that day', vals: cur('recorders'), color: cssVar('--flame'), bars: true }
@@ -614,6 +638,30 @@ function renderKpis() {
     { l: 'Cost per activated', v: !spendCur ? '-' : cpa == null ? '∞' : money(cpa), d: !spendCur ? { cls: '', txt: 'no ad spend' } : { cls: '', txt: money(spendCur) + ' on ads · ' + fmt(paidAct) + ' activated' }, s: blended == null ? 'from the ads only' : 'from the ads only. Counting free visitors too: ' + money(blended), sp: null, col: '--warn', info: 'Ad spend in the range divided by the new phones FROM THE ADS that saved a record. Free visitors are left out so the ads are not flattered.' }
   ];
   $('kpis').innerHTML = K.map(k => `<div class="card kpi"><div class="k-l"><span>${k.l}</span><span class="info" title="${esc(k.info)}">?</span></div><div class="k-v">${k.v}</div><span class="delta ${k.d.cls}">${k.d.txt}</span>${k.sp ? sparkline(k.sp, cssVar(k.col)) : '<div class="spark"></div>'}<div class="k-s">${esc(k.s)}</div></div>`).join('');
+}
+
+function renderPop() {
+  const P = OV.pop || [];
+  if (!P.length) { $('pop').innerHTML = '<div class="empty">Needs server w112.</div>'; return; }
+  const head = { dod: ['Day over day', 'today vs yesterday'], wow: ['Week over week', 'last 7 days vs the 7 before'], mom: ['Month over month', 'this month so far vs same days last month'], yoy: ['Year over year', 'this year so far vs same days last year'] };
+  const act = w => w.newp ? 100 * w.activated_cohort / w.newp : null;
+  const rows = [
+    ['Weekly active recorders', w => w.war_end, 'n'],
+    ['Businesses that recorded', w => w.recorders, 'n'],
+    ['Records saved', w => w.records, 'n'],
+    ['New people', w => w.newp, 'n'],
+    ['Activation', act, 'pct'],
+    ['People who used it', w => w.active, 'n'],
+    ['Came back', w => w.returning, 'n']
+  ];
+  const cell = (p, f, kind) => {
+    const a = f(p.cur), b = f(p.prev);
+    const show = v => v == null ? '-' : kind === 'pct' ? v.toFixed(1) + '%' : fmt(v);
+    const d = a == null || b == null ? { cls: '', txt: p.prevTo < LAUNCH ? 'no earlier data' : '-' } : delta(a, b, { pp: kind === 'pct', prevFrom: p.prevFrom, prevTo: p.prevTo });
+    return '<td><b>' + show(a) + '</b><span class="pv">was ' + show(b) + '</span><span class="delta ' + d.cls + '">' + d.txt + '</span></td>';
+  };
+  $('pop').innerHTML = '<table class="pop"><thead><tr><th>Measure</th>' + P.map(p => '<th>' + head[p.label][0] + '<small>' + head[p.label][1] + '</small><small>' + nice(p.from) + (p.to !== p.from ? '-' + nice(p.to) : '') + ' vs ' + nice(p.prevFrom) + (p.prevTo !== p.prevFrom ? '-' + nice(p.prevTo) : '') + '</small></th>').join('') + '</tr></thead><tbody>' +
+    rows.map(([label, f, kind]) => '<tr><td>' + label + '</td>' + P.map(p => cell(p, f, kind)).join('') + '</tr>').join('') + '</tbody></table>';
 }
 
 function renderFunnel() {
@@ -792,7 +840,7 @@ function renderInsights() {
   if (best && best.activated) out.push({ cls: 'good', t: `Best source for activation: ${sourceName(best.source)}, ${pct(best.activated, best.people)} of its ${fmt(best.people)} people saved a record.` });
   if (c.recorders) out.push({ cls: c.habit / c.recorders < 0.25 ? 'bad' : 'good', t: `${fmt(c.habit)} of the ${fmt(c.recorders)} businesses that recorded have recorded on 2+ different days. A notebook is only useful if it is used again.` });
   const d = delta(c.war_end, p.war_end);
-  if (d.txt !== 'no earlier data') out.push({ cls: d.cls === 'up' ? 'good' : d.cls === 'down' ? 'bad' : '', t: `Weekly active recorders: ${fmt(c.war_end)} today, ${fmt(p.war_end)} on ${nice(isoDay(Math.floor(Date.now() / DAY) - OV.days))}.` });
+  if (d.txt !== 'no earlier data') out.push({ cls: d.cls === 'up' ? 'good' : d.cls === 'down' ? 'bad' : '', t: `Weekly active recorders: ${fmt(c.war_end)} today, ${fmt(p.war_end)} on ${nice(isoDay(Math.floor(Date.now() / DAY) - OV.cmp))}.` });
   $('insights').innerHTML = out.slice(0, 4).map(i => `<div class="ins ${i.cls}"><span class="dot"></span><span>${esc(i.t)}</span></div>`).join('');
 }
 
@@ -808,7 +856,7 @@ function downloadCsv() {
   lines.push(['source', 'people', 'in_ghana', 'in_fb_browser', 'tapped', 'activated', 'came_back', 'spend_gbp'].join(','));
   (OV.sources || []).forEach(r => lines.push([r.source, r.people, r.gh, r.in_app, r.tapped, r.activated, r.came_back, r.spend].map(csvCell).join(',')));
   const url = URL.createObjectURL(new Blob(['﻿' + lines.join('\n') + '\n'], { type: 'text/csv;charset=utf-8' }));
-  const a = document.createElement('a'); a.href = url; a.download = 'countmy-owner-' + OV.range.to + '-' + OV.days + 'd.csv';
+  const a = document.createElement('a'); a.href = url; a.download = 'countmy-owner-' + OV.range.to + '-' + OV.days + 'd-vs-' + OV.cmpMode + '.csv';
   document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 5000);
 }
 
@@ -833,6 +881,11 @@ $('csvBtn').addEventListener('click', downloadCsv);
 $('range').querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
   DAYS = Number(b.dataset.days); lsSet(RANGE_STORAGE, String(DAYS));
   $('range').querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+  boot();
+}));
+$('cmpSeg').querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
+  CMP = b.dataset.cmp; lsSet(CMP_STORAGE, CMP);
+  $('cmpSeg').querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
   boot();
 }));
 $('cohMode').querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
@@ -908,7 +961,8 @@ async function browseRecent(days) {
 $('browseBtn').addEventListener('click', () => browseRecent($('browseDays').value));
 
 (function init() {
-  const d = Number(lsGet(RANGE_STORAGE)); if ([7, 30, 90].includes(d)) { DAYS = d; $('range').querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', String(Number(x.dataset.days) === d))); }
+  const d = Number(lsGet(RANGE_STORAGE)); const cm = lsGet(CMP_STORAGE); if (cm === 'year' || cm === 'prev') { CMP = cm; $('cmpSeg').querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', String(x.dataset.cmp === cm))); }
+  if ([1, 7, 30, 90, 365].includes(d)) { DAYS = d; $('range').querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', String(Number(x.dataset.days) === d))); }
   if (lsGet(KEY_STORAGE)) boot(); else $('gate').hidden = false;
 })();
 </script>
