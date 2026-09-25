@@ -453,6 +453,8 @@ function sourceName(src) {
   };
   if (fixed[s]) return fixed[s];
   // Records (Leads) ad from 25 Sep: facebook/launch_leads_book.<placement>
+  // Video ad from 26 Sep (test against ad 4): facebook/launch_leads_video.<placement>
+  if (s.indexOf('facebook/launch_leads_video') === 0) { const pl = s.slice('facebook/launch_leads_video'.length + 1); return 'Facebook ad 5 (records, video: tap Spent)' + (pl ? ' - ' + pl.replace(/_/g, ' ') : ''); }
   if (s.indexOf('facebook/launch_leads_book') === 0) { const pl = s.slice('facebook/launch_leads_book'.length + 1); return 'Facebook ad 4 (records, Book image)' + (pl ? ' - ' + pl.replace(/_/g, ' ') : ''); }
   if (s.startsWith('other:')) return 'Other website (' + s.slice(6) + ')';
   const i = s.indexOf('/');
