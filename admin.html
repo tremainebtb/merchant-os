@@ -428,6 +428,7 @@ const pct = (a, b, dp = 0) => b ? (100 * a / b).toFixed(dp) + '%' : '-';
 function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
 const isoDay = d => new Date(d * DAY).toISOString().slice(0, 10);
 const nice = iso => new Date(iso + 'T00:00:00Z').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' });
+const niceY = iso => new Date(iso + 'T00:00:00Z').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
 
 // ---------- Theme ----------
 function applyTheme(t) {
@@ -573,7 +574,7 @@ function render() {
   const c = OV.cur, p = OV.prev, days = OV.days;
   const updated = new Date(OV.generatedAt);
   $('updated').textContent = 'Updated ' + updated.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
-  $('footRange').textContent = nice(OV.range.from) + ' to ' + nice(OV.range.to) + ' (' + days + (days === 1 ? ' day' : ' days') + '), compared with ' + nice(OV.range.prevFrom) + ' to ' + nice(OV.range.prevTo) + (OV.cmpMode === 'year' ? ' (a year earlier)' : '') + '. Launch: 16 Sep 2026. Worker ' + OV.wv + '.';
+  $('footRange').textContent = niceY(OV.range.from) + ' to ' + niceY(OV.range.to) + ' (' + days + (days === 1 ? ' day' : ' days') + '), compared with ' + niceY(OV.range.prevFrom) + ' to ' + niceY(OV.range.prevTo) + (OV.cmpMode === 'year' ? ' (a year earlier)' : '') + '. Launch: 16 Sep 2026. Worker ' + OV.wv + '.';
 
   // North star
   $('nsVal').textContent = fmt(c.war_end);
