@@ -354,7 +354,7 @@ footer a{color:var(--muted)}
             <div><b>Activation.</b> Share of the new phones in the range that have saved at least one record.</div>
             <div><b>Came back.</b> Businesses active in the range on a day after their first day.</div>
             <div><b>Habit.</b> Businesses that recorded in the range and have recorded on two or more different days.</div>
-            <div><b>Cost per activated business.</b> Ad spend in the range divided by the new phones in the range that saved a record. Spend comes from the ledger you type in.</div>
+            <div><b>Cost per activated business.</b> Ad spend in the range divided by the new phones from the ads that saved a record. Free visitors are left out, so the ads are not flattered. Spend comes from the ledger (read from Ads Manager).</div>
             <div><b>Change vs previous.</b> Against the same number of days just before the range. Below 5 on either side it shows the raw change, because percentages on tiny numbers mislead.</div>
             <div><b>* on a change.</b> The previous range starts before launch, so it is only partly comparable.</div>
             <div><b>Funnel.</b> Only the phones that arrived in the range, followed to today.</div>
@@ -598,16 +598,20 @@ function renderCharts() {
 
 function renderKpis() {
   const c = OV.cur, p = OV.prev;
-  const spendCur = spendIn(OV.range.from), spendPrev = spendIn(OV.range.prevFrom, OV.range.from);
+  const spendCur = spendIn(OV.range.from);
   const act = c.newp ? 100 * c.activated_cohort / c.newp : null, actP = p.newp ? 100 * p.activated_cohort / p.newp : null;
-  const cpa = c.activated_cohort ? spendCur / c.activated_cohort : null, cpaP = p.activated_cohort ? spendPrev / p.activated_cohort : null;
+  // Paid cost per activated: ad spend over businesses that came FROM the ads.
+  // Dividing by every activation (most of them free) would flatter the ads.
+  const paidAct = (OV.sources || []).filter(r => isPaid(r.source)).reduce((t, r) => t + r.activated, 0);
+  const cpa = paidAct ? spendCur / paidAct : null;
+  const blended = c.activated_cohort && spendCur ? spendCur / c.activated_cohort : null;
   const K = [
     { l: 'New people', v: fmt(c.newp), d: delta(c.newp, p.newp), s: fmt(c.gh) + ' in Ghana (' + pct(c.gh, c.newp) + ')', sp: cur('newp'), col: '--navy', info: 'Real phones seen for the first time in the range.' },
     { l: 'Activation', v: act == null ? '-' : act.toFixed(1) + '%', d: act == null || actP == null ? { cls: '', txt: 'no earlier data' } : delta(act, actP, { pp: true }), s: fmt(c.activated_cohort) + ' of ' + fmt(c.newp) + ' saved a record', sp: cur('activated'), col: '--flame', info: 'Share of new phones in the range that saved at least one record.' },
     { l: 'Records saved', v: fmt(c.records), d: delta(c.records, p.records), s: c.recorders ? (c.records / c.recorders).toFixed(1) + ' per recording business' : 'none yet', sp: cur('records'), col: '--flame', info: 'Sales, costs and debts saved in the range.' },
     { l: 'Came back', v: fmt(c.returning), d: delta(c.returning, p.returning), s: 'active on a later day than their first', sp: cur('returning'), col: '--steel', info: 'Businesses active in the range on a day after their first day.' },
     { l: 'Habit', v: fmt(c.habit), d: delta(c.habit, p.habit), s: 'recorded on 2+ different days', sp: cur('recorders'), col: '--up', info: 'Businesses that recorded in the range and have recorded on two or more different days.' },
-    { l: 'Cost per activated', v: !spendCur ? '-' : cpa == null ? '∞' : money(cpa), d: !spendCur && !spendPrev ? { cls: '', txt: 'no ad spend' } : cpa == null || cpaP == null ? { cls: '', txt: spendCur ? money(spendCur) + ' spent, none activated' : 'no spend in range' } : delta(cpa, cpaP, { money: true, lowerIsBetter: true }), s: money(spendCur) + ' ad spend in range', sp: null, col: '--warn', info: 'Ad spend in the range divided by new phones in the range that saved a record.' }
+    { l: 'Cost per activated', v: !spendCur ? '-' : cpa == null ? '∞' : money(cpa), d: !spendCur ? { cls: '', txt: 'no ad spend' } : { cls: '', txt: money(spendCur) + ' on ads · ' + fmt(paidAct) + ' activated' }, s: blended == null ? 'from the ads only' : 'from the ads only. Counting free visitors too: ' + money(blended), sp: null, col: '--warn', info: 'Ad spend in the range divided by the new phones FROM THE ADS that saved a record. Free visitors are left out so the ads are not flattered.' }
   ];
   $('kpis').innerHTML = K.map(k => `<div class="card kpi"><div class="k-l"><span>${k.l}</span><span class="info" title="${esc(k.info)}">?</span></div><div class="k-v">${k.v}</div><span class="delta ${k.d.cls}">${k.d.txt}</span>${k.sp ? sparkline(k.sp, cssVar(k.col)) : '<div class="spark"></div>'}<div class="k-s">${esc(k.s)}</div></div>`).join('');
 }
