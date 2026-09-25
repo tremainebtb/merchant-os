@@ -56,7 +56,7 @@
      app.js?v=. Lets anyone - a reviewer, a tester in Kumasi, a future session -
      answer "which CountMy am I looking at?" from view-source or the console,
      the same way the Worker answers with "wv". -->
-<meta name="countmy-version" content="v175">
+<meta name="countmy-version" content="v176">
 <!-- Real finding, 28 Aug: the bare "CountMy" title carried no keywords at all
      for what people actually search - a free sales/expense ledger for
      Ghanaian shop owners. The <title> tag is the single strongest on-page
@@ -679,6 +679,12 @@ body.book-on .act-snap{background:var(--surface);color:var(--navy);border:1.5px 
 .bk-toast #bkToastMsg{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .bk-toast button{border:0;background:none;color:#FFD08A;font-family:inherit;font-weight:800;font-size:1rem;min-height:40px;cursor:pointer;flex:none}
 @media (prefers-reduced-motion:reduce){.bk-ln.new,.bk-sheet,.bk-shake,.bk-nudge{animation:none}.bk-act{transition:none}}
+.history-btn{margin-top:10px}
+.history-box{margin-top:10px;background:var(--paper);border:1px solid var(--rule);border-radius:12px;padding:12px}
+.history-periods{display:flex;gap:6px;margin-bottom:10px}
+.history-p{flex:1;min-height:44px;border:1.5px solid var(--rule);border-radius:10px;background:var(--surface);color:var(--ink-soft);font-family:inherit;font-weight:700;font-size:.9rem;cursor:pointer}
+.history-p.on{border-color:var(--navy);background:var(--steel-soft);color:var(--navy)}
+.history-text{white-space:pre-wrap;font-family:inherit;font-size:.95rem;line-height:1.5;color:var(--ink);margin:0 0 10px}
 </style>
 <!-- Moved to the head 16 Sep so a two-second visit is still counted. -->
 <!-- Analytics for the Silent Alpha pilot only (27 Aug) - added to observe real
@@ -1157,6 +1163,22 @@ body.book-on .act-snap{background:var(--surface);color:var(--navy);border:1.5px 
     <div id="backupStatus" class="backup-status">Not backed up yet</div>
     <button id="exportBtn" class="export-btn"><svg class="export-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 12v6a2 2 0 002 2h12a2 2 0 002-2v-6M16 6l-4-4-4 4M12 2v14" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg> Send my records to my own WhatsApp</button>
     <div class="export-note">Safe to tap &#x2014; sends your records to your own WhatsApp, nothing changes on your phone.</div>
+    <!-- Business history + download (25 Sep). "Your records are yours":
+         after Kippa locked ~500k businesses out of their books (TechCabal,
+         Feb 2024), a record book must be readable without the app. The
+         history is a plain summary she can show a lender, a programme or a
+         supplier; the download is every record as a spreadsheet file. -->
+    <button id="historyBtn" class="export-btn history-btn" type="button"><svg class="export-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 19V5M4 19h16M8 15v-4M12 15V8M16 15v-6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg> My business history</button>
+    <div id="historyBox" class="history-box" hidden>
+      <div class="history-periods" role="group" aria-label="Period">
+        <button type="button" class="history-p" data-days="30">30 days</button>
+        <button type="button" class="history-p" data-days="90">90 days</button>
+        <button type="button" class="history-p" data-days="365">12 months</button>
+      </div>
+      <pre id="historyText" class="history-text" data-clarity-mask="True"></pre>
+      <button id="historySend" type="button" class="export-btn">Send it to my WhatsApp</button>
+    </div>
+    <button id="csvBtn" class="recover-link" type="button">Download all my records (spreadsheet)</button>
     <button id="recoverBtn" class="recover-link" type="button">Lost your phone? How to get your records back</button>
   </div>
 
@@ -1279,7 +1301,7 @@ body.book-on .act-snap{background:var(--surface);color:var(--navy);border:1.5px 
      string is what forces a fresh script fetch even before any service worker logic
      runs, independent of it. Found live 27 Aug: without this, an already-visited
      browser can keep running old code from plain HTTP cache regardless of SW strategy. -->
-<script src="app.js?v=175"></script>
+<script src="app.js?v=176"></script>
 
 </body>
 </html>

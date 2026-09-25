@@ -3094,6 +3094,114 @@ function exportTodaySummary() {
   });
 }
 
+// ---------------------------------------------------------------------------
+// Business history + spreadsheet download (25 Sep). "Your records are
+// yours": Kippa's app went dark in Jan 2024 and ~500k businesses lost their
+// books (TechCabal). The history is a plain summary of a period she can
+// send to herself or show a lender, a programme or a supplier; the
+// spreadsheet is every record, readable without CountMy. Venezuela's
+// bolivar lines stay out of the dollar totals, like everywhere else.
+// ---------------------------------------------------------------------------
+function businessHistory(entries, days) {
+  const DAYMS = 86400000, now = Date.now(), since = now - days * DAYMS;
+  const home = e => !ES || e.cur !== 'VES';
+  const amt = e => Number(e.amount) || 0;
+  const inRange = entries.filter(e => e.ts >= since && home(e));
+  const sales = inRange.filter(e => e.type === 'sale');
+  const exps = inRange.filter(e => e.type === 'expense');
+  const running = exps.filter(e => e.kind !== 'stock' && e.kind !== 'home');
+  const stock = exps.filter(e => e.kind === 'stock');
+  const tookHome = exps.filter(e => e.kind === 'home');
+  const sum = arr => arr.reduce((t2, e) => t2 + amt(e), 0);
+  const repaid = entries.filter(e => e.type === 'debt_in' && home(e))
+    .flatMap(e => (Array.isArray(e.payments) ? e.payments : []).filter(p => p && p.ts >= since))
+    .reduce((t2, p) => t2 + (Number(p.amount) || 0), 0);
+  const moneyIn = sum(sales) + repaid;
+  const costs = sum(running);
+  const daysRecorded = new Set(inRange.map(e => e.day)).size;
+  const plain = new Set(['sale', 'venta', 'spent', 'gasto']);
+  const top = (arr, n) => {
+    const m = {};
+    arr.forEach(e => { const k = String(e.item || '').trim(); if (!k || plain.has(k.toLowerCase())) return; const key = k.toLowerCase(); (m[key] = m[key] || { name: k, total: 0 }).total += amt(e); });
+    return Object.values(m).sort((a, b) => b.total - a.total).slice(0, n);
+  };
+  const left = e => Math.max(0, amt(e) - (Number(e.paid) || 0));
+  const owed = entries.filter(e => e.type === 'debt_in' && home(e) && left(e) > 0);
+  const iOwe = entries.filter(e => e.type === 'debt_out' && home(e) && left(e) > 0);
+  const d = ts => new Date(ts).toLocaleDateString(ES ? (CO ? 'es-CO' : 'es-VE') : 'en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+  const shopName = getShopId() || t('My business', 'Mi negocio');
+  const L = [];
+  L.push(t(shopName + ' - business history', shopName + ' - historial del negocio'));
+  L.push(d(since) + ' - ' + d(now));
+  L.push('');
+  L.push(t('Money in: ', 'Entr\u00f3: ') + fmt(moneyIn) + (repaid ? t(' (incl. ' + fmt(repaid) + ' paid back)', ' (incluye ' + fmt(repaid) + ' de pagos de deudas)') : ''));
+  L.push(t('Business costs: ', 'Gastos del negocio: ') + fmt(costs));
+  if (stock.length) L.push(t('Stock bought: ', 'Mercanc\u00eda comprada: ') + fmt(sum(stock)));
+  if (tookHome.length) L.push(t('Took home: ', 'Para la casa: ') + fmt(sum(tookHome)));
+  L.push(t('Left after costs: ', 'Queda despu\u00e9s de gastos: ') + fmt(moneyIn - costs));
+  L.push(t('Days with records: ' + daysRecorded + ' of ' + days, 'D\u00edas con registros: ' + daysRecorded + ' de ' + days));
+  const ts = top(sales, 3);
+  if (ts.length) { L.push(''); L.push(t('Best sellers:', 'Lo que m\u00e1s vendi\u00f3:')); ts.forEach(x => L.push('- ' + x.name + ': ' + fmt(x.total))); }
+  const tc2 = top(running.concat(stock), 3);
+  if (tc2.length) { L.push(''); L.push(t('Biggest costs:', 'Los gastos m\u00e1s grandes:')); tc2.forEach(x => L.push('- ' + x.name + ': ' + fmt(x.total))); }
+  L.push('');
+  L.push(owed.length ? t('Owed to me: ' + fmt(owed.reduce((a, e) => a + left(e), 0)) + ' (' + owed.length + (owed.length === 1 ? ' person)' : ' people)'), 'Me deben: ' + fmt(owed.reduce((a, e) => a + left(e), 0)) + ' (' + owed.length + (owed.length === 1 ? ' persona)' : ' personas)')) : t('Nobody owes me.', 'Nadie me debe.'));
+  if (iOwe.length) L.push(t('I owe: ', 'Debo: ') + fmt(iOwe.reduce((a, e) => a + left(e), 0)));
+  return L.join('\n');
+}
+let historyDays = 30;
+async function showHistory(days) {
+  historyDays = days;
+  const entries = await getAllEntries();
+  document.getElementById('historyText').textContent = entries.length ? businessHistory(entries, days) : t('Nothing recorded yet.', 'Todav\u00eda no hay nada anotado.');
+  document.querySelectorAll('.history-p').forEach(b => b.classList.toggle('on', Number(b.dataset.days) === days));
+  track('history_view', { days });
+}
+function csvCell(v) { const x = String(v == null ? '' : v); return /[",\n\r]/.test(x) ? '"' + x.replace(/"/g, '""') + '"' : x; }
+async function downloadRecordsCsv() {
+  const entries = (await getAllEntries()).slice().sort((a, b) => a.ts - b.ts);
+  if (!entries.length) { alert(t('Nothing to download yet.', 'Todav\u00eda no hay nada para descargar.')); return; }
+  const head = ['date', 'time', 'type', 'item', 'note', 'qty', 'price', 'amount', 'currency', 'paid', 'still_owed', 'how_recorded'];
+  const typeName = { sale: 'sale', expense: 'expense', debt_in: 'owed_to_me', debt_out: 'i_owe' };
+  const rows = entries.map(e => {
+    const dt = new Date(e.ts);
+    const debt = e.type === 'debt_in' || e.type === 'debt_out';
+    return [e.day || todayKey(e.ts), dt.toTimeString().slice(0, 5), typeName[e.type] || e.type, e.item || '', e.note || '', e.qty || '', e.price || '', Number(e.amount) || 0, e.cur || (ES ? HOME_CUR : 'GHS'), debt ? (Number(e.paid) || 0) : '', debt ? Math.max(0, (Number(e.amount) || 0) - (Number(e.paid) || 0)) : '', e.source || ''].map(csvCell).join(',');
+  });
+  const csv = '\ufeff' + head.join(',') + '\n' + rows.join('\n') + '\n';
+  track('csv_download', { rows: entries.length });
+  try {
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+    const a = document.createElement('a');
+    a.href = url; a.download = 'countmy-records-' + todayKey(Date.now()) + '.csv';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+    if (inAppBrowser()) setMicStatus(t('If nothing downloaded, open CountMy in Chrome - Facebook blocks downloads. Or send it to your WhatsApp above.', 'Si no se descarg\u00f3, abre CountMy en Chrome: Facebook bloquea las descargas. O env\u00edalo a tu WhatsApp arriba.'), null, 'homeMicStatus');
+  } catch (e) {
+    alert(t('This browser cannot download files. Use "Send my records to my own WhatsApp" instead.', 'Este navegador no puede descargar archivos. Usa "Enviar mis cuentas a mi WhatsApp".'));
+  }
+}
+(function wireHistory() {
+  const btn = document.getElementById('historyBtn'); if (!btn) return;
+  const box = document.getElementById('historyBox');
+  if (ES) {
+    btn.lastChild.textContent = ' Historial de mi negocio';
+    const lbl = { 30: '30 d\u00edas', 90: '90 d\u00edas', 365: '12 meses' };
+    document.querySelectorAll('.history-p').forEach(b => { b.textContent = lbl[b.dataset.days]; });
+    document.getElementById('historySend').textContent = 'Enviarlo a mi WhatsApp';
+    document.getElementById('csvBtn').textContent = 'Descargar todas mis cuentas (hoja de c\u00e1lculo)';
+  }
+  btn.addEventListener('click', () => { box.hidden = !box.hidden; if (!box.hidden) showHistory(historyDays); });
+  document.querySelectorAll('.history-p').forEach(b => b.addEventListener('click', () => showHistory(Number(b.dataset.days))));
+  document.getElementById('historySend').addEventListener('click', async () => {
+    const entries = await getAllEntries();
+    if (!entries.length) return;
+    track('history_send', { days: historyDays });
+    location.href = 'https://wa.me/?text=' + encodeURIComponent(businessHistory(entries, historyDays) + shareFooter('history'));
+  });
+  document.getElementById('csvBtn').addEventListener('click', downloadRecordsCsv);
+})();
+
 // How long a shop counts as "new" for the first-week nudges below. Seven
 // days is the window the five-entry evidence is about, not a guess at how
 // long someone stays interested.
