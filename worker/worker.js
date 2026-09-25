@@ -653,6 +653,25 @@ async function handleAdminPushTest(request, env) {
   return cors(new Response(JSON.stringify({ sent: out, subscriptions: n }), { headers: { 'Content-Type': 'application/json' } }));
 }
 
+// Owner-only (25 Sep): flag one device's rows as test - never deletes. Used
+// when an owner or test phone was counted as a real person (e.g. an iPhone
+// Home Screen install that lost its owner flag). Takes a device hash, or
+// latest_push=1 for the most recent reminder subscription.
+async function handleAdminMarkTest(request, env) {
+  const url = new URL(request.url);
+  if (!env.ADMIN_KEY || (url.searchParams.get('key') || '') !== env.ADMIN_KEY) return cors(new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401 }));
+  await ensureTestSchema(env); await ensurePushTables(env);
+  let h = String(url.searchParams.get('hash') || '').toLowerCase().replace(/[^0-9a-f]/g, '').slice(0, 32);
+  if (!h && url.searchParams.get('latest_push') === '1') { const r = await env.COUNTMY_DB.prepare('SELECT device_hash FROM push_subs ORDER BY created DESC LIMIT 1').first(); h = r ? r.device_hash : ''; }
+  if (h.length !== 32) return cors(new Response(JSON.stringify({ error: 'need hash' }), { status: 400 }));
+  const out = {};
+  for (const [t, col] of [['devices', 'device_hash'], ['events', 'shop_hash'], ['entries', 'shop_hash'], ['push_subs', 'device_hash']]) {
+    const r = await env.COUNTMY_DB.prepare('UPDATE ' + t + ' SET is_test = 1 WHERE ' + col + ' = ?').bind(h).run();
+    out[t] = (r.meta && r.meta.changes) || 0;
+  }
+  return cors(new Response(JSON.stringify({ hash: h.slice(0, 8) + '...', flagged: out }), { headers: { 'Content-Type': 'application/json' } }));
+}
+
 async function handleRestore(request, env) {
   if (!env.COUNTMY_DB) return cors(new Response(JSON.stringify({ error: 'not configured' }), { status: 503 }));
   let body = {};
@@ -1661,7 +1680,7 @@ async function handleTranscribe(request, env) {
 // targets fabrication specifically, not every possible error; the review UI is
 // still what catches a wrong-but-grounded number.
 // w116: listen_tw / listen_en accepted by /ping (first-screen listen buttons).
-const WORKER_VERSION = 'w116';
+const WORKER_VERSION = 'w117';
 
 // Spanish (Venezuela) twin of EXTRACT_SYSTEM_PROMPT below: same event types,
 // same {value, evidence} rule, same JSON-only answer. Amounts are bare
@@ -3535,6 +3554,7 @@ export default {
       else if (path === '/admin/tts' && request.method === 'POST') adminResp = await handleAdminTts(request, env);
       else if (path === '/admin/tts-en' && request.method === 'POST') adminResp = await handleAdminTtsEn(request, env);
       else if (path === '/admin/push-test' && request.method === 'POST') adminResp = await handleAdminPushTest(request, env);
+      else if (path === '/admin/mark-test' && request.method === 'POST') adminResp = await handleAdminMarkTest(request, env);
       else if (path === '/admin/source-daily' && request.method === 'GET') adminResp = await handleAdminSourceDaily(request, env);
       else if (path === '/admin/overview' && request.method === 'GET') adminResp = await handleAdminOverview(request, env);
       else if (path === '/admin/spend' && request.method === 'POST') adminResp = await handleAdminSpend(request, env);

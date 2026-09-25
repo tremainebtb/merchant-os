@@ -98,7 +98,21 @@
 <link rel="alternate" hreflang="en" href="https://countmy.app/">
 <link rel="canonical" href="https://countmy.app/">
 <meta name="google-site-verification" content="6w5arKM8VWqCfC1lWHKA7k_7m0KZL756_LMHC239ws0">
-<link rel="manifest" href="manifest.json">
+<script>
+  // 25 Sep: the install file is chosen while the page loads (an iPhone reads
+  // it then; changing it later was ignored). Owner and test phones install
+  // with their flag, because a Home Screen app keeps its own storage.
+  (function () {
+    var f = 'manifest.json';
+    try {
+      var q = new URLSearchParams(location.search);
+      if (q.get('owner') === '1' || localStorage.getItem('kym_owner_device') === '1') f = 'manifest-owner.json';
+      else if (q.get('test') === '1' || localStorage.getItem('kym_test') === '1') f = 'manifest-test.json';
+    } catch (e) { /* default */ }
+    document.write('<link rel="manifest" href="' + f + '">');
+  })();
+</script>
+<noscript><link rel="manifest" href="manifest.json"></noscript>
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <!-- Some browser/OS surfaces (bookmarks bars, older WebViews, some Android
      home-screen flows) ignore the <link> above and request /favicon.ico
@@ -761,11 +775,6 @@ body.book-on .act-snap{background:var(--surface);color:var(--navy);border:1.5px 
   })();
   // A Home Screen app keeps its own storage, so an owner or test phone that
   // installs CountMy carries its flag into it: the install starts there.
-  try {
-    var mf = document.querySelector('link[rel="manifest"]');
-    if (mf && window.KYM_IS_OWNER_DEVICE) mf.href = 'manifest-owner.json';
-    else if (mf && localStorage.getItem('kym_test') === '1') mf.href = 'manifest-test.json';
-  } catch (e) { /* optional */ }
   // GA4, Clarity and the Meta Pixel stay off for the owner AND for test phones.
   window.KYM_NO_ANALYTICS = window.KYM_IS_OWNER_DEVICE || (function() { try { return localStorage.getItem('kym_test') === '1'; } catch (e) { return false; } })();
 
