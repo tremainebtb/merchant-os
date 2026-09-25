@@ -1651,7 +1651,7 @@ async function recognizeWithPhone(btn, statusId, opts) {
   if (lbl) { if (!lbl.dataset.idle) lbl.dataset.idle = lbl.textContent; lbl.textContent = t('Speak now\u2026', 'Habla ahora\u2026'); }
   btn.classList.add('recording');
   setMicStatus(t('Speak now. It stops by itself when you finish.', 'Habla ahora. Cuando termines, se apaga solo.'), null, statusId);
-  await Promise.race([say(opts && opts.again ? t('Say it again.', 'Dilo otra vez.') : askMode ? t('Ask me.', 'Preg\u00fantame.') : t('Speak now.', 'Habla ahora.')), new Promise(res => setTimeout(res, 1800))]);
+  await Promise.race([((opts && opts.again) || askMode ? say(opts && opts.again ? t('Say it again.', 'Dilo otra vez.') : t('Ask me.', 'Preg\u00fantame.')) : sayVoice('talk', t('Speak now.', 'Habla ahora.'))), new Promise(res => setTimeout(res, 1800))]);
   askMode = false;
   stopSpeaking();
   try { if (navigator.vibrate) navigator.vibrate(40); } catch (e) { /* optional */ }
@@ -1997,7 +1997,7 @@ async function toggleMic(btn, statusId, opts) {
     const lbl = btn.querySelector('.home-mic-label');
     if (lbl) { if (!lbl.dataset.idle) lbl.dataset.idle = lbl.textContent; lbl.textContent = t('Speak now\u2026', 'Habla ahora\u2026'); }
     setMicStatus(t('Speak now. It stops by itself when you finish.', 'Habla ahora. Cuando termines, se apaga solo.'), null, statusId);
-    await Promise.race([say(opts && opts.again ? t('Say it again.', 'Dilo otra vez.') : askMode ? t('Ask me.', 'Preg\u00fantame.') : t('Speak now.', 'Habla ahora.')), new Promise(r => setTimeout(r, 1800))]);
+    await Promise.race([((opts && opts.again) || askMode ? say(opts && opts.again ? t('Say it again.', 'Dilo otra vez.') : t('Ask me.', 'Preg\u00fantame.')) : sayVoice('talk', t('Speak now.', 'Habla ahora.'))), new Promise(r => setTimeout(r, 1800))]);
     askMode = false;
     stopSpeaking(); // never let the prompt run into the recording
     try { if (navigator.vibrate) navigator.vibrate(40); } catch (e) { /* optional */ }
@@ -3734,8 +3734,39 @@ const BK_CATS = [
 // Twi is rarer than reading English (2021 census: 52.8% of literate
 // Ghanaians read a Ghanaian language, 96% English), so there is no written
 // Twi label; the help for a Twi speaker is heard, not read.
-const BOOK_CLIPS = { in: 'audio/tw/in.mp3', owe: 'audio/tw/owe.mp3', pay: 'audio/tw/pay.mp3' };
-function bkTwiSpeaker() { try { return !ES && localStorage.getItem('kym_twi') === '1'; } catch (e) { return false; } }
+const TW_CLIPS = { in: 'audio/tw/in.mp3', owe: 'audio/tw/owe.mp3', pay: 'audio/tw/pay.mp3', out: 'audio/tw/out.mp3', talk: 'audio/tw/talk.mp3', saved: 'audio/tw/saved.mp3', twi_on: 'audio/tw/twi_on.mp3' };
+const BOOK_CLIPS = TW_CLIPS;
+// 25 Sep (owner's test on his iPhone): the only way to get the Twi voice was
+// the Listen button on the very first screen, which disappears after the
+// first record - so every prompt stayed English. Now the choice is always on
+// screen (top right) and kept; the automatic switch (server heard Twi) only
+// applies when she has not chosen.
+function voiceLang() {
+  try {
+    const v = localStorage.getItem('kym_voice');
+    if (v === 'tw' || v === 'en') return v;
+    return localStorage.getItem('kym_twi') === '1' ? 'tw' : 'en';
+  } catch (e) { return 'en'; }
+}
+function bkTwiSpeaker() { return !ES && voiceLang() === 'tw'; }
+// Twi recordings (sourced wording, Khaya voice). A prompt with no Twi
+// recording yet is spoken in English.
+const TW_READY = new Set(['in', 'owe', 'pay']);
+function hasTwClip(k) { return bkTwiSpeaker() && TW_READY.has(k) && !!TW_CLIPS[k]; }
+// Plays the Twi recording when the voice is Twi and one exists, else speaks
+// the English line. Resolves when finished, like say().
+function sayVoice(clipKey, text) {
+  if (!hasTwClip(clipKey)) return say(text);
+  return new Promise(resolve => {
+    try {
+      stopSpeaking();
+      const a = new Audio(TW_CLIPS[clipKey]);
+      a.onended = () => resolve();
+      a.onerror = () => { say(text).then(resolve, resolve); };
+      a.play().catch(() => { say(text).then(resolve, resolve); });
+    } catch (e) { say(text).then(resolve, resolve); }
+  });
+}
 const BK_ICON = {
   in: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',
   out: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round"><path d="M5 12h14"/></svg>',
@@ -3991,7 +4022,7 @@ function bkOpen(kind, debt) {
 // voice-on-every-screen half of the evidence. Then it stays quiet.
 function bkPrompt(kind) {
   try {
-    const twi = bkTwiSpeaker() && !!BOOK_CLIPS[kind];
+    const twi = hasTwClip(kind);
     const k = 'kym_bk_said_' + (twi ? 'tw_' : '') + kind, n = parseInt(localStorage.getItem(k), 10) || 0;
     if (n >= 3) return;
     localStorage.setItem(k, String(n + 1));
@@ -4068,7 +4099,7 @@ async function bkWrite() {
   bkCloseSheets();
   try { await render(); } catch (e) { /* saved; the next render catches up */ }
   bkChime(); bkTick(25);
-  if (!hasSpokenSaved()) speakShort(t('Saved.', 'Guardado.'));
+  if (!hasSpokenSaved()) { if (hasTwClip('saved')) sayVoice('saved', t('Saved.', 'Guardado.')); else speakShort(t('Saved.', 'Guardado.')); }
   bookToast(msg, undo ? async () => { try { await undo(); } catch (e) { /* nothing more to undo */ } await render(); } : null);
   if (record) await afterEntrySaved(record);
 }
@@ -4558,16 +4589,29 @@ function playIntro(lang) {
   try {
     if (introAudio) { introAudio.pause(); introAudio = null; }
     stopSpeaking();
-    introAudio = new Audio(lang === 'tw' ? 'audio/tw/intro.mp3' : 'audio/en/intro.mp3');
-    introAudio.play().catch(() => {});
-    if (lang === 'tw') { try { localStorage.setItem('kym_twi', '1'); } catch (e) { /* optional */ } }
-    ping(lang === 'tw' ? 'listen_tw' : 'listen_en'); track('listen', { lang });
+    try { localStorage.setItem('kym_voice', lang === 'tw' ? 'tw' : 'en'); } catch (e) { /* optional */ }
+    markVoiceButtons();
+    // The full explanation until she has a record; after that, a short
+    // confirmation of the voice she picked.
+    let src;
+    if (!hasAnyRecord) src = lang === 'tw' ? 'audio/tw/intro.mp3' : 'audio/en/intro.mp3';
+    else if (lang === 'tw' && TW_READY.has('twi_on')) src = TW_CLIPS.twi_on;
+    if (src) { introAudio = new Audio(src); introAudio.play().catch(() => {}); }
+    else if (lang === 'tw') { introAudio = new Audio('audio/tw/intro.mp3'); introAudio.play().catch(() => {}); }
+    else speakShort('English.');
+    ping(lang === 'tw' ? 'listen_tw' : 'listen_en'); track('listen', { lang, has_records: hasAnyRecord ? 1 : 0 });
   } catch (e) { /* optional */ }
+}
+function markVoiceButtons() {
+  const box = document.getElementById('introListen'); if (!box) return;
+  const v = voiceLang();
+  box.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.lang === v)));
 }
 (function wireListen() {
   const box = document.getElementById('introListen');
   if (!box || ES || !BOOK_ON || !LISTEN_READY) return;
   box.hidden = false;
+  markVoiceButtons();
   box.querySelectorAll('button').forEach(b => b.addEventListener('click', () => playIntro(b.dataset.lang)));
 })();
 
