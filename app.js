@@ -3751,7 +3751,11 @@ function voiceLang() {
 function bkTwiSpeaker() { return !ES && voiceLang() === 'tw'; }
 // Twi recordings (sourced wording, Khaya voice). A prompt with no Twi
 // recording yet is spoken in English.
-const TW_READY = new Set(['in', 'owe', 'pay']);
+// out = "Woatɔ ahe?" (Christaller's printed frame, how much have you bought);
+// talk = "Afei kasa." (afei = now: LearnAkanDictionary + Wiktionary; kasa =
+// speak: Christaller + LearnAkanDictionary). Both read back by Khaya ASR at 0%
+// error. "Saved" has no well-sourced Twi, so in Twi it is the chime only.
+const TW_READY = new Set(['in', 'owe', 'pay', 'out', 'talk']);
 function hasTwClip(k) { return bkTwiSpeaker() && TW_READY.has(k) && !!TW_CLIPS[k]; }
 // Plays the Twi recording when the voice is Twi and one exists, else speaks
 // the English line. Resolves when finished, like say().
@@ -4099,7 +4103,7 @@ async function bkWrite() {
   bkCloseSheets();
   try { await render(); } catch (e) { /* saved; the next render catches up */ }
   bkChime(); bkTick(25);
-  if (!hasSpokenSaved()) { if (hasTwClip('saved')) sayVoice('saved', t('Saved.', 'Guardado.')); else speakShort(t('Saved.', 'Guardado.')); }
+  if (!hasSpokenSaved()) { if (hasTwClip('saved')) sayVoice('saved', t('Saved.', 'Guardado.')); else if (!bkTwiSpeaker()) speakShort(t('Saved.', 'Guardado.')); }
   bookToast(msg, undo ? async () => { try { await undo(); } catch (e) { /* nothing more to undo */ } await render(); } : null);
   if (record) await afterEntrySaved(record);
 }
