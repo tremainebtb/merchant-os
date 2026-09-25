@@ -2376,8 +2376,64 @@ function recordAskUsed() {
   }
 }
 
+// Plus by Paystack (25 Sep). The public key only (safe in the page); the
+// secret key lives in the Worker (PAYSTACK_SECRET_KEY) and verifies every
+// payment with Paystack before anything is unlocked. Empty = not switched on,
+// the manual MoMo instructions stay.
+const PAYSTACK_PK = '';
+const PLUS_PRICE_PESEWAS = 9900;
+function paidKey() { return getShopId() || getDeviceId(); }
+function loadPaystack() {
+  return new Promise((resolve, reject) => {
+    if (window.PaystackPop) { resolve(); return; }
+    const sc = document.createElement('script'); sc.src = 'https://js.paystack.co/v1/inline.js';
+    sc.onload = () => resolve(); sc.onerror = () => reject(new Error('paystack script'));
+    document.head.appendChild(sc);
+  });
+}
+async function payPlus() {
+  const msg = document.getElementById('payMsg');
+  const say2 = x => { if (msg) msg.textContent = x; };
+  if (!PAYSTACK_PK) return;
+  if (!navigator.onLine) { say2(t('You need data to pay. Try again when you are online.', '')); return; }
+  try {
+    say2(t('Opening the secure payment...', ''));
+    await loadPaystack();
+    const key = paidKey();
+    const handler = window.PaystackPop.setup({
+      key: PAYSTACK_PK,
+      email: 'plus-' + (await sha256Short(key)) + '@pay.countmy.app',
+      amount: PLUS_PRICE_PESEWAS,
+      currency: 'GHS',
+      channels: ['mobile_money', 'card'],
+      metadata: { k: key, plan: 'plus_year' },
+      callback: function (res) {
+        say2(t('Checking your payment...', ''));
+        fetch(API_BASE + '/pay/verify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reference: res.reference, k: key }) })
+          .then(r => r.json()).then(j => {
+            if (j && j.paid) { try { localStorage.setItem('kym_paid_backend', '1'); } catch (e) { /* optional */ } track('plus_paid'); ping('plus_paid'); say2(t('Thank you! Ask CountMy is now unlimited.', '')); speakShort(t('Thank you.', '')); render(); }
+            else say2(t('We could not confirm the payment yet. If money left your MoMo, it will be checked again automatically.', ''));
+          }).catch(() => say2(t('We could not confirm the payment yet. It will be checked again when you are online.', '')));
+      },
+      onClose: function () { track('plus_pay_closed'); say2(''); }
+    });
+    track('plus_pay_open'); ping('plus_pay_open');
+    handler.openIframe();
+  } catch (e) { say2(t('The payment page could not open. Please try again.', '')); track('plus_pay_error', { reason: (e && e.message) || 'unknown' }); }
+}
+async function sha256Short(x) {
+  try { const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(String(x))); return Array.from(new Uint8Array(b)).slice(0, 8).map(v => v.toString(16).padStart(2, '0')).join(''); } catch (e) { return 'user'; }
+}
+(function wirePay() {
+  const btn = document.getElementById('payPlusBtn'); if (!btn) return;
+  if (!PAYSTACK_PK || ES) { btn.hidden = true; return; }
+  btn.hidden = false;
+  const manual = document.querySelector('.plan-pay-box'); if (manual) manual.hidden = true;
+  btn.addEventListener('click', payPlus);
+})();
+
 async function refreshPaidStatus() {
-  const shop = getShopId();
+  const shop = PAYSTACK_PK ? paidKey() : getShopId();
   if (!shop || !navigator.onLine) return;
   try {
     const res = await fetch(`${API_BASE}/status?shop=${encodeURIComponent(shop)}`);
@@ -2787,8 +2843,25 @@ function reminderHook() {
   return t(' - Sent with CountMy, the free money notebook for anyone in business: countmy.app/?utm_source=whatsapp&utm_medium=reminder&utm_campaign=debt',
     ' - Enviado con CountMy, el cuaderno de cuentas gratis para cualquier negocio: countmy.app/?lang=es&utm_source=whatsapp&utm_medium=reminder&utm_campaign=debt');
 }
+// 25 Sep: the reminder said "send by MoMo" but never WHERE, so the customer
+// had to ask - friction exactly where traders lose money (26.9% of informal
+// firms sell on credit, World Bank 2022; "how do I get my money from
+// debtors" is a recurring public ask). Her own number, kept only on her phone,
+// goes into the message she sends. CountMy never touches the money.
+function getMomo() { try { return localStorage.getItem('kym_momo') || ''; } catch (e) { return ''; } }
+function prettyMomo(d) { return d.length === 10 ? d.slice(0, 3) + ' ' + d.slice(3, 6) + ' ' + d.slice(6) : d; }
+function cleanMomo(v) {
+  let d = String(v || '').replace(/\D/g, '');
+  if (d.length === 12 && d.indexOf('233') === 0) d = '0' + d.slice(3);
+  return /^0[235]\d{8}$/.test(d) ? d : '';
+}
+function momoLine() {
+  const m = getMomo(); if (!m) return 'Please send by MoMo when you can.';
+  let who = ''; try { who = localStorage.getItem('kym_momo_name') || ''; } catch (e) { /* optional */ }
+  return 'Please send by MoMo to ' + prettyMomo(m) + (who ? ' (' + who + ')' : '') + ' when you can.';
+}
 function reminderMessage(name, amount, note, cur) {
-  return t(`Hello ${name}, your balance is ${fmt(amount, cur)}${note ? ' for ' + note : ''}. Please send by MoMo when you can. Thank you.${reminderHook()}`,
+  return t(`Hello ${name}, your balance is ${fmt(amount, cur)}${note ? ' for ' + note : ''}. ${momoLine()} Thank you.${reminderHook()}`,
     tc(`Hola ${name}, me debes ${fmt(amount, cur)}${note ? ' por ' + note : ''}. Cuando puedas me lo mandas por Pago M\u00f3vil, por favor. \u00a1Gracias!${reminderHook()}`,
        `Hola ${name}, buen d\u00eda. Me debe ${fmt(amount, cur)}${note ? ' de ' + note : ''}. Cuando pueda me lo manda por Nequi o en efectivo, por favor. \u00a1Gracias!${reminderHook()}`));
 }
@@ -2866,6 +2939,25 @@ function showDebtReminder(entry) {
   document.getElementById('debtReminderText').textContent = t(`${name} owes you ${fmt(owed, entry.cur)}.`, `${name} te debe ${fmt(owed, entry.cur)}.`);
   const link = document.getElementById('debtReminderSend');
   link.href = 'https://wa.me/?text=' + encodeURIComponent(reminderMessage(name, owed, entry.note, entry.cur));
+  // First time only: her MoMo number, so the reminder says where to pay.
+  let row = document.getElementById('debtMomoRow');
+  if (!ES && !getMomo()) {
+    if (!row) {
+      row = document.createElement('div'); row.id = 'debtMomoRow'; row.className = 'debt-momo';
+      row.innerHTML = '<label for="debtMomoInput">' + t('Your MoMo number, so they know where to pay you:', '') + '</label><div class="debt-momo-in"><input id="debtMomoInput" type="tel" inputmode="numeric" autocomplete="tel" placeholder="024 123 4567" maxlength="16"><button type="button" id="debtMomoSave">' + t('Save', '') + '</button></div>';
+      box.insertBefore(row, box.querySelector('.act-banner-actions'));
+      row.querySelector('#debtMomoSave').addEventListener('click', () => {
+        const d = cleanMomo(row.querySelector('#debtMomoInput').value);
+        if (!d) { row.querySelector('#debtMomoInput').focus(); speakShort(t('Please check the number.', '')); return; }
+        try { localStorage.setItem('kym_momo', d); } catch (e) { /* optional */ }
+        track('momo_saved'); ping('momo_saved');
+        row.remove();
+        link.href = 'https://wa.me/?text=' + encodeURIComponent(reminderMessage(name, owed, entry.note, entry.cur));
+        clearTimeout(debtReminderTimer); debtReminderTimer = setTimeout(() => { box.hidden = true; }, 25000);
+      });
+    }
+    clearTimeout(debtReminderTimer);
+  } else if (row) row.remove();
   link.textContent = t(`Remind ${name} on WhatsApp`, `Cobrarle a ${name} por WhatsApp`);
   box.hidden = false;
   // Spoken read-back stays: for someone who cannot read the card, hearing
@@ -2878,8 +2970,9 @@ function showDebtReminder(entry) {
   // being prompted to chase her, and it verifies nothing. The button asks.
   speakShort(t(`${name} owes you ${fmtSay(owed, entry.cur)}.`, `${name} te debe ${fmtSay(owed, entry.cur)}.`));
   clearTimeout(debtReminderTimer);
-  // Never permanent - it is a prompt about one debt, not a part of the page.
-  debtReminderTimer = setTimeout(() => { box.hidden = true; }, 25000);
+  // Never permanent - it is a prompt about one debt, not a part of the page
+  // (longer when it is waiting for her MoMo number).
+  debtReminderTimer = setTimeout(() => { box.hidden = true; }, document.getElementById('debtMomoRow') ? 90000 : 25000);
 }
 
 // Item 2. The one retention lever with a real published number behind it:

@@ -116,6 +116,27 @@ function tooManyRequests(retryAfter) {
   }));
 }
 
+// Plus by Paystack (25 Sep). Never trusts the phone: the reference is checked
+// with Paystack using the secret key (a Worker secret, never in the repo),
+// and only a successful GHS payment of at least the Plus price for this same
+// id unlocks it. The id is the phone's own (Shop ID or random device id).
+async function handlePayVerify(request, env) {
+  if (!env.PAYSTACK_SECRET_KEY) return cors(new Response(JSON.stringify({ error: 'payments not configured' }), { status: 503, headers: { 'Content-Type': 'application/json' } }));
+  let b = {}; try { b = await request.json(); } catch (e) { return cors(new Response(JSON.stringify({ error: 'invalid request' }), { status: 400 })); }
+  const ref = String(b.reference || '').replace(/[^A-Za-z0-9_.=-]/g, '').slice(0, 100);
+  const key = String(b.k || '').trim().toLowerCase().slice(0, 200);
+  if (!ref || !key || key.startsWith('rl:')) return cors(new Response(JSON.stringify({ error: 'missing reference' }), { status: 400 }));
+  const r = await fetch('https://api.paystack.co/transaction/verify/' + encodeURIComponent(ref), { headers: { Authorization: 'Bearer ' + env.PAYSTACK_SECRET_KEY } });
+  const j = await r.json().catch(() => ({}));
+  const d = (j && j.data) || {};
+  const metaKey = String((d.metadata && d.metadata.k) || '').trim().toLowerCase();
+  const ok = r.ok && j.status === true && d.status === 'success' && d.currency === 'GHS' && Number(d.amount) >= 9900 && metaKey === key;
+  console.log('PAY', JSON.stringify({ ref: ref.slice(0, 12), ok, status: d.status || '', amount: d.amount || 0, currency: d.currency || '' }));
+  if (!ok) return cors(new Response(JSON.stringify({ paid: false, status: d.status || 'unknown' }), { headers: { 'Content-Type': 'application/json' } }));
+  await env.COUNTMY_STATUS.put(key, '1');
+  return cors(new Response(JSON.stringify({ paid: true }), { headers: { 'Content-Type': 'application/json' } }));
+}
+
 async function handleStatus(request, env) {
   const url = new URL(request.url);
   const shop = (url.searchParams.get('shop') || '').trim().toLowerCase();
@@ -204,7 +225,7 @@ async function handlePing(request, env) {
   // ping was silently rejected with a 400 here (ping() swallows the error),
   // so Spanish usage never once showed up in the spoken-language stats.
   if (!['open', 'save', 'share_shop', 'shop_created', 'ask', 'tap', 'install', 'voice_en', 'voice_twi', 'voice_pidgin', 'voice_es',
-    'restore', 'push_on', 'push_open', 'listen_tw', 'listen_en', 'how_seen', 'how_try', 'iab', 'iab_tap', 'iab_tap_ios', 'iab_typed', 'iab_example', 'stt_browser', 'stt_whisper', 'iab_auto', 'iab_auto_ios', 'iab_stay', 'iab_escaped', 'iab_escaped_ios', 'iab_mic_ok', 'iab_note', 'mic_denied', 'mic_nomic', 'mic_busy', 'mic_empty', 'mic_silent', 'mic_timeout', 'mic_server', 'mic_network'].includes(eventType)) {
+    'restore', 'push_on', 'push_open', 'listen_tw', 'listen_en', 'how_seen', 'how_try', 'momo_saved', 'plus_pay_open', 'plus_paid', 'iab', 'iab_tap', 'iab_tap_ios', 'iab_typed', 'iab_example', 'stt_browser', 'stt_whisper', 'iab_auto', 'iab_auto_ios', 'iab_stay', 'iab_escaped', 'iab_escaped_ios', 'iab_mic_ok', 'iab_note', 'mic_denied', 'mic_nomic', 'mic_busy', 'mic_empty', 'mic_silent', 'mic_timeout', 'mic_server', 'mic_network'].includes(eventType)) {
     return cors(new Response(JSON.stringify({ error: 'invalid event' }), { status: 400 }));
   }
   const shopHash = (await sha256Hex(shop)).slice(0, 32);
@@ -1680,7 +1701,7 @@ async function handleTranscribe(request, env) {
 // targets fabrication specifically, not every possible error; the review UI is
 // still what catches a wrong-but-grounded number.
 // w116: listen_tw / listen_en accepted by /ping (first-screen listen buttons).
-const WORKER_VERSION = 'w118';
+const WORKER_VERSION = 'w119';
 
 // Spanish (Venezuela) twin of EXTRACT_SYSTEM_PROMPT below: same event types,
 // same {value, evidence} rule, same JSON-only answer. Amounts are bare
@@ -3507,7 +3528,7 @@ export default {
       const path = url.pathname;
       const isAiRoute = path === '/transcribe' || path === '/extract' || path === '/transcribe-and-extract' || path === '/extract-from-image';
       const isSayRoute = path === '/say' && request.method === 'GET';
-      const isWriteRoute = path === '/ping' || path === '/sync' || path === '/shop' || path === '/owner-log' || path === '/restore' || path === '/push/sub';
+      const isWriteRoute = path === '/ping' || path === '/sync' || path === '/shop' || path === '/owner-log' || path === '/restore' || path === '/push/sub' || path === '/pay/verify';
       const isAdminRoute = path.startsWith('/admin/');
       const ip = clientIp(request);
       if ((isAiRoute && request.method === 'POST') || isSayRoute) {
@@ -3537,6 +3558,7 @@ export default {
       }
       if (path === '/sync' && request.method === 'POST') return withLimitHeader(await handleSync(request, env));
       if (path === '/restore' && request.method === 'POST') return withLimitHeader(await handleRestore(request, env));
+      if (path === '/pay/verify' && request.method === 'POST') return withLimitHeader(await handlePayVerify(request, env));
       if (path === '/push/key' && request.method === 'GET') return await handlePushKey(env);
       if (path === '/push/sub' && request.method === 'POST') return withLimitHeader(await handlePushSub(request, env));
       if (path === '/shop' && request.method === 'POST') return withLimitHeader(await handleShopUpsert(request, env));
