@@ -35,8 +35,9 @@ body{font-family:Manrope,system-ui,sans-serif;color:var(--ink);position:relative
 .tw{font-size:40px;font-weight:800;color:var(--out)}
 .tw small{font-size:32px;color:#5C5142;font-weight:700;margin-left:10px}
 .app{position:absolute;left:110px;right:110px;top:470px;height:770px;display:flex;flex-direction:column;gap:14px}
-.hdr{display:flex;justify-content:flex-end;gap:10px}
-.lg{border:3px solid #E7DDCD;background:#fff;border-radius:99px;padding:8px 22px;font-size:28px;font-weight:800;color:var(--navy)}
+.hdr{position:relative;display:flex;justify-content:flex-end;align-items:center;gap:10px}
+.hdr .logo{margin-right:auto;display:flex;align-items:center;gap:10px;font-weight:800;font-size:40px;color:var(--navy)}.hdr .logo svg{width:48px;height:48px}.hdr .logo .my{color:#D9541A}
+.lg{position:relative;border:3px solid #E7DDCD;background:#fff;border-radius:99px;padding:8px 22px;font-size:28px;font-weight:800;color:var(--navy)}
 .lg.on{background:var(--navy);color:#fff;border-color:var(--navy)}
 .page{background:#FFFDF7;border:3px solid #E7DDCD;border-radius:26px;overflow:hidden}
 .ph{padding:14px 22px;border-bottom:3px solid var(--line);font-weight:800;color:var(--navy);font-size:34px}
@@ -44,9 +45,9 @@ body{font-family:Manrope,system-ui,sans-serif;color:var(--ink);position:relative
 .ln .m{width:44px;text-align:center;font-family:Manrope;font-weight:800}
 .cs{font-family:Manrope,system-ui,sans-serif;font-weight:800;font-size:.8em}
 .in{color:var(--in)}.out{color:var(--out)}
-.ln.new{background-color:#FCEBE6}
+.ln.new{}
 .ln .t{color:var(--ink);opacity:.85}
-.sums{display:flex;justify-content:space-between;padding:14px 22px;font-weight:800;font-size:34px}
+.sums{display:flex;gap:26px;padding:14px 22px;font-weight:800;font-size:34px}.sums .eq{margin-left:auto}
 .bar{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
 .b{position:relative;border-radius:26px;height:170px;color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;font-weight:800;font-size:32px}
 .b svg{width:64px;height:64px}
@@ -56,7 +57,7 @@ body{font-family:Manrope,system-ui,sans-serif;color:var(--ink);position:relative
 .tap::after{content:"";position:absolute;left:50%;top:50%;width:110px;height:110px;margin:-55px 0 0 -55px;border-radius:50%;background:rgba(255,255,255,.35);border:8px solid #fff;box-shadow:0 0 0 10px rgba(30,47,85,.45);pointer-events:none}
 /* the Spent sheet, as in the app */
 .sheet{background:#fff;border-radius:34px;box-shadow:0 8px 30px rgba(0,0,0,.18);padding:18px 22px;display:flex;flex-direction:column;gap:8px}
-.sh{display:flex;align-items:center;justify-content:space-between;font-weight:800;font-size:36px}
+.sh{display:flex;align-items:center;gap:14px;font-weight:800;font-size:36px}.sh .ic{width:52px;height:52px;border-radius:14px;background:var(--out);color:#fff;display:grid;place-items:center;font-size:40px;line-height:1}.sh .x{margin-left:auto}
 .sh .x{width:50px;height:50px;border-radius:50%;background:#F6F0E7;display:grid;place-items:center;font-size:34px;color:#5C5142}
 .disp{text-align:center;font-size:86px;line-height:1;font-weight:800;color:var(--out)}
 .disp .c{font-size:.55em;color:#6B5E4E;margin-right:6px}
@@ -66,10 +67,11 @@ body{font-family:Manrope,system-ui,sans-serif;color:var(--ink);position:relative
 .w{position:relative;background:var(--leaf);color:#fff;border-radius:22px;height:78px;display:flex;align-items:center;justify-content:center;gap:12px;font-size:38px;font-weight:800}
 .w.dim{opacity:.4}
 .chips{display:flex;gap:12px;flex-wrap:nowrap;justify-content:center;padding:6px 0}
-.chip{position:relative;flex:none;border:3px solid #E7DDCD;background:#fff;border-radius:99px;padding:8px 18px;font-size:28px;font-weight:800;color:#5C5142;white-space:nowrap}
-.chip.on{background:#FCEBE6;border-color:var(--out);color:var(--out)}
-.toast{background:var(--navy);color:#fff;border-radius:22px;padding:18px 24px;display:flex;justify-content:space-between;font-size:34px;font-weight:800}
-.toast u{text-decoration:none;opacity:.85}
+.chip{position:relative;flex:none;border:0;background:var(--paper);border-radius:99px;padding:10px 20px;font-size:30px;font-weight:700;color:var(--ink);white-space:nowrap}
+.chip.on{background:var(--navy);color:#fff}
+.chip.tap::after{width:84px;height:84px;margin:-42px 0 0 -42px;border-width:6px}
+.toast{position:absolute;left:50%;top:0;transform:translateX(-50%);background:#1E2F55;color:#fff;border-radius:99px;padding:14px 30px;display:flex;gap:26px;font-size:34px;font-weight:800;box-shadow:0 4px 16px rgba(0,0,0,.25);white-space:nowrap}
+.toast u{text-decoration:none;color:#FFD08A}
 .end{position:absolute;left:90px;right:90px;top:300px;height:930px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:40px;text-align:center}
 .brand{display:flex;align-items:center;gap:20px;font-weight:800;font-size:100px;color:var(--navy)}
 .brand svg{width:116px;height:116px}.brand .my{color:#D9541A}
@@ -91,14 +93,14 @@ const ICON = {
 const LOGO = '<svg viewBox="0 0 64 64" aria-hidden="true"><rect x="15" y="9" width="30" height="12" rx="6" fill="#E8641F" transform="rotate(-7 30 15)"/><rect x="10" y="26" width="38" height="12" rx="6" fill="#F2B233"/><rect x="17" y="43" width="32" height="12" rx="6" fill="#1E2F55" transform="rotate(4 33 49)"/></svg>';
 const C = '<span class="cs">&#8373;</span>';
 // States: 0 hook, 1 tap Spent, 2 sheet 0, 3 typed 2, 4 typed 20, 5 tap Transport, 6 tap Write it, 7 written, 8 end card
-const twi = S >= 2 && S <= 7; // once Twi is chosen it stays, as in the app
-const hdr = `<div class="hdr"><span class="lg ${twi ? 'on' : ''}">Twi</span><span class="lg ${twi ? '' : 'on'}">Eng</span></div>`;
 const written = S === 7;
+const twi = S >= 0.5 && S <= 7; // tapped at 0.5 (shown), then it stays on, as in the app
+const hdr = `<div class="hdr"><span class="logo">${LOGO}<span>Count<span class="my">My</span></span></span><span class="lg ${twi ? 'on' : ''} ${S === 0.5 ? 'tap' : ''}">&#128266; Twi</span><span class="lg ${twi ? '' : 'on'}">&#128266; Eng</span>${written ? '<span class="toast"><span>Written</span><u>Undo</u></span>' : ''}</div>`;
 const book = `<div class="page">
   <div class="ph">&lsaquo; Today &rsaquo;</div>
   ${written ? `<div class="ln out new"><span class="m">&minus;</span><span>${C}20</span><span class="t">Transport</span></div>` : '<div class="ln"></div>'}
   <div class="ln"></div>
-  <div class="sums"><span class="in">+${C}0</span><span class="out">&minus;${C}${written ? 20 : 0}</span><span style="color:#1E2F55">= ${written ? '&minus;' : ''}${C}${written ? 20 : 0}</span></div>
+  <div class="sums"><span class="in">+${C}0</span><span class="out">&minus;${C}${written ? 20 : 0}</span><span class="eq" style="color:#1E2F55">= ${written ? '&minus;' : ''}${C}${written ? 20 : 0}</span></div>
 </div>`;
 const bar = `<div class="bar">
   <div class="b s">${ICON.s}Sold</div>
@@ -109,7 +111,7 @@ const amt = S === 2 ? '0' : S === 3 ? '2' : '20';
 const keys = ['1','2','3','4','5','6','7','8','9','.','0','&#9003;'].map(k => `<div class="k ${(S === 3 && k === '2') || (S === 4 && k === '0') ? 'tap' : ''}">${k}</div>`).join('');
 const chips = ['&#128230; Stock', '&#128652; Transport', '&#127858; Food'].map((c, i) => `<span class="chip ${i === 1 && S >= 5 ? 'on' : ''} ${i === 1 && S === 5 ? 'tap' : ''}">${c}</span>`).join('');
 const sheet = `<div class="sheet">
-  <div class="sh"><span>Spent</span><span class="x">&times;</span></div>
+  <div class="sh"><span class="ic">&minus;</span><span>Spent</span><span class="x">&times;</span></div>
   <div class="disp"><span class="c">&#8373;</span>${amt}</div>
   <div class="hint">Type how much, then tap &#10003; Write it</div>
   <div class="keys">${keys}</div>
@@ -120,11 +122,11 @@ const TOP = {
   0: `<div class="q">Where did today&rsquo;s money go?</div>`,
   1: `<div class="cap"><span class="n">1</span>Tap Spent</div>`,
   2: `<div class="cap"><span class="n">2</span>Type how much</div><div class="tw">Woat&#596; ahe?<small>(Twi: how much?)</small></div>`,
-  5: `<div class="cap"><span class="n">3</span>Tap what it was for</div>`,
+  5: `<div class="cap"><span class="n">3</span>Tap Transport</div>`,
   6: `<div class="cap"><span class="n">4</span>Tap Write it</div>`,
   7: `<div class="cap">&#8373;20 went on transport. Now you know.</div>`
 };
-TOP[3] = TOP[4] = TOP[2];
+TOP[3] = TOP[4] = TOP[2]; TOP[0.5] = TOP[0];
 if (S >= 8) {
   document.body.innerHTML = `<div class="end">
     <div class="brand">${LOGO}<span>Count<span class="my">My</span></span></div>
@@ -134,7 +136,7 @@ if (S >= 8) {
   </div>`;
 } else {
   const inSheet = S >= 2 && S <= 6;
-  document.body.innerHTML = `<div class="top">${TOP[S]}</div><div class="app">${hdr}${inSheet ? sheet : book + bar}${written ? '<div class="toast"><span>Written</span><u>Undo</u></div>' : ''}</div>`;
+  document.body.innerHTML = `<div class="top">${TOP[S]}</div><div class="app">${hdr}${inSheet ? sheet : book + bar}</div>`;
 }
 </script>
 </body>
