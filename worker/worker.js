@@ -797,7 +797,11 @@ async function handleAdminOverview(request, env) {
 
   // Per-business day sets.
   const actDays = new Map(), recDays = new Map(), firstAct = new Map();
+  // Active = real phones only (a typed shop name has its own hash in events,
+  // which would count one business twice and push 'used it' above 'people').
+  const devSet = new Set(devs.map(dv => dv.h));
   for (const r of (actRes.results || [])) {
+    if (!devSet.has(r.h)) continue;
     (actDays.get(r.h) || actDays.set(r.h, new Set()).get(r.h)).add(r.d);
     if (!firstAct.has(r.h) || r.d < firstAct.get(r.h)) firstAct.set(r.h, r.d);
   }
@@ -1478,7 +1482,7 @@ async function handleTranscribe(request, env) {
 // 50 is a transcription/parsing error, not a fabrication) - evidence-checking
 // targets fabrication specifically, not every possible error; the review UI is
 // still what catches a wrong-but-grounded number.
-const WORKER_VERSION = 'w110';
+const WORKER_VERSION = 'w111';
 
 // Spanish (Venezuela) twin of EXTRACT_SYSTEM_PROMPT below: same event types,
 // same {value, evidence} rule, same JSON-only answer. Amounts are bare
