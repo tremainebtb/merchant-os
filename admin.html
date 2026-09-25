@@ -140,6 +140,12 @@ footer a{color:var(--muted)}
   </div>
 
   <div class="panel">
+    <h3>Tests running now</h3>
+    <p class="note">Judged only on what real people did on the site (our own records - not GA4 or Clarity, which miss people who leave in a second or two). Rules were set before any data came in, so nobody moves the goalposts.</p>
+    <div id="testsBox" class="empty-note">Loading...</div>
+  </div>
+
+  <div class="panel">
     <h3>Where people come from (since launch)</h3>
     <p class="note">Real people only - crawlers, ad reviewers and your own test devices are never counted. "In Ghana" is where the network says the visitor is; a low Ghana share means desktops and lookers, not customers.</p>
     <p class="verdict" id="verdict"></p>
@@ -232,6 +238,8 @@ function sourceName(src) {
   const s = String(src || 'direct');
   if (s === 'facebook/launch_b') return 'Facebook ad 1 (traffic)';
   if (s === 'facebook/launch_b_leads') return 'Facebook ad 2 (leads)';
+  if (s === 'facebook/launch_book') return 'Facebook ad 3 (neutral, home test)';
+  if (s === 'facebook_group') return 'Facebook group post';
   if (s === 'facebook') return 'Facebook (not from an ad)';
   if (s === 'direct') return 'Typed the address, or unknown';
   if (s === 'search') return 'Search engine';
@@ -252,14 +260,14 @@ const EVENT_WORDS = {
   iab_auto: 'were sent to Chrome automatically (Android)', iab_escaped: 'arrived in Chrome from the Facebook browser (Android)', iab_stay: 'stayed in the Facebook browser (Android jump refused)',
   iab_auto_ios: 'were sent to Safari automatically (iPhone)', iab_escaped_ios: 'arrived in Safari from the Facebook browser (iPhone)',
   iab_mic_ok: 'microphone worked inside the Facebook browser', stt_browser: 'were heard by the phone\u2019s own recogniser (free)', stt_whisper: 'were heard by the server (Whisper, costs quota)', iab_note: 'recorded a voice note inside the Facebook browser',
-  tap: 'tapped Tell CountMy', mic_denied: 'said no to the microphone', nomic: 'have no microphone in that browser',
+  tap: 'tapped a button (Sold, Spent, Owes me or Talk)', mic_denied: 'said no to the microphone', nomic: 'have no microphone in that browser',
   mic_silent: 'tapped but nothing was heard', mic_timeout: 'waited too long for the voice server', mic_server: 'hit a voice server error',
   mic_network: 'lost the connection mid-voice', busy: 'tapped while it was already working', empty: 'recorded nothing', silent: 'recorded silence',
   timeout: 'timed out', server: 'server error', network: 'network error', save: 'saved a record', ask: 'asked a question',
-  sheet: 'opened a typed form', share_shop: 'shared a business page', voice_en: 'spoke English', voice_twi: 'spoke Twi', voice_pidgin: 'spoke Pidgin',
+  sheet: 'opened a typed form', share_shop: 'shared a business page', voice_en: 'spoke English', voice_twi: 'spoke Twi', voice_pidgin: 'spoke Pidgin', voice_es: 'spoke Spanish',
   remind: 'sent a WhatsApp reminder', install: 'installed it to the home screen', backup: 'backed up'
 };
-const EVENT_ORDER = ['open', 'iab', 'iab_typed', 'iab_example', 'iab_tap', 'iab_tap_ios', 'iab_auto', 'iab_escaped', 'iab_stay', 'iab_auto_ios', 'iab_escaped_ios', 'iab_mic_ok', 'iab_note', 'tap', 'stt_browser', 'stt_whisper', 'nomic', 'mic_denied', 'mic_silent', 'busy', 'mic_timeout', 'mic_server', 'mic_network', 'voice_en', 'voice_twi', 'voice_pidgin', 'sheet', 'save', 'ask', 'remind', 'share_shop', 'install', 'backup'];
+const EVENT_ORDER = ['open', 'iab', 'iab_typed', 'iab_example', 'iab_tap', 'iab_tap_ios', 'iab_auto', 'iab_escaped', 'iab_stay', 'iab_auto_ios', 'iab_escaped_ios', 'iab_mic_ok', 'iab_note', 'tap', 'stt_browser', 'stt_whisper', 'nomic', 'mic_denied', 'mic_silent', 'busy', 'mic_timeout', 'mic_server', 'mic_network', 'voice_en', 'voice_twi', 'voice_pidgin', 'voice_es', 'sheet', 'save', 'ask', 'remind', 'share_shop', 'install', 'backup'];
 function renderWeekEvents() {
   const el = document.getElementById('weekEvents'); if (!el) return;
   const rows = (statsData.weekEvents || []).filter(r => r.devices > 0);
@@ -350,6 +358,53 @@ function setPeriod(period) {
   renderKpis();
 }
 
+// Tests (25 Sep): Book vs Today home screen (brand-new phones, 50/50) and
+// the neutral paid ad. Data: /admin/source-daily, real people only.
+function fisherP(a, b, c, d) {
+  const lf = n => { let t = 0; for (let i = 2; i <= n; i++) t += Math.log(i); return t; };
+  const n = a + b + c + d, r1 = a + b, c1 = a + c;
+  const p = x => Math.exp(lf(r1) + lf(n - r1) + lf(c1) + lf(n - c1) - lf(n) - lf(x) - lf(r1 - x) - lf(c1 - x) - lf(n - r1 - c1 + x));
+  const p0 = p(a); let tot = 0;
+  for (let x = Math.max(0, c1 - (n - r1)); x <= Math.min(r1, c1); x++) { const px = p(x); if (px <= p0 * 1.0000001) tot += px; }
+  return Math.min(1, tot);
+}
+async function renderTests(key) {
+  const box = document.getElementById('testsBox');
+  let rows = [];
+  try {
+    const r = await fetch(API_BASE + '/admin/source-daily?days=30&key=' + encodeURIComponent(key));
+    rows = (await r.json()).rows || [];
+  } catch (e) { box.textContent = 'Could not load the test numbers.'; return; }
+  const design = v => /book$/.test(v) ? 'book' : /today$/.test(v) ? 'today' : null;
+  const paid = src => /^facebook\/launch/.test(src);
+  const z = () => ({ dev: 0, iab: 0, tap: 0, saved: 0 });
+  const arms = { book: { all: z(), paid: z(), org: z() }, today: { all: z(), paid: z(), org: z() } };
+  rows.forEach(r => { const d = design(r.ver); if (!d) return; for (const k of ['all', paid(r.source) ? 'paid' : 'org']) { const a = arms[d][k]; a.dev += r.devices; a.iab += r.in_app; a.tap += r.tapped; a.saved += r.saved; } });
+  const pct = (x, n) => n ? Math.round(x / n * 100) + '%' : '-';
+  const line = (label, a) => '<tr><td>' + label + '</td><td>' + a.dev + '</td><td>' + a.iab + '</td><td>' + a.tap + ' (' + pct(a.tap, a.dev) + ')</td><td><b>' + a.saved + ' (' + pct(a.saved, a.dev) + ')</b></td></tr>';
+  const B = arms.book.all, T = arms.today.all;
+  const p = (B.dev && T.dev) ? fisherP(B.saved, B.dev - B.saved, T.saved, T.dev - T.saved) : 1;
+  const deadline = new Date('2026-10-02T23:59:00Z');
+  const ready = (B.dev >= 100 && T.dev >= 100) || Date.now() > deadline.getTime();
+  let verdict;
+  if (!ready) verdict = 'Too early to call. Needs 100 new phones on each design, or 2 Oct. So far: Book ' + B.dev + ', Today ' + T.dev + '.';
+  else if (p < 0.1) verdict = (B.saved / B.dev > T.saved / T.dev ? 'BOOK' : 'TODAY') + ' wins (chance it is luck: ' + Math.round(p * 1000) / 10 + '%).';
+  else verdict = 'No real difference (chance it is luck: ' + Math.round(p * 1000) / 10 + '%). Rule: keep the Book.';
+  const ad = rows.filter(r => r.source === 'facebook/launch_book');
+  const byDay = {};
+  ad.forEach(r => { const a = byDay[r.day] || (byDay[r.day] = z()); a.dev += r.devices; a.iab += r.in_app; a.tap += r.tapped; a.saved += r.saved; });
+  const adTot = Object.values(byDay).reduce((t, a) => ({ dev: t.dev + a.dev, iab: t.iab + a.iab, tap: t.tap + a.tap, saved: t.saved + a.saved }), z());
+  const adVerdict = adTot.saved >= 3 ? 'Passing: 3+ records - keep it.' : (Date.now() > new Date('2026-09-28T11:00:00Z').getTime() ? (adTot.saved === 0 ? 'Ended with 0 records - switch to the Records (Leads) ad at £10/day.' : 'Ended with ' + adTot.saved + ' record(s) - between the two rules; look at cost per record.') : 'Running until Mon 28 Sep 12:00. Rule: 3+ records = keep; 0 = switch to the Records ad.');
+  const head = '<thead><tr><th></th><th>New phones</th><th>In Facebook browser</th><th>Tapped</th><th>Saved a record</th></tr></thead>';
+  box.innerHTML =
+    '<p><b>1. Home screen: Book vs Today</b> (new phones since 25 Sep, split 50/50)</p>' +
+    '<div class="tw"><table>' + head + '<tbody>' + line('Book - all', B) + line('Today - all', T) + line('Book - from ads', arms.book.paid) + line('Today - from ads', arms.today.paid) + line('Book - not from ads', arms.book.org) + line('Today - not from ads', arms.today.org) + '</tbody></table></div>' +
+    '<p class="verdict">' + esc(verdict) + '</p>' +
+    '<p><b>2. Facebook ad 3 (neutral image, £5/day, 25-28 Sep)</b></p>' +
+    '<div class="tw"><table>' + head.replace('<th></th>', '<th>Day (UTC)</th>') + '<tbody>' + Object.keys(byDay).sort().map(d => line(d, byDay[d])).join('') + line('Total', adTot) + '</tbody></table></div>' +
+    '<p class="verdict">' + esc(adVerdict) + '</p>';
+}
+
 async function boot(key) {
   try {
     statsData = await loadStats(key);
@@ -365,6 +420,7 @@ async function boot(key) {
   document.getElementById('refreshedAt').textContent = 'Updated ' + new Date(statsData.generatedAt).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
   renderKpis();
   renderChart();
+  renderTests(key);
 }
 
 document.getElementById('unlockBtn').addEventListener('click', () => {
