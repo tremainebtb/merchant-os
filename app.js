@@ -3163,14 +3163,22 @@ async function afterEntrySaved(entry) {
     // 18 Sep: zero returning visitors in a week because there is no route
     // back. The first save offers a WhatsApp message to herself with the
     // link at the bottom: tomorrow she finds CountMy where she looks every day.
-    if (all.length === 1 && !ES) {
-      // 25 Sep red team: this sat below the fold on a small phone (y=701 on a
-      // 560px screen), so nobody saw the only way back. It floats now.
+    // The way back (25 Sep journeys): savers test 2-4 records in their first
+    // two minutes and the "send to WhatsApp" offer after record 1 was not
+    // taken (GA4: offered, never sent). So: framed on the loss traders
+    // actually fear (Kippa users lost their books), and offered again at
+    // record 3, when a tester has become a user. Offers and sends are now
+    // counted in our own backend.
+    let waSent = false; try { waSent = localStorage.getItem('kym_wa_sent') === '1'; } catch (e) { /* optional */ }
+    if ((all.length === 1 || (all.length === 3 && !waSent)) && !ES) {
       clearOtherPrompts('milestone');
-      const box = floatNotice(`${escapeHtml(t('Saved. Send it to your own WhatsApp, so you find your book again tomorrow?', ''))} <button type="button" class="remind-btn" id="firstWaBtn">${t('Send to my WhatsApp', '')}</button>${reminderButtonHtml()}`, 0);
+      const lead = all.length === 1
+        ? t('Saved. Do not lose your book: send it to your own WhatsApp. Tomorrow, one tap brings it back.', '')
+        : t('3 records written. Keep them safe: send your book to your own WhatsApp.', '');
+      const box = floatNotice(`${escapeHtml(lead)} <button type="button" class="remind-btn" id="firstWaBtn">${t('Send to my WhatsApp', '')}</button>${reminderButtonHtml()}`, 0);
       wireReminderButton(box);
-      track('first_wa_offer');
-      box.querySelector('#firstWaBtn').addEventListener('click', () => { track('first_wa_send'); box.hidden = true; exportBackup(); });
+      track('first_wa_offer', { n: all.length }); ping('wa_offer');
+      box.querySelector('#firstWaBtn').addEventListener('click', () => { track('first_wa_send', { n: all.length }); ping('wa_send'); try { localStorage.setItem('kym_wa_sent', '1'); } catch (e) { /* optional */ } box.hidden = true; exportBackup(); });
       return;
     }
     if (all.length <= FIRST_ENTRIES_TARGET) showEntryMilestone(all.length);
