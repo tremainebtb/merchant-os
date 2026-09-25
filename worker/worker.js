@@ -155,6 +155,7 @@ async function ensureTestSchema(env) {
   for (const t of ['events', 'entries', 'devices', 'shops']) {
     try { await env.COUNTMY_DB.prepare('ALTER TABLE ' + t + ' ADD COLUMN is_test INTEGER DEFAULT 0').run(); } catch (e) { /* already there */ }
     if (t === 'devices') { try { await env.COUNTMY_DB.prepare('ALTER TABLE devices ADD COLUMN country TEXT').run(); } catch (e) { /* already there */ } }
+    if (t === 'entries') { for (const col of ['cur TEXT', 'payments TEXT']) { try { await env.COUNTMY_DB.prepare('ALTER TABLE entries ADD COLUMN ' + col).run(); } catch (e) { /* already there */ } } }
     if (t === 'devices') {
       for (const col of ['nudge INTEGER', 'asked_ts INTEGER', 'tapped_ts INTEGER', 'first_ver TEXT', 'asn_org TEXT', 'is_dc INTEGER DEFAULT 0', 'mobile INTEGER', 'lang TEXT', 'installed_ts INTEGER', 'icon_opens INTEGER DEFAULT 0']) {
         try { await env.COUNTMY_DB.prepare('ALTER TABLE devices ADD COLUMN ' + col).run(); } catch (e) { /* already there */ }
@@ -203,7 +204,7 @@ async function handlePing(request, env) {
   // ping was silently rejected with a 400 here (ping() swallows the error),
   // so Spanish usage never once showed up in the spoken-language stats.
   if (!['open', 'save', 'share_shop', 'shop_created', 'ask', 'tap', 'install', 'voice_en', 'voice_twi', 'voice_pidgin', 'voice_es',
-    'iab', 'iab_tap', 'iab_tap_ios', 'iab_typed', 'iab_example', 'stt_browser', 'stt_whisper', 'iab_auto', 'iab_auto_ios', 'iab_stay', 'iab_escaped', 'iab_escaped_ios', 'iab_mic_ok', 'iab_note', 'mic_denied', 'mic_nomic', 'mic_busy', 'mic_empty', 'mic_silent', 'mic_timeout', 'mic_server', 'mic_network'].includes(eventType)) {
+    'restore', 'iab', 'iab_tap', 'iab_tap_ios', 'iab_typed', 'iab_example', 'stt_browser', 'stt_whisper', 'iab_auto', 'iab_auto_ios', 'iab_stay', 'iab_escaped', 'iab_escaped_ios', 'iab_mic_ok', 'iab_note', 'mic_denied', 'mic_nomic', 'mic_busy', 'mic_empty', 'mic_silent', 'mic_timeout', 'mic_server', 'mic_network'].includes(eventType)) {
     return cors(new Response(JSON.stringify({ error: 'invalid event' }), { status: 400 }));
   }
   const shopHash = (await sha256Hex(shop)).slice(0, 32);
@@ -545,7 +546,46 @@ async function handleSync(request, env) {
     Number(entry.paid || 0), Number(entry.amount || 0), String(entry.source || '').slice(0, 40),
     String(entry.day || '').slice(0, 20), Number(entry.ts || now), deleted ? 1 : 0, now, testFlag(body)
   ).run();
+  // 25 Sep: currency (Venezuela keeps two) and the payment history of a debt,
+  // so a book restored in another browser is the same book, not a summary.
+  if (entry.cur || Array.isArray(entry.payments)) {
+    const pays = Array.isArray(entry.payments) ? JSON.stringify(entry.payments.slice(0, 200)).slice(0, 8000) : null;
+    await env.COUNTMY_DB.prepare('UPDATE entries SET cur = ?, payments = ? WHERE entry_id = ?').bind(String(entry.cur || '').slice(0, 3) || null, pays, entryId).run();
+  }
   return cors(new Response(null, { status: 204 }));
+}
+
+// Records follow the person (25 Sep). A red-team walk-through found the
+// book lives only in the browser that wrote it: the "tomorrow, press this"
+// WhatsApp link and the Talk button (which opens Chrome) both landed on an
+// EMPTY book in a different browser - to a trader, her records were gone.
+// Every save is already backed up here under the one-way hash of the
+// phone's random id. Those two links now carry that id (k); this returns
+// that book's saved records so the other browser shows the same book.
+// Only anonymous random ids (UUID v4, 122 random bits) are accepted - never
+// a typed shop name, which could be guessed. Rate limited like /sync.
+async function handleRestore(request, env) {
+  if (!env.COUNTMY_DB) return cors(new Response(JSON.stringify({ error: 'not configured' }), { status: 503 }));
+  let body = {};
+  try { body = await request.json(); } catch (e) { return cors(new Response(JSON.stringify({ error: 'invalid request' }), { status: 400 })); }
+  const k = String(body.k || '').trim().toLowerCase();
+  if (!/^anon-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(k)) return cors(new Response(JSON.stringify({ error: 'invalid key' }), { status: 400 }));
+  await ensureTestSchema(env);
+  const shopHash = (await sha256Hex(k)).slice(0, 32);
+  const r = await env.COUNTMY_DB.prepare("SELECT entry_id, type, item, note, qty, price, kind, method, paid, amount, source, day, ts, cur, payments FROM entries WHERE shop_hash = ? AND status = 'saved' AND COALESCE(deleted, 0) = 0 ORDER BY ts LIMIT 5000").bind(shopHash).all();
+  const entries = (r.results || []).map(e => {
+    const out = { id: e.entry_id, type: e.type, item: e.item || '', note: e.note || '', amount: Number(e.amount) || 0, ts: Number(e.ts) || 0, day: e.day || '' };
+    if (e.qty !== '' && e.qty != null) out.qty = isNaN(Number(e.qty)) ? e.qty : Number(e.qty);
+    if (e.price !== '' && e.price != null) out.price = isNaN(Number(e.price)) ? e.price : Number(e.price);
+    if (e.kind) out.kind = e.kind;
+    if (e.method) out.method = e.method;
+    if (e.source) out.source = e.source;
+    if (e.type === 'debt_in' || e.type === 'debt_out') out.paid = Number(e.paid) || 0;
+    if (e.cur) out.cur = e.cur;
+    if (e.payments) { try { out.payments = JSON.parse(e.payments); } catch (x) { /* ignore */ } }
+    return out;
+  });
+  return cors(new Response(JSON.stringify({ entries }), { headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } }));
 }
 
 // Owner-only recovery lookup, added 30 Aug: given a shop id you already know
@@ -1506,7 +1546,7 @@ async function handleTranscribe(request, env) {
 // 50 is a transcription/parsing error, not a fabrication) - evidence-checking
 // targets fabrication specifically, not every possible error; the review UI is
 // still what catches a wrong-but-grounded number.
-const WORKER_VERSION = 'w112';
+const WORKER_VERSION = 'w113';
 
 // Spanish (Venezuela) twin of EXTRACT_SYSTEM_PROMPT below: same event types,
 // same {value, evidence} rule, same JSON-only answer. Amounts are bare
@@ -3329,7 +3369,7 @@ export default {
       const path = url.pathname;
       const isAiRoute = path === '/transcribe' || path === '/extract' || path === '/transcribe-and-extract' || path === '/extract-from-image';
       const isSayRoute = path === '/say' && request.method === 'GET';
-      const isWriteRoute = path === '/ping' || path === '/sync' || path === '/shop' || path === '/owner-log';
+      const isWriteRoute = path === '/ping' || path === '/sync' || path === '/shop' || path === '/owner-log' || path === '/restore';
       const isAdminRoute = path.startsWith('/admin/');
       const ip = clientIp(request);
       if ((isAiRoute && request.method === 'POST') || isSayRoute) {
@@ -3358,6 +3398,7 @@ export default {
         return cors(new Response('{"ok":true}', { headers: { 'Content-Type': 'application/json' } }));
       }
       if (path === '/sync' && request.method === 'POST') return withLimitHeader(await handleSync(request, env));
+      if (path === '/restore' && request.method === 'POST') return withLimitHeader(await handleRestore(request, env));
       if (path === '/shop' && request.method === 'POST') return withLimitHeader(await handleShopUpsert(request, env));
       if (path.startsWith('/shop/') && request.method === 'GET') return withLimitHeader(await handleShopJson(env, path.slice(6).toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, 44)));
       if (path.startsWith('/b/') && request.method === 'GET') return await handleShopPage(request, env, path.slice(3).toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, 44));
