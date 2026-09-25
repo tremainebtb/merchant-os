@@ -4475,7 +4475,7 @@ function bumpVisitCount() {
   // Same three labels on every analytics surface (16 Sep), so GA4, Clarity
   // and the owner dashboard can all be cut the same way: build, source, cohort.
   try {
-    const labels = { app_version: window.KYM_VERSION || '', source: localStorage.getItem('kym_source') || '', nudge_cohort: String(nudgeCohort()) };
+    const labels = { app_version: window.KYM_VERSION || '', home: BOOK_ON ? 'book' : 'today', source: localStorage.getItem('kym_source') || '', nudge_cohort: String(nudgeCohort()) };
     if (window.gtag) window.gtag('set', 'user_properties', labels);
     if (window.clarity) { window.clarity('set', 'version', labels.app_version); window.clarity('set', 'source', labels.source); window.clarity('set', 'cohort', labels.nudge_cohort); }
   } catch (e) { /* analytics must never interrupt the app */ }
