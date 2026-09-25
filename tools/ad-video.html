@@ -4,94 +4,84 @@
 <meta charset="utf-8">
 <title>CountMy video ad frames</title>
 <!--
-  Frames for the "show the 3-second action" video ad (26 Sep 2026).
-  Why: on 25 Sep every one of the 6 people who saved from the Records ad
-  looked at "How it works" before their first tap, 6 of 11 first records
-  were expenses, and Reels (a square image in a 9:16 slot) got 1 tap from
-  6 visitors. So the ad itself shows the action - tap Spent, type 20,
-  saved - vertical for Reels/Stories, 4:5 for the feed.
-  Rendered per state with headless Chrome:
-    chrome --headless --window-size=1080,1920 --screenshot=f0.png "tools/ad-video.html?s=0&f=story"
-  then joined with ffmpeg (tools/make-ad-video.sh).
+  Frames for ad 5, the Reels/Stories video (v2, 26 Sep 2026).
+  Why a video at all: on 25 Sep Reels got 1 tap from 6 visitors with a
+  square image in a 9:16 slot; Meta's own split tests found 9:16 video 34.5%
+  cheaper per result than images in Reels. The feed keeps the static ad that
+  converts.
+  v2 fixes from the red team (every frame now matches what a first-time
+  visitor really sees on countmy.app, checked 25 Sep 23:00 UTC):
+   - Write it is GREEN in the app on every sheet (was red here);
+   - a first-time book starts empty, so one Spent line gives "= -20", and the
+     line only says "Transport" if the Transport chip is tapped - shown;
+   - the confirmation says "Written", not "Saved";
+   - key content stays inside Meta's Reels safe zone: not in the top 14%
+     (y<269), bottom 35% (y>1248) or 6% sides (x<65 / x>1015);
+   - no "10 seconds" claim; the Twi line is captioned as Twi "how much?",
+     and the Twi button is shown selected, which is how Twi turns on.
+  Render: chrome --headless --window-size=1080,1920 --screenshot=f.png "tools/ad-video.html?s=N"
 -->
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@600;700;800&family=Patrick+Hand&display=swap">
 <style>
 *{box-sizing:border-box;margin:0}
-:root{--navy:#1E2F55;--ink:#221A12;--paper:#F8F3EC;--line:#D3DDEA;--in:#1B7A43;--out:#A83F2E;--ow:#8C5F0F;--talk:#2F6DB5}
-html,body{width:1080px;overflow:hidden;background:var(--paper)}
-body{font-family:Manrope,system-ui,sans-serif;color:var(--ink);display:flex;flex-direction:column;align-items:center}
-body.story{height:1920px;padding:250px 70px 150px}
-body.feed{height:1350px;padding:56px 70px 60px}
-.top{width:100%;text-align:center;min-height:300px;display:flex;flex-direction:column;justify-content:center;gap:18px}
-body.feed .top{min-height:200px;gap:10px}
-.q{font-size:92px;line-height:1.02;font-weight:800;color:var(--navy);letter-spacing:-.02em;text-wrap:balance}
-body.feed .q{font-size:66px}
-.cap{font-size:62px;font-weight:800;color:var(--navy);line-height:1.1}
-body.feed .cap{font-size:50px}
-.cap .n{display:inline-grid;place-items:center;width:84px;height:84px;border-radius:50%;background:var(--navy);color:#fff;font-size:48px;margin-right:18px;vertical-align:middle}
-body.feed .cap .n{width:64px;height:64px;font-size:36px}
-.tw{font-size:46px;font-weight:800;color:var(--out)}
-.tw small{display:block;font-size:34px;color:#5C5142;font-weight:700;margin-top:4px}
-body.feed .tw{font-size:38px}
-.phone{position:relative;width:600px;height:1060px;border:18px solid var(--ink);border-radius:70px;background:var(--paper);padding:34px 26px;display:flex;flex-direction:column;gap:18px;overflow:hidden;margin-top:40px}
-body.feed .phone{width:520px;height:900px;border-width:14px;border-radius:56px;padding:26px 20px;gap:14px;margin-top:22px}
-.page{background:#FFFDF7;border:2px solid #E7DDCD;border-radius:24px;overflow:hidden}
-.ph{display:flex;justify-content:space-between;align-items:center;padding:14px 20px;border-bottom:3px solid var(--line);font-weight:800;color:var(--navy);font-size:30px}
-.ln{height:78px;display:flex;align-items:center;gap:14px;padding:0 18px 0 10px;font-family:"Patrick Hand",cursive;font-size:40px;border-bottom:2px solid var(--line);background:linear-gradient(to right,transparent 64px,#E3857A 64px,#E3857A 67px,transparent 67px)}
-body.feed .ln{height:62px;font-size:32px;background:linear-gradient(to right,transparent 52px,#E3857A 52px,#E3857A 55px,transparent 55px)}
+:root{--navy:#1E2F55;--ink:#221A12;--paper:#F8F3EC;--line:#D3DDEA;--in:#1B7A43;--out:#A83F2E;--ow:#8C5F0F;--talk:#2F6DB5;--leaf:#1B7A43}
+html,body{width:1080px;height:1920px;overflow:hidden;background:var(--paper)}
+body{font-family:Manrope,system-ui,sans-serif;color:var(--ink);position:relative}
+/* safe zone: x 65..1015, y 269..1248 */
+.top{position:absolute;left:90px;right:90px;top:285px;height:170px;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;gap:6px}
+.q{font-size:76px;line-height:1.02;font-weight:800;color:var(--navy);letter-spacing:-.02em;text-wrap:balance}
+.cap{font-size:60px;font-weight:800;color:var(--navy);line-height:1.1;text-wrap:balance}
+.cap .n{display:inline-grid;place-items:center;width:78px;height:78px;border-radius:50%;background:var(--navy);color:#fff;font-size:44px;margin-right:14px;vertical-align:middle}
+.tw{font-size:40px;font-weight:800;color:var(--out)}
+.tw small{font-size:32px;color:#5C5142;font-weight:700;margin-left:10px}
+.app{position:absolute;left:110px;right:110px;top:470px;height:770px;display:flex;flex-direction:column;gap:14px}
+.hdr{display:flex;justify-content:flex-end;gap:10px}
+.lg{border:3px solid #E7DDCD;background:#fff;border-radius:99px;padding:8px 22px;font-size:28px;font-weight:800;color:var(--navy)}
+.lg.on{background:var(--navy);color:#fff;border-color:var(--navy)}
+.page{background:#FFFDF7;border:3px solid #E7DDCD;border-radius:26px;overflow:hidden}
+.ph{padding:14px 22px;border-bottom:3px solid var(--line);font-weight:800;color:var(--navy);font-size:34px}
+.ln{height:84px;display:flex;align-items:center;gap:14px;padding:0 20px 0 12px;font-family:"Patrick Hand",cursive;font-size:44px;border-bottom:2px solid var(--line);background:linear-gradient(to right,transparent 66px,#E3857A 66px,#E3857A 69px,transparent 69px)}
 .ln .m{width:44px;text-align:center;font-family:Manrope;font-weight:800}
 .cs{font-family:Manrope,system-ui,sans-serif;font-weight:800;font-size:.8em}
-.in{color:var(--in)}.out{color:var(--out)}.ow{color:var(--ow)}
+.in{color:var(--in)}.out{color:var(--out)}
+.ln.new{background-color:#FCEBE6}
 .ln .t{color:var(--ink);opacity:.85}
-.ln.new{background-color:#FCEBE6;animation:none}
-.sums{display:flex;justify-content:space-between;padding:14px 20px;font-weight:800;font-size:32px}
-body.feed .sums{font-size:26px;padding:10px 16px}
-.bar{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
-.b{position:relative;border-radius:24px;height:180px;color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;font-weight:800;font-size:28px}
-body.feed .b{height:140px;font-size:23px}
+.sums{display:flex;justify-content:space-between;padding:14px 22px;font-weight:800;font-size:34px}
+.bar{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.b{position:relative;border-radius:26px;height:170px;color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;font-weight:800;font-size:32px}
 .b svg{width:64px;height:64px}
 .s{background:var(--in)}.p{background:var(--out)}.o{background:var(--ow)}
-.talk{background:var(--talk);color:#fff;border-radius:24px;height:110px;display:flex;align-items:center;justify-content:center;gap:14px;font-weight:800;font-size:32px}
-body.feed .talk{height:86px;font-size:26px}
+.talk{background:var(--talk);color:#fff;border-radius:26px;height:100px;display:flex;align-items:center;justify-content:center;gap:14px;font-weight:800;font-size:34px}
 .talk svg{width:44px;height:44px}
-/* tap mark: where the finger goes */
-.tap::after{content:"";position:absolute;left:50%;top:50%;width:150px;height:150px;margin:-75px 0 0 -75px;border-radius:50%;background:rgba(255,255,255,.35);border:8px solid #fff;box-shadow:0 0 0 10px rgba(30,47,85,.35)}
-/* the sheet (keypad), as in the app */
-.scrim{position:absolute;inset:0;background:rgba(20,18,15,.42)}
-.sheet{position:absolute;left:0;right:0;bottom:0;background:#fff;border-radius:40px 40px 0 0;padding:26px 22px 26px;display:flex;flex-direction:column;gap:14px}
-body.feed .sheet{padding:20px 16px;gap:10px}
-.sh{display:flex;align-items:center;gap:16px;font-weight:800;font-size:36px}
-.sh .ic{width:64px;height:64px;border-radius:16px;background:var(--out);display:grid;place-items:center;color:#fff;font-size:48px;line-height:1}
-.disp{text-align:center;font-size:120px;font-weight:800;color:var(--out)}
-body.feed .disp{font-size:90px}
+.tap::after{content:"";position:absolute;left:50%;top:50%;width:110px;height:110px;margin:-55px 0 0 -55px;border-radius:50%;background:rgba(255,255,255,.35);border:8px solid #fff;box-shadow:0 0 0 10px rgba(30,47,85,.45);pointer-events:none}
+/* the Spent sheet, as in the app */
+.sheet{background:#fff;border-radius:34px;box-shadow:0 8px 30px rgba(0,0,0,.18);padding:18px 22px;display:flex;flex-direction:column;gap:8px}
+.sh{display:flex;align-items:center;justify-content:space-between;font-weight:800;font-size:36px}
+.sh .x{width:50px;height:50px;border-radius:50%;background:#F6F0E7;display:grid;place-items:center;font-size:34px;color:#5C5142}
+.disp{text-align:center;font-size:86px;line-height:1;font-weight:800;color:var(--out)}
 .disp .c{font-size:.55em;color:#6B5E4E;margin-right:6px}
-.hint{text-align:center;font-size:30px;font-weight:700;color:var(--navy)}
-body.feed .hint{font-size:24px}
-.keys{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
-.k{position:relative;background:#F6F0E7;border-radius:20px;height:96px;display:grid;place-items:center;font-size:46px;font-weight:800;color:var(--navy)}
-body.feed .k{height:70px;font-size:36px}
-.w{position:relative;background:var(--out);color:#fff;border-radius:22px;height:110px;display:flex;align-items:center;justify-content:center;gap:14px;font-size:40px;font-weight:800}
-body.feed .w{height:84px;font-size:32px}
+.hint{text-align:center;font-size:28px;font-weight:700;color:var(--navy)}
+.keys{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.k{position:relative;background:#F6F0E7;border-radius:18px;height:62px;display:grid;place-items:center;font-size:40px;font-weight:800;color:var(--navy)}
+.w{position:relative;background:var(--leaf);color:#fff;border-radius:22px;height:78px;display:flex;align-items:center;justify-content:center;gap:12px;font-size:38px;font-weight:800}
 .w.dim{opacity:.4}
-.toast{position:absolute;left:24px;right:24px;bottom:30px;background:var(--navy);color:#fff;border-radius:24px;padding:24px;text-align:center;font-size:36px;font-weight:800}
-/* end card */
-.end{flex:1;width:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:44px;text-align:center}
-.brand{display:flex;align-items:center;gap:22px;font-weight:800;font-size:110px;color:var(--navy)}
-.brand svg{width:130px;height:130px}.brand .my{color:#D9541A}
-body.feed .brand{font-size:90px}body.feed .brand svg{width:100px;height:100px}
-.big{font-size:84px;font-weight:800;color:var(--navy);line-height:1.08;text-wrap:balance}
-body.feed .big{font-size:64px}
-.pills{display:flex;flex-wrap:wrap;gap:16px;justify-content:center}
-.pill{background:#fff;border:3px solid #E7DDCD;border-radius:99px;padding:14px 30px;font-size:40px;font-weight:800;color:#5C5142}
-body.feed .pill{font-size:32px}
-.url{font-size:64px;font-weight:800;color:var(--out)}
+.chips{display:flex;gap:12px;flex-wrap:nowrap;justify-content:center;padding:6px 0}
+.chip{position:relative;flex:none;border:3px solid #E7DDCD;background:#fff;border-radius:99px;padding:8px 18px;font-size:28px;font-weight:800;color:#5C5142;white-space:nowrap}
+.chip.on{background:#FCEBE6;border-color:var(--out);color:var(--out)}
+.toast{background:var(--navy);color:#fff;border-radius:22px;padding:18px 24px;display:flex;justify-content:space-between;font-size:34px;font-weight:800}
+.toast u{text-decoration:none;opacity:.85}
+.end{position:absolute;left:90px;right:90px;top:300px;height:930px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:40px;text-align:center}
+.brand{display:flex;align-items:center;gap:20px;font-weight:800;font-size:100px;color:var(--navy)}
+.brand svg{width:116px;height:116px}.brand .my{color:#D9541A}
+.big{font-size:70px;font-weight:800;color:var(--navy);line-height:1.1;text-wrap:balance}
+.pills{display:flex;flex-wrap:wrap;gap:14px;justify-content:center}
+.pill{background:#fff;border:3px solid #E7DDCD;border-radius:99px;padding:12px 26px;font-size:36px;font-weight:800;color:#5C5142}
+.url{font-size:60px;font-weight:800;color:var(--out)}
 </style>
 </head>
 <body>
 <script>
-const P = new URLSearchParams(location.search);
-const S = +(P.get('s') || 0), F = P.get('f') === 'feed' ? 'feed' : 'story';
-document.body.className = F;
+const S = +(new URLSearchParams(location.search).get('s') || 0);
 const ICON = {
   s: '<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 15h2a2 2 0 1 0 0-4h-3c-.6 0-1.1.2-1.4.6L3 17"/><path d="m7 21 1.6-1.4c.3-.4.8-.6 1.4-.6h4c1.1 0 2.1-.4 2.8-1.2l4.6-4.4a2 2 0 0 0-2.75-2.91l-4.2 3.9"/><path d="m2 16 6 6"/><circle cx="16" cy="9" r="2.9"/><circle cx="6" cy="5" r="3"/></svg>',
   p: '<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="9" width="15" height="10" rx="2"/><circle cx="9.5" cy="14" r="2.3"/><path d="M15 8l6-6"/><path d="M16 2h5v5"/></svg>',
@@ -100,51 +90,51 @@ const ICON = {
 };
 const LOGO = '<svg viewBox="0 0 64 64" aria-hidden="true"><rect x="15" y="9" width="30" height="12" rx="6" fill="#E8641F" transform="rotate(-7 30 15)"/><rect x="10" y="26" width="38" height="12" rx="6" fill="#F2B233"/><rect x="17" y="43" width="32" height="12" rx="6" fill="#1E2F55" transform="rotate(4 33 49)"/></svg>';
 const C = '<span class="cs">&#8373;</span>';
-const line = (cls, m, amt, t, extra) => `<div class="ln ${cls} ${extra||''}"><span class="m">${m}</span><span>${C}${amt}</span><span class="t">${t}</span></div>`;
-const saved = S >= 5;
+// States: 0 hook, 1 tap Spent, 2 sheet 0, 3 typed 2, 4 typed 20, 5 tap Transport, 6 tap Write it, 7 written, 8 end card
+const twi = S >= 2 && S <= 7; // once Twi is chosen it stays, as in the app
+const hdr = `<div class="hdr"><span class="lg ${twi ? 'on' : ''}">Twi</span><span class="lg ${twi ? '' : 'on'}">Eng</span></div>`;
+const written = S === 7;
 const book = `<div class="page">
-  <div class="ph"><span>&lsaquo; Today &rsaquo;</span></div>
-  ${line('in', '+', 60, '3 waakye')}
-  ${line('in', '+', 40, 'kenkey')}
-  ${saved ? line('out', '&minus;', 20, 'transport', 'new') : '<div class="ln"></div>'}
-  <div class="sums"><span class="in">+${C}100</span><span class="out">&minus;${C}${saved ? 20 : 0}</span><span style="color:#1E2F55">= ${C}${saved ? 80 : 100}</span></div>
-</div>
-<div class="bar">
+  <div class="ph">&lsaquo; Today &rsaquo;</div>
+  ${written ? `<div class="ln out new"><span class="m">&minus;</span><span>${C}20</span><span class="t">Transport</span></div>` : '<div class="ln"></div>'}
+  <div class="ln"></div>
+  <div class="sums"><span class="in">+${C}0</span><span class="out">&minus;${C}${written ? 20 : 0}</span><span style="color:#1E2F55">= ${written ? '&minus;' : ''}${C}${written ? 20 : 0}</span></div>
+</div>`;
+const bar = `<div class="bar">
   <div class="b s">${ICON.s}Sold</div>
   <div class="b p ${S === 1 ? 'tap' : ''}">${ICON.p}Spent</div>
   <div class="b o">${ICON.o}Owes me</div>
-</div>
-<div class="talk">${ICON.t}Talk</div>`;
+</div><div class="talk">${ICON.t}Talk</div>`;
 const amt = S === 2 ? '0' : S === 3 ? '2' : '20';
-const keys = ['1','2','3','4','5','6','7','8','9','.','0','&#9003;'].map(k => {
-  const tapped = (S === 3 && k === '2') || (S === 4 && k === '0');
-  return `<div class="k ${tapped ? 'tap' : ''}">${k}</div>`;
-}).join('');
-const sheet = `<div class="scrim"></div><div class="sheet">
-  <div class="sh"><span class="ic">&minus;</span>Spent</div>
+const keys = ['1','2','3','4','5','6','7','8','9','.','0','&#9003;'].map(k => `<div class="k ${(S === 3 && k === '2') || (S === 4 && k === '0') ? 'tap' : ''}">${k}</div>`).join('');
+const chips = ['&#128230; Stock', '&#128652; Transport', '&#127858; Food'].map((c, i) => `<span class="chip ${i === 1 && S >= 5 ? 'on' : ''} ${i === 1 && S === 5 ? 'tap' : ''}">${c}</span>`).join('');
+const sheet = `<div class="sheet">
+  <div class="sh"><span>Spent</span><span class="x">&times;</span></div>
   <div class="disp"><span class="c">&#8373;</span>${amt}</div>
   <div class="hint">Type how much, then tap &#10003; Write it</div>
   <div class="keys">${keys}</div>
-  <div class="w ${S === 2 ? 'dim' : ''} ${S === 4.5 ? 'tap' : ''}">&#10003; Write it</div>
+  <div class="w ${S === 2 ? 'dim' : ''} ${S === 6 ? 'tap' : ''}">&#10003; Write it</div>
+  <div class="chips">${chips}</div>
 </div>`;
-const TOP = [
-  `<div class="q">Where did today&rsquo;s money go?</div>`,
-  `<div class="cap"><span class="n">1</span>Tap Spent</div>`,
-  `<div class="cap"><span class="n">2</span>Type how much</div><div class="tw">Woat&#596; ahe?<small>How much did you spend?</small></div>`,
-  `<div class="cap"><span class="n">2</span>Type how much</div><div class="tw">Woat&#596; ahe?<small>How much did you spend?</small></div>`,
-  `<div class="cap"><span class="n">2</span>Type how much</div><div class="tw">Woat&#596; ahe?<small>How much did you spend?</small></div>`,
-  `<div class="cap"><span class="n">3</span>Saved. It adds up for you.</div>`
-];
-if (S >= 6) {
+const TOP = {
+  0: `<div class="q">Where did today&rsquo;s money go?</div>`,
+  1: `<div class="cap"><span class="n">1</span>Tap Spent</div>`,
+  2: `<div class="cap"><span class="n">2</span>Type how much</div><div class="tw">Woat&#596; ahe?<small>(Twi: how much?)</small></div>`,
+  5: `<div class="cap"><span class="n">3</span>Tap what it was for</div>`,
+  6: `<div class="cap"><span class="n">4</span>Tap Write it</div>`,
+  7: `<div class="cap">&#8373;20 went on transport. Now you know.</div>`
+};
+TOP[3] = TOP[4] = TOP[2];
+if (S >= 8) {
   document.body.innerHTML = `<div class="end">
     <div class="brand">${LOGO}<span>Count<span class="my">My</span></span></div>
-    <div class="big">A free notebook for your business. Try it in 10 seconds.</div>
+    <div class="big">Where did the money go? CountMy remembers.</div>
     <div class="pills"><span class="pill">Free</span><span class="pill">No sign-up</span><span class="pill">English &middot; Twi &middot; Pidgin</span></div>
     <div class="url">countmy.app</div>
   </div>`;
 } else {
-  const topIdx = Math.floor(S);
-  document.body.innerHTML = `<div class="top">${TOP[topIdx]}</div><div class="phone">${book}${(S >= 2 && S < 5) ? sheet : ''}${S === 5 ? '<div class="toast">&#10003; Saved</div>' : ''}</div>`;
+  const inSheet = S >= 2 && S <= 6;
+  document.body.innerHTML = `<div class="top">${TOP[S]}</div><div class="app">${hdr}${inSheet ? sheet : book + bar}${written ? '<div class="toast"><span>Written</span><u>Undo</u></div>' : ''}</div>`;
 }
 </script>
 </body>
