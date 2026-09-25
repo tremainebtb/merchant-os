@@ -4107,7 +4107,7 @@ function bkOpen(kind, debt) {
       hint = document.createElement('p'); hint.id = 'bkHint'; hint.className = 'bk-hint';
       const disp = bk$('bkDisp'); disp.parentNode.insertBefore(hint, disp.nextSibling);
     }
-    if (hint) { hint.hidden = !first; hint.textContent = kind === 'owe' ? t('Type the name, then how much, then tap \u2713 Write it', 'Escribe el nombre, luego cu\u00e1nto, y toca \u2713 Anotar') : t('Type how much, then tap \u2713 Write it', 'Escribe cu\u00e1nto y toca \u2713 Anotar'); }
+    if (hint) { hint.hidden = !first; hint.textContent = kind === 'owe' ? t('Name, how much, then \u2713 Write it', 'Nombre, cu\u00e1nto y \u2713 Anotar') : t('Type how much, then tap \u2713 Write it', 'Escribe cu\u00e1nto y toca \u2713 Anotar'); }
   } catch (e) { /* optional */ }
   bkCur = !ES ? undefined : debt ? (debt.cur || HOME_CUR) : (CO ? 'COP' : bkSavedCur());
   if (kind === 'pay') { bkTyped = String(bkLeftOn(debt)); bkPrefilled = true; }
@@ -4745,7 +4745,7 @@ function playIntro(lang) {
     if (src) {
       introAudio = new Audio(src);
       const a = introAudio;
-      a.addEventListener('ended', () => { if (introAudio !== a) return; ping('listen_end'); if (!hasAnyRecord) guideToSold(); });
+      a.addEventListener('ended', () => { if (introAudio !== a) return; ping('listen_end'); if (!hasAnyRecord && bk$('bkScrim').hidden) guideToSold(); });
       a.play().catch(() => {});
     }
     else speakShort('English.');
@@ -4754,17 +4754,25 @@ function playIntro(lang) {
 }
 // The next step, shown where it happens: the Sold button pulses with a
 // "Your turn" bubble for 8 seconds, or until she taps anything.
+let guideTimer = 0, guideOff = null;
 function guideToSold() {
   try {
     const bar = document.getElementById('bkBar'); if (!bar) return;
     let tip = document.getElementById('bkGuide');
     if (!tip) { tip = document.createElement('span'); tip.id = 'bkGuide'; tip.className = 'bk-guide'; tip.setAttribute('aria-hidden', 'true'); bar.appendChild(tip); }
     tip.textContent = voiceLang() === 'tw' && !ES ? 'Sold \u2193' : t('Your turn: tap Sold \u2193', 'Te toca: toca Vend\u00ed \u2193');
+    // Red team 25 Sep: tapping the bubble itself did nothing (the tap was lost),
+    // and a second guide was cut short by the first one's timer.
+    if (guideOff) guideOff();
     document.documentElement.classList.add('guide-on');
     track('guide_shown');
-    const off = () => { document.documentElement.classList.remove('guide-on'); document.removeEventListener('pointerdown', off, true); };
+    const off = ev => {
+      document.documentElement.classList.remove('guide-on'); document.removeEventListener('pointerdown', off, true); clearTimeout(guideTimer); guideOff = null;
+      if (ev && ev.target && ev.target.closest && ev.target.closest('#bkGuide')) { ev.preventDefault(); bkOpen('in'); }
+    };
+    guideOff = off;
     document.addEventListener('pointerdown', off, true);
-    setTimeout(off, 8000);
+    guideTimer = setTimeout(off, 8000);
   } catch (e) { /* guidance is optional */ }
 }
 function markVoiceButtons() {
@@ -4786,9 +4794,9 @@ function floatNotice(html, ms) {
   let el = document.getElementById('floatNote');
   if (!el) { el = document.createElement('div'); el.id = 'floatNote'; el.className = 'milestone float'; el.setAttribute('role', 'status'); document.body.appendChild(el); }
   el.innerHTML = html + '<button type="button" class="float-x" aria-label="' + t('Close', 'Cerrar') + '">\u00d7</button>';
-  el.hidden = false;
+  el.hidden = false; el._aside = false;
   el.querySelector('.float-x').addEventListener('click', () => { el.hidden = true; });
-  clearTimeout(el._t); if (ms) el._t = setTimeout(() => { el.hidden = true; }, ms);
+  clearTimeout(el._t); if (ms) el._t = setTimeout(() => { el.hidden = true; el._aside = false; }, ms);
   return el;
 }
 function pushSupported() {
