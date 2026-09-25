@@ -4548,7 +4548,7 @@ function bumpVisitCount() {
 // app, so it plays the same on every phone - no voice to install, no reading.
 // Choosing Twi also turns on the Twi prompts on the Sold/Owes me/Paid sheets.
 // Switched on once both clips are recorded and checked (Twi via Khaya ASR).
-const LISTEN_READY = false;
+const LISTEN_READY = true;
 let introAudio = null;
 function playIntro(lang) {
   try {
