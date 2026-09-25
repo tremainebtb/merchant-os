@@ -750,6 +750,211 @@ async function handleAdminSourceDaily(request, env) {
   return cors(new Response(JSON.stringify({ days, rows: r.results || [], wv: WORKER_VERSION }), { headers: { 'Content-Type': 'application/json' } }));
 }
 
+// Owner overview (25 Sep, w110). One feed for the owner dashboard: the
+// numbers an investor asks for, all from our own tables, real people only
+// (people_devices / live_events / live_entries - no tests, no datacentres).
+// Days are UTC days, which are Ghana days (GMT, no daylight saving).
+//   North star = weekly active recorders: different businesses that saved
+//   at least one record in the 7 days up to that day. A record is the only
+//   proof the notebook was used; opening the page is not.
+// Everything returned is a count or a rate - never a hash, never content.
+async function ensureSpendTable(env) {
+  await env.COUNTMY_DB.prepare('CREATE TABLE IF NOT EXISTS ad_spend (day TEXT NOT NULL, source TEXT NOT NULL, amount REAL NOT NULL, currency TEXT NOT NULL DEFAULT \'GBP\', note TEXT, updated_at INTEGER, PRIMARY KEY (day, source))').run();
+}
+async function handleAdminOverview(request, env) {
+  if (!env.COUNTMY_DB) return cors(new Response(JSON.stringify({ error: 'not configured' }), { status: 503 }));
+  const url = new URL(request.url);
+  const key = url.searchParams.get('key') || '';
+  if (!env.ADMIN_KEY || key !== env.ADMIN_KEY) return cors(new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401 }));
+  await ensureTestSchema(env);
+  await ensureSpendTable(env);
+  const DAY = 86400000, now = Date.now();
+  const today = Math.floor(now / DAY);
+  const days = Math.min(120, Math.max(7, parseInt(url.searchParams.get('days') || '30', 10) || 30));
+  // Windows end at the end of today (UTC), so "last 7 days" = today and the
+  // six days before it, and the previous window is the same length before that.
+  const curFrom = (today - days + 1) * DAY, curTo = (today + 1) * DAY;
+  const prevFrom = curFrom - days * DAY;
+  const seriesFrom = prevFrom - 7 * DAY;
+  const db = env.COUNTMY_DB;
+  const q = (sql, ...b) => db.prepare(sql).bind(...b);
+  const [devRes, actRes, recRes, srcEvRes, spendRes, healthRes, dcRes] = await db.batch([
+    // Every real device: when it arrived, from where, and its milestones.
+    q("SELECT device_hash AS h, source, first_ts AS f, saved_ts AS s, tapped_ts AS t, asked_ts AS a, installed_ts AS i, COALESCE(country, '') AS c, COALESCE(first_ver, '') AS v, COALESCE(mobile, 0) AS m FROM people_devices"),
+    // One row per business per active day (any event).
+    q('SELECT DISTINCT shop_hash AS h, CAST(ts / ? AS INTEGER) AS d FROM live_events', DAY),
+    // One row per business per day it saved records, with how many.
+    q("SELECT shop_hash AS h, CAST(ts / ? AS INTEGER) AS d, COUNT(*) AS n FROM live_entries WHERE status = 'saved' GROUP BY shop_hash, d", DAY),
+    // Devices that were ever inside the Facebook/Instagram browser, or tapped.
+    q("SELECT DISTINCT shop_hash AS h, event_type AS e FROM live_events WHERE event_type IN ('iab', 'tap', 'ask')"),
+    q('SELECT day, source, amount, currency, note FROM ad_spend ORDER BY day, source'),
+    q("SELECT (SELECT MAX(ts) FROM live_events) AS last_event, (SELECT MAX(ts) FROM live_entries) AS last_entry, (SELECT COUNT(*) FROM live_events WHERE ts >= ?) AS events_24h, (SELECT COUNT(*) FROM devices WHERE COALESCE(is_test, 0) = 1) AS test_devices, (SELECT COUNT(*) FROM devices WHERE COALESCE(is_dc, 0) = 1 AND COALESCE(is_test, 0) = 0) AS dc_devices, (SELECT COUNT(*) FROM people_devices) AS people, (SELECT COUNT(*) FROM live_entries WHERE status = 'saved') AS records_all, (SELECT COUNT(*) FROM live_entries WHERE status = 'not_saved') AS not_saved_all", now - DAY),
+    q("SELECT COALESCE(asn_org, '') AS org, COUNT(*) AS n FROM devices WHERE COALESCE(is_dc, 0) = 1 AND COALESCE(is_test, 0) = 0 GROUP BY org ORDER BY n DESC LIMIT 5")
+  ]);
+  const devs = devRes.results || [];
+  const dayOf = ts => Math.floor(ts / DAY);
+  const iso = d => new Date(d * DAY).toISOString().slice(0, 10);
+
+  // Per-business day sets.
+  const actDays = new Map(), recDays = new Map(), firstAct = new Map();
+  for (const r of (actRes.results || [])) {
+    (actDays.get(r.h) || actDays.set(r.h, new Set()).get(r.h)).add(r.d);
+    if (!firstAct.has(r.h) || r.d < firstAct.get(r.h)) firstAct.set(r.h, r.d);
+  }
+  const recPerDay = new Map();
+  for (const r of (recRes.results || [])) {
+    (recDays.get(r.h) || recDays.set(r.h, new Set()).get(r.h)).add(r.d);
+    recPerDay.set(r.d, (recPerDay.get(r.d) || 0) + (r.n || 0));
+  }
+  const evSet = { iab: new Set(), tap: new Set(), ask: new Set() };
+  for (const r of (srcEvRes.results || [])) if (evSet[r.e]) evSet[r.e].add(r.h);
+
+  // Daily series from seriesFrom to today.
+  const d0 = dayOf(seriesFrom);
+  const n = today - d0 + 1;
+  const blank = () => new Array(n).fill(0);
+  const S = { newp: blank(), activated: blank(), active: blank(), returning: blank(), records: blank(), recorders: blank(), war: blank(), wau: blank() };
+  for (const dv of devs) {
+    const fd = dayOf(dv.f) - d0; if (fd >= 0 && fd < n) S.newp[fd]++;
+    if (dv.s) { const sd = dayOf(dv.s) - d0; if (sd >= 0 && sd < n) S.activated[sd]++; }
+  }
+  for (const [h, set] of actDays) {
+    const fa = firstAct.get(h);
+    for (const d of set) {
+      const k = d - d0; if (k < 0 || k >= n) continue;
+      S.active[k]++;
+      if (d > fa) S.returning[k]++;
+    }
+  }
+  for (const [, set] of recDays) for (const d of set) { const k = d - d0; if (k >= 0 && k < n) S.recorders[k]++; }
+  for (const [d, c] of recPerDay) { const k = d - d0; if (k >= 0 && k < n) S.records[k] += c; }
+  // Rolling 7-day distinct counts (weekly active recorders / users).
+  const rolling = (map, out) => {
+    for (const [, set] of map) {
+      const hit = new Uint8Array(n);
+      for (const d of set) for (let j = 0; j < 7; j++) { const k = d - d0 + j; if (k >= 0 && k < n) hit[k] = 1; }
+      for (let k = 0; k < n; k++) out[k] += hit[k];
+    }
+  };
+  rolling(recDays, S.war);
+  rolling(actDays, S.wau);
+
+  // Window summaries (current vs previous, same length).
+  const inWin = (ts, a, b) => ts != null && ts >= a && ts < b;
+  const windowStats = (a, b) => {
+    const cohort = devs.filter(dv => inWin(dv.f, a, b));
+    const da = dayOf(a), db2 = dayOf(b);
+    let active = 0, recorders = 0, returning = 0, habit = 0;
+    for (const [h, set] of actDays) {
+      let any = false, back = false;
+      for (const d of set) if (d >= da && d < db2) { any = true; if (d > firstAct.get(h)) back = true; }
+      if (any) active++; if (back) returning++;
+    }
+    for (const [, set] of recDays) {
+      let any = false; for (const d of set) if (d >= da && d < db2) { any = true; break; }
+      if (any) { recorders++; if (set.size >= 2) habit++; }
+    }
+    let records = 0; for (const [d, c] of recPerDay) if (d >= da && d < db2) records += c;
+    const cameBack = cohort.filter(dv => { const set = actDays.get(dv.h); return set && set.size >= 2; }).length;
+    return {
+      newp: cohort.length,
+      gh: cohort.filter(dv => dv.c === 'GH').length,
+      mobile: cohort.filter(dv => dv.m === 1).length,
+      in_app: cohort.filter(dv => evSet.iab.has(dv.h)).length,
+      tapped: cohort.filter(dv => dv.t || evSet.tap.has(dv.h)).length,
+      activated_cohort: cohort.filter(dv => dv.s).length,
+      came_back: cameBack,
+      habit_cohort: cohort.filter(dv => { const set = recDays.get(dv.h); return set && set.size >= 2; }).length,
+      asked_cohort: cohort.filter(dv => dv.a || evSet.ask.has(dv.h)).length,
+      installed_cohort: cohort.filter(dv => dv.i).length,
+      activated: devs.filter(dv => inWin(dv.s, a, b)).length,
+      active, returning, recorders, habit, records,
+      war_end: 0
+    };
+  };
+  const cur = windowStats(curFrom, curTo), prev = windowStats(prevFrom, curFrom);
+  cur.war_end = S.war[n - 1];
+  prev.war_end = S.war[n - 1 - days] || 0;
+
+  // Acquisition by source, current window, with spend.
+  const spend = (spendRes.results || []).map(r => ({ day: r.day, source: r.source, amount: Number(r.amount) || 0, currency: r.currency || 'GBP', note: r.note || '' }));
+  const bySrc = new Map();
+  const srcRow = src => bySrc.get(src) || bySrc.set(src, { source: src, people: 0, gh: 0, in_app: 0, tapped: 0, activated: 0, came_back: 0, habit: 0, spend: 0 }).get(src);
+  for (const dv of devs) {
+    if (!inWin(dv.f, curFrom, curTo)) continue;
+    const r = srcRow(dv.source || 'direct');
+    r.people++;
+    if (dv.c === 'GH') r.gh++;
+    if (evSet.iab.has(dv.h)) r.in_app++;
+    if (dv.t || evSet.tap.has(dv.h)) r.tapped++;
+    if (dv.s) r.activated++;
+    const set = actDays.get(dv.h); if (set && set.size >= 2) r.came_back++;
+    const rs = recDays.get(dv.h); if (rs && rs.size >= 2) r.habit++;
+  }
+  const curFromIso = iso(dayOf(curFrom));
+  for (const sp of spend) if (sp.day >= curFromIso) srcRow(sp.source).spend += sp.amount;
+
+  // Weekly cohorts (Monday-start UTC weeks): of the phones that arrived that
+  // week, the share active in week 0, 1, 2 ... and the share that recorded.
+  const monday = d => d - ((new Date(d * DAY).getUTCDay() + 6) % 7);
+  const cohorts = new Map();
+  for (const dv of devs) {
+    const w0 = monday(dayOf(dv.f));
+    const c = cohorts.get(w0) || cohorts.set(w0, { week: iso(w0), size: 0, active: [], recorded: [] }).get(w0);
+    c.size++;
+    const set = actDays.get(dv.h), rs = recDays.get(dv.h);
+    const maxW = Math.floor((today - w0) / 7);
+    for (let w = 0; w <= maxW; w++) {
+      c.active[w] = c.active[w] || 0; c.recorded[w] = c.recorded[w] || 0;
+      const lo = w0 + 7 * w, hi = lo + 7;
+      if (set) { for (const d of set) if (d >= lo && d < hi) { c.active[w]++; break; } }
+      if (rs) { for (const d of rs) if (d >= lo && d < hi) { c.recorded[w]++; break; } }
+    }
+  }
+  const cohortList = [...cohorts.values()].sort((x, y) => x.week < y.week ? -1 : 1).slice(-10);
+
+  const h = (healthRes.results || [])[0] || {};
+  const out = {
+    generatedAt: now, days, wv: WORKER_VERSION,
+    range: { from: iso(dayOf(curFrom)), to: iso(today), prevFrom: iso(dayOf(prevFrom)) },
+    cur, prev,
+    series: { from: iso(d0), ...S },
+    sources: [...bySrc.values()].sort((x, y) => y.people - x.people || y.spend - x.spend),
+    spend,
+    cohorts: cohortList,
+    health: {
+      lastEvent: h.last_event || null, lastEntry: h.last_entry || null, events24h: h.events_24h || 0,
+      testDevices: h.test_devices || 0, dcDevices: h.dc_devices || 0, people: h.people || 0,
+      recordsAll: h.records_all || 0, notSavedAll: h.not_saved_all || 0,
+      dcTop: (dcRes.results || []).map(r => ({ org: r.org, n: r.n }))
+    }
+  };
+  return cors(new Response(JSON.stringify(out), { headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } }));
+}
+
+// Ad spend ledger (25 Sep). Meta's spend is not in our database, so cost per
+// business is impossible without it. The owner types what Ads Manager says,
+// per source (the utm tag the ad links with) and UTC day. Amount 0 deletes.
+async function handleAdminSpend(request, env) {
+  if (!env.COUNTMY_DB) return cors(new Response(JSON.stringify({ error: 'not configured' }), { status: 503 }));
+  const url = new URL(request.url);
+  const key = url.searchParams.get('key') || '';
+  if (!env.ADMIN_KEY || key !== env.ADMIN_KEY) return cors(new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401 }));
+  await ensureSpendTable(env);
+  let b = {};
+  try { b = await request.json(); } catch (e) { return cors(new Response(JSON.stringify({ error: 'invalid request' }), { status: 400 })); }
+  const day = String(b.day || '');
+  const source = String(b.source || '').trim().toLowerCase().replace(/[^a-z0-9_\/:.-]/g, '').slice(0, 60);
+  const amount = Math.round((Number(b.amount) || 0) * 100) / 100;
+  const currency = /^[A-Z]{3}$/.test(String(b.currency || '')) ? b.currency : 'GBP';
+  const note = String(b.note || '').slice(0, 120);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day) || !source || amount < 0 || amount > 100000) return cors(new Response(JSON.stringify({ error: 'need day (YYYY-MM-DD), source and an amount' }), { status: 400 }));
+  if (amount === 0) await env.COUNTMY_DB.prepare('DELETE FROM ad_spend WHERE day = ? AND source = ?').bind(day, source).run();
+  else await env.COUNTMY_DB.prepare('INSERT INTO ad_spend (day, source, amount, currency, note, updated_at) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(day, source) DO UPDATE SET amount = excluded.amount, currency = excluded.currency, note = excluded.note, updated_at = excluded.updated_at').bind(day, source, amount, currency, note, Date.now()).run();
+  const all = await env.COUNTMY_DB.prepare('SELECT day, source, amount, currency, note FROM ad_spend ORDER BY day, source').all();
+  return cors(new Response(JSON.stringify({ ok: true, spend: all.results || [] }), { headers: { 'Content-Type': 'application/json' } }));
+}
+
 async function handleAdminRecentEntries(request, env) {
   if (!env.COUNTMY_DB) return cors(new Response(JSON.stringify({ error: 'not configured' }), { status: 503 }));
   const url = new URL(request.url);
@@ -1273,7 +1478,7 @@ async function handleTranscribe(request, env) {
 // 50 is a transcription/parsing error, not a fabrication) - evidence-checking
 // targets fabrication specifically, not every possible error; the review UI is
 // still what catches a wrong-but-grounded number.
-const WORKER_VERSION = 'w109';
+const WORKER_VERSION = 'w110';
 
 // Spanish (Venezuela) twin of EXTRACT_SYSTEM_PROMPT below: same event types,
 // same {value, evidence} rule, same JSON-only answer. Amounts are bare
@@ -3139,6 +3344,8 @@ export default {
       else if (path === '/admin/asr-bench' && request.method === 'POST') adminResp = await handleAdminAsrBench(request, env);
       else if (path === '/admin/tts' && request.method === 'POST') adminResp = await handleAdminTts(request, env);
       else if (path === '/admin/source-daily' && request.method === 'GET') adminResp = await handleAdminSourceDaily(request, env);
+      else if (path === '/admin/overview' && request.method === 'GET') adminResp = await handleAdminOverview(request, env);
+      else if (path === '/admin/spend' && request.method === 'POST') adminResp = await handleAdminSpend(request, env);
       if (adminResp) {
         if (adminResp.status === 401) await bumpAdminFail(env, ip);
         return adminResp;
