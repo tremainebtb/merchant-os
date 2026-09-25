@@ -4,111 +4,228 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
-<title>CountMy - Owner</title>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&family=Work+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@600;700&display=swap">
+<title>CountMy Owner</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&family=Work+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap">
 <style>
+/* Tokens. Light is the bare :root; dark is redefined for the OS setting
+   (unless the owner picked light) and again for an explicit dark pick. */
 :root{
-  --paper:#F8F3EC; --surface:#FFFFFF; --ink:#221A12; --ink-soft:#5C5142; --muted:#8C8172;
-  --rule:#E7DDCD; --flame:#D9541A; --flame-deep:#A83F12; --flame-soft:#FBE3D2;
-  --leaf:#1B7A43; --leaf-deep:#125C32; --leaf-soft:#E1F2E7;
-  --steel:#2A5FA5; --steel-deep:#1E4578; --steel-soft:#E1EAF6;
-  --navy:#1E2F55;
+  --ground:#F5F7FA; --surface:#FFFFFF; --surface-2:#F0F3F8; --ink:#0F1B33; --ink-soft:#46536B; --muted:#7D8AA3;
+  --rule:#E3E8F0; --rule-strong:#CBD3E0;
+  --flame:#E0561B; --flame-soft:#FDEBE2; --navy:#1E2F55; --steel:#3D7BD9; --steel-soft:#E6EFFC;
+  --up:#0F7B55; --up-soft:#E2F4EC; --down:#C2372B; --down-soft:#FBE7E5; --warn:#A86A12; --warn-soft:#FCF1DC;
+  --heat:61,123,217; --shadow:0 1px 2px rgba(15,27,51,.05),0 1px 1px rgba(15,27,51,.03);
 }
-@media (prefers-color-scheme: dark) {
+@media (prefers-color-scheme: dark){
   :root:not([data-theme="light"]){
-    --paper:#161009; --surface:#1F1810; --ink:#F3EBDF; --ink-soft:#CDBFA9; --muted:#93876F;
-    --rule:#372B1D; --flame:#F0713A; --flame-deep:#F79764; --flame-soft:#3A2415;
-    --leaf:#4CC585; --leaf-deep:#6FD79E; --leaf-soft:#15301F;
-    --steel:#6FA8E8; --steel-deep:#9CC3F0; --steel-soft:#152238; --navy:#9CC3F0;
+    --ground:#0B1020; --surface:#121A2D; --surface-2:#18223A; --ink:#E8EDF7; --ink-soft:#AEB9CF; --muted:#7885A0;
+    --rule:#223049; --rule-strong:#304061;
+    --flame:#FF7A3D; --flame-soft:#3A2116; --navy:#9DB8F2; --steel:#6FA3F5; --steel-soft:#16264A;
+    --up:#3FC98E; --up-soft:#11301F; --down:#FF7466; --down-soft:#3A1715; --warn:#E6B04F; --warn-soft:#33260F;
+    --heat:111,163,245; --shadow:none;
   }
 }
 :root[data-theme="dark"]{
-  --paper:#161009; --surface:#1F1810; --ink:#F3EBDF; --ink-soft:#CDBFA9; --muted:#93876F;
-  --rule:#372B1D; --flame:#F0713A; --flame-deep:#F79764; --flame-soft:#3A2415;
-  --leaf:#4CC585; --leaf-deep:#6FD79E; --leaf-soft:#15301F;
-  --steel:#6FA8E8; --steel-deep:#9CC3F0; --steel-soft:#152238; --navy:#9CC3F0;
+  --ground:#0B1020; --surface:#121A2D; --surface-2:#18223A; --ink:#E8EDF7; --ink-soft:#AEB9CF; --muted:#7885A0;
+  --rule:#223049; --rule-strong:#304061;
+  --flame:#FF7A3D; --flame-soft:#3A2116; --navy:#9DB8F2; --steel:#6FA3F5; --steel-soft:#16264A;
+  --up:#3FC98E; --up-soft:#11301F; --down:#FF7466; --down-soft:#3A1715; --warn:#E6B04F; --warn-soft:#33260F;
+  --heat:111,163,245; --shadow:none;
 }
 *{box-sizing:border-box}
-body{margin:0;background:var(--paper);color:var(--ink);font-family:"Work Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;line-height:1.4}
-.wrap{max-width:900px;margin:0 auto;padding:20px 16px 60px}
-header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px;flex-wrap:wrap}
-h1{font-family:"Manrope",sans-serif;font-size:1.35rem;font-weight:800;margin:0}
-h1 b{color:var(--flame)}
-h1 span{font-family:"Work Sans",sans-serif;font-size:.8rem;font-weight:500;color:var(--muted);margin-left:8px}
-.refresh-row{display:flex;align-items:center;gap:10px;font-size:.78rem;color:var(--muted)}
-.btn{font-family:"Manrope",sans-serif;background:none;border:1px solid var(--rule);color:var(--ink-soft);border-radius:100px;padding:7px 14px;font-size:.8rem;font-weight:700;cursor:pointer}
-.btn:hover{border-color:var(--steel)}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--ground);color:var(--ink);font:400 14px/1.45 "Work Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+button,input,select{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--steel);outline-offset:2px;border-radius:6px}
+.num,.mono{font-family:"IBM Plex Mono",ui-monospace,monospace;font-variant-numeric:tabular-nums}
 
-.gate{max-width:360px;margin:80px auto;text-align:center}
-.gate h2{font-family:"Manrope",sans-serif;font-size:1.05rem;margin:0 0 6px}
-.gate p{color:var(--ink-soft);font-size:.86rem;margin:0 0 16px}
-.gate input{width:100%;padding:12px;border:1px solid var(--rule);border-radius:10px;font-size:1rem;background:var(--surface);color:var(--ink);text-align:center;margin-bottom:10px}
-.gate button{width:100%;font-family:"Manrope",sans-serif;background:var(--leaf);color:#fff;border:none;border-radius:10px;padding:12px;font-weight:700;font-size:.95rem;cursor:pointer}
-.gate .err{color:var(--flame-deep);font-size:.8rem;min-height:1.2em;margin-top:8px}
+/* Gate */
+.gate{max-width:360px;margin:12vh auto;padding:0 16px;text-align:center}
+.gate h2{font:800 1.2rem "Manrope",sans-serif;margin:14px 0 6px}
+.gate p{color:var(--ink-soft);margin:0 0 16px}
+.gate input{width:100%;padding:12px;border:1px solid var(--rule-strong);border-radius:10px;font-size:1rem;background:var(--surface);text-align:center;margin-bottom:10px}
+.gate button{width:100%;font:700 .95rem "Manrope",sans-serif;background:var(--ink);color:var(--ground);border:none;border-radius:10px;padding:12px;cursor:pointer}
+.gate .err{color:var(--down);font-size:.84rem;min-height:1.2em;margin-top:8px}
 
-.tabs{display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap}
-.tab{font-family:"Manrope",sans-serif;background:var(--surface);border:1px solid var(--rule);color:var(--ink-soft);border-radius:100px;padding:8px 16px;font-size:.84rem;font-weight:700;cursor:pointer}
-.tab.active{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+/* Top bar */
+.top{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--ground) 88%,transparent);backdrop-filter:saturate(1.4) blur(10px);-webkit-backdrop-filter:saturate(1.4) blur(10px);border-bottom:1px solid var(--rule)}
+.top-in{max-width:1240px;margin:0 auto;padding:10px 20px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:9px;font:800 1.05rem "Manrope",sans-serif;letter-spacing:-.01em}
+.brand b{color:var(--flame)}
+.brand .pill{font:600 .68rem "Manrope",sans-serif;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);border:1px solid var(--rule-strong);border-radius:99px;padding:2px 8px}
+.spacer{flex:1}
+.seg{display:inline-flex;background:var(--surface-2);border:1px solid var(--rule);border-radius:9px;padding:2px}
+.seg button{border:0;background:none;padding:5px 11px;border-radius:7px;font:700 .8rem "Manrope",sans-serif;color:var(--ink-soft);cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--surface);color:var(--ink);box-shadow:var(--shadow)}
+.live{display:flex;align-items:center;gap:7px;font-size:.78rem;color:var(--muted);white-space:nowrap}
+.live i{width:7px;height:7px;border-radius:50%;background:var(--up);box-shadow:0 0 0 3px var(--up-soft)}
+.live.stale i{background:var(--warn);box-shadow:0 0 0 3px var(--warn-soft)}
+.ibtn{border:1px solid var(--rule);background:var(--surface);border-radius:9px;padding:6px 11px;font:700 .8rem "Manrope",sans-serif;color:var(--ink-soft);cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+.ibtn:hover{border-color:var(--rule-strong);color:var(--ink)}
+.ibtn svg{width:14px;height:14px}
 
-.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:18px}
-@media (max-width:800px){.kpis{grid-template-columns:1fr 1fr}}
-.kpi{background:var(--surface);border:1px solid var(--rule);border-radius:16px;padding:18px 18px 16px}
-.kpi .label{font-family:"Manrope",sans-serif;font-size:.86rem;font-weight:700;margin-bottom:8px}
-.kpi .num{font-family:"IBM Plex Mono",monospace;font-size:2.6rem;font-weight:700;font-variant-numeric:tabular-nums;line-height:1}
-.kpi.k-new .num{color:var(--leaf-deep)}
-.kpi.k-used .num{color:var(--steel-deep)}
-.kpi.k-rec .num{color:var(--flame-deep)}
-.kpi.k-back .num{color:var(--navy)}
-.kpi .sub{font-size:.78rem;color:var(--muted);margin-top:8px;line-height:1.35}
+/* Page */
+.page{max-width:1240px;margin:0 auto;padding:18px 20px 60px}
+.grid{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:14px}
+.s12{grid-column:span 12}.s8{grid-column:span 8}.s7{grid-column:span 7}.s5{grid-column:span 5}.s4{grid-column:span 4}
+@media (max-width:980px){.s8,.s7,.s5,.s4{grid-column:span 12}}
+.card{background:var(--surface);border:1px solid var(--rule);border-radius:14px;padding:16px 18px;box-shadow:var(--shadow);min-width:0}
+.card-h{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:12px;flex-wrap:wrap}
+.eyebrow{font:700 .7rem "Manrope",sans-serif;text-transform:uppercase;letter-spacing:.09em;color:var(--muted)}
+h2.t{font:800 1rem "Manrope",sans-serif;margin:2px 0 0;letter-spacing:-.01em}
+.sub{color:var(--muted);font-size:.8rem}
+.section-gap{height:6px}
 
-.panel{background:var(--surface);border:1px solid var(--rule);border-radius:16px;padding:16px 18px 12px;margin-bottom:16px}
-.panel h3{font-family:"Manrope",sans-serif;font-size:1rem;margin:0 0 4px}
-.panel .note{font-size:.8rem;color:var(--muted);margin:0 0 12px}
-.verdict{font-size:.95rem;font-weight:600;margin:0 0 12px;padding:10px 12px;border-radius:10px;background:var(--flame-soft);color:var(--ink)}
-.tw{overflow-x:auto}
-table{border-collapse:collapse;width:100%;font-size:.92rem;margin-bottom:6px}
-th,td{text-align:left;padding:9px 8px;border-bottom:1px solid var(--rule)}
-th{font-size:.74rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:600}
-td:nth-child(n+2),th:nth-child(n+2){text-align:right;font-variant-numeric:tabular-nums}
-td .pct{color:var(--muted);font-size:.8rem;margin-left:4px}
-td.best{font-weight:700}
-.legend{display:flex;gap:16px;font-size:.78rem;color:var(--ink-soft);margin-bottom:8px}
-.legend span{display:inline-flex;align-items:center;gap:6px}
-.legend i{width:10px;height:10px;border-radius:3px;display:inline-block}
-svg text{font-family:"Work Sans",sans-serif;fill:var(--muted)}
-.empty-note{color:var(--muted);font-size:.86rem;padding:18px 0;text-align:center}
-.mini{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
-.mini>div{border:1px solid var(--rule);border-radius:12px;padding:10px 12px}
-.mini .n{font-family:"IBM Plex Mono",monospace;font-size:1.4rem;font-weight:700}
-.mini .l{font-size:.78rem;color:var(--muted)}
+/* Insight strip */
+.insights{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:10px}
+.ins{display:flex;gap:10px;align-items:flex-start;background:var(--surface);border:1px solid var(--rule);border-radius:12px;padding:11px 13px;font-size:.86rem;line-height:1.4}
+.ins .dot{flex:none;width:8px;height:8px;border-radius:50%;margin-top:6px;background:var(--steel)}
+.ins.bad .dot{background:var(--down)}.ins.good .dot{background:var(--up)}.ins.warn .dot{background:var(--warn)}
 
-details.tools{margin-top:8px}
-details.tools summary{cursor:pointer;font-family:"Manrope",sans-serif;font-weight:700;font-size:.95rem;padding:12px 0;list-style:none;display:flex;align-items:center;gap:8px}
-details.tools summary::before{content:"\25B8";color:var(--muted)}
-details.tools[open] summary::before{content:"\25BE"}
-.recover-row{display:flex;gap:8px;margin-bottom:8px}
-.recover-row input,.recover-row select{flex:1;padding:10px 12px;border:1px solid var(--rule);border-radius:8px;font-size:.9rem;background:var(--paper);color:var(--ink)}
-.browse-shop{border:1px solid var(--rule);border-radius:10px;padding:10px 12px;margin-bottom:10px}
-.browse-shop-head{display:flex;justify-content:space-between;font-size:.78rem;color:var(--muted);margin-bottom:6px}
+/* North star */
+.ns{display:grid;grid-template-columns:auto 1fr;gap:6px 22px;align-items:end}
+.ns-val{font:800 3.4rem/1 "Manrope",sans-serif;letter-spacing:-.03em;font-variant-numeric:tabular-nums}
+.ns-meta{display:flex;flex-direction:column;gap:6px;padding-bottom:6px}
+.delta{display:inline-flex;align-items:center;gap:4px;font:700 .78rem "Manrope",sans-serif;padding:2px 8px;border-radius:99px;background:var(--surface-2);color:var(--ink-soft);width:max-content}
+.delta.up{background:var(--up-soft);color:var(--up)}.delta.down{background:var(--down-soft);color:var(--down)}
+.chart{position:relative;margin-top:10px}
+.chart svg{display:block;width:100%;height:auto;overflow:visible}
+.chart text{font:500 10px "Work Sans",sans-serif;fill:var(--muted)}
+.tip{position:absolute;pointer-events:none;background:var(--ink);color:var(--ground);border-radius:8px;padding:7px 9px;font-size:.76rem;line-height:1.35;white-space:nowrap;transform:translate(-50%,-100%);opacity:0;transition:opacity .08s;z-index:5}
+.tip b{font-family:"IBM Plex Mono",monospace;font-weight:600}
+.tip i{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:5px;vertical-align:0}
+
+/* Today */
+.today{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.today div{background:var(--surface-2);border-radius:10px;padding:10px 12px;min-width:0}
+.today.four{grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+@media (max-width:620px){.today.four{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.today .v{font:800 1.5rem "Manrope",sans-serif;font-variant-numeric:tabular-nums}
+.today .l{font-size:.76rem;color:var(--muted)}
+
+/* KPI */
+.kpis{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:14px}
+@media (max-width:1100px){.kpis{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media (max-width:620px){.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.kpi{padding:14px 14px 10px}
+.kpi .k-l{font:700 .78rem "Manrope",sans-serif;color:var(--ink-soft);display:flex;justify-content:space-between;gap:6px}
+.kpi .k-v{font:800 1.75rem/1.1 "Manrope",sans-serif;letter-spacing:-.02em;margin:8px 0 6px;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.kpi .k-s{font-size:.74rem;color:var(--muted);min-height:2.1em;margin-top:6px}
+.kpi .spark{display:block;width:100%;height:30px;margin-top:6px}
+.info{cursor:help;color:var(--muted);font-weight:600}
+
+/* Funnel */
+.fun{display:flex;flex-direction:column;gap:9px}
+.fs{display:grid;grid-template-columns:minmax(120px,1.1fr) 2.4fr 64px;gap:12px;align-items:center}
+.fs .n{font-size:.84rem}
+.fs .bar{height:22px;background:var(--surface-2);border-radius:6px;overflow:hidden;position:relative}
+.fs .bar span{position:absolute;inset:0 auto 0 0;background:var(--navy);border-radius:6px;min-width:2px}
+.fs:first-child .bar span{background:var(--steel)}
+.fs .v{text-align:right;font-family:"IBM Plex Mono",monospace;font-size:.84rem}
+.fs .conv{grid-column:2/4;font-size:.72rem;color:var(--muted);margin-top:-5px}
+.fs.leak .conv{color:var(--down);font-weight:600}
+.chips{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.chip{font-size:.74rem;background:var(--surface-2);border-radius:99px;padding:4px 10px;color:var(--ink-soft)}
+
+/* Status pills */
+.st{font:700 .68rem "Manrope",sans-serif;text-transform:uppercase;letter-spacing:.07em;padding:3px 8px;border-radius:99px;background:var(--surface-2);color:var(--ink-soft)}
+.st.run{background:var(--steel-soft);color:var(--steel)}.st.win{background:var(--up-soft);color:var(--up)}.st.lose{background:var(--down-soft);color:var(--down)}.st.warn{background:var(--warn-soft);color:var(--warn)}
+
+/* Experiments */
+.exp{border-top:1px solid var(--rule);padding-top:12px;margin-top:12px}
+.exp:first-of-type{border-top:0;padding-top:0;margin-top:0}
+.exp-h{display:flex;justify-content:space-between;gap:10px;align-items:center;margin-bottom:8px}
+.exp-h b{font:800 .9rem "Manrope",sans-serif}
+.arm{display:grid;grid-template-columns:52px minmax(0,1fr) 84px;gap:10px;align-items:center;font-size:.82rem;margin:5px 0}
+.arm .bar{height:10px;background:var(--surface-2);border-radius:5px;overflow:hidden}
+.arm .bar span{display:block;height:100%;background:var(--flame);border-radius:5px}
+.arm .v{text-align:right;font-family:"IBM Plex Mono",monospace;font-size:.78rem}
+.rule{font-size:.76rem;color:var(--muted);margin-top:6px}
+.progress{height:4px;background:var(--surface-2);border-radius:3px;margin-top:8px;overflow:hidden}
+.progress span{display:block;height:100%;background:var(--steel)}
+
+/* Legend */
+.legend{display:flex;gap:6px;flex-wrap:wrap}
+.legend button{border:1px solid var(--rule);background:var(--surface);border-radius:99px;padding:3px 10px;font-size:.76rem;color:var(--ink-soft);cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+.legend button[aria-pressed="false"]{opacity:.45}
+.legend i{width:9px;height:9px;border-radius:3px}
+
+/* Tables */
+.tw{overflow-x:auto;margin:0 -4px;padding:0 4px}
+table{border-collapse:collapse;width:100%;font-size:.84rem}
+th,td{padding:9px 10px;border-bottom:1px solid var(--rule);text-align:right;white-space:nowrap}
+th:first-child,td:first-child{text-align:left}
+th{font:700 .68rem "Manrope",sans-serif;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);cursor:pointer;user-select:none;position:sticky;top:0;background:var(--surface)}
+th[aria-sort]::after{content:" \2193";color:var(--ink-soft)}
+th[aria-sort="ascending"]::after{content:" \2191"}
+td{font-variant-numeric:tabular-nums}
+td .p{color:var(--muted);font-size:.74rem;margin-left:5px}
+tr.tot td{font-weight:700;border-bottom:0}
+td.src{max-width:260px;overflow:hidden;text-overflow:ellipsis}
+td.src small{display:block;color:var(--muted);font-size:.7rem;font-family:"IBM Plex Mono",monospace}
+.minibar{display:inline-block;width:44px;height:6px;background:var(--surface-2);border-radius:3px;vertical-align:middle;margin-left:8px;overflow:hidden}
+.minibar span{display:block;height:100%;background:var(--steel)}
+
+/* Spend form */
+.spend{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:12px;padding-top:12px;border-top:1px dashed var(--rule)}
+.spend input,.spend select{border:1px solid var(--rule-strong);background:var(--surface);border-radius:8px;padding:7px 9px;font-size:.82rem;min-width:0}
+.spend input[type=number]{width:96px}
+.spend .msg{font-size:.78rem;color:var(--muted)}
+
+/* Cohorts */
+.coh td{text-align:center;padding:7px 6px;font-size:.78rem;border-bottom:0}
+.coh td.c{border-radius:5px;font:700 .78rem "Manrope",sans-serif;font-variant-numeric:tabular-nums}
+.coh td:first-child{text-align:left;color:var(--ink-soft)}
+.coh td:nth-child(2){color:var(--muted);text-align:right;padding-right:12px}
+.coh th{text-align:center;position:static}
+
+/* Health */
+.hl{display:grid;grid-template-columns:1fr auto;gap:8px 14px;font-size:.84rem}
+.hl dt{color:var(--ink-soft)}
+.hl dd{margin:0;text-align:right;font-family:"IBM Plex Mono",monospace}
+.c-ok{color:var(--up)}.c-bad{color:var(--down)}.c-wn{color:var(--warn)}
+.notes{margin:12px 0 0;padding:0;list-style:none;font-size:.78rem;color:var(--muted);display:grid;gap:6px}
+
+/* Details */
+details.more{margin-top:12px}
+details.more summary{cursor:pointer;font:700 .82rem "Manrope",sans-serif;color:var(--ink-soft);list-style:none}
+details.more summary::before{content:"\25B8  "}
+details.more[open] summary::before{content:"\25BE  "}
+.glossary{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:10px 22px;font-size:.8rem;color:var(--ink-soft)}
+.glossary b{color:var(--ink);font-weight:600}
+
+/* Recovery tools (unchanged behaviour) */
+.recover-row{display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap}
+.recover-row input,.recover-row select{flex:1;min-width:160px;padding:9px 11px;border:1px solid var(--rule-strong);border-radius:8px;background:var(--surface)}
+.browse-shop,.recover-entry{border:1px solid var(--rule);border-radius:10px;padding:10px 12px;margin-bottom:8px;font-size:.84rem}
+.browse-shop-head{display:flex;justify-content:space-between;font-size:.76rem;color:var(--muted);margin-bottom:6px;gap:8px}
 .browse-shop-head code{font-family:"IBM Plex Mono",monospace;font-size:.72rem}
-.browse-preview-line{font-size:.84rem;padding:3px 0;border-top:1px dashed var(--rule)}
+.browse-preview-line{padding:3px 0;border-top:1px dashed var(--rule)}
 .browse-preview-line:first-child{border-top:none}
-.browse-use-btn{margin-top:8px;font-size:.76rem;padding:6px 12px}
-.gate-err-inline{color:var(--flame-deep);font-size:.8rem;min-height:1.2em;margin-bottom:8px}
-.recover-entry{border:1px solid var(--rule);border-radius:10px;padding:10px 12px;margin-bottom:8px;font-size:.86rem}
 .recover-entry.is-deleted{opacity:.6;border-style:dashed}
-.recover-entry.is-not-saved{border-color:var(--muted);background:var(--paper)}
 .recover-entry .re-top{display:flex;justify-content:space-between;gap:10px;font-weight:700}
-.recover-entry .re-meta{color:var(--muted);font-size:.76rem;margin-top:2px}
-.recover-copy-btn{width:100%;margin-top:10px}
-footer{font-size:.76rem;color:var(--muted);margin-top:24px;border-top:1px solid var(--rule);padding-top:12px;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.recover-entry .re-meta{color:var(--muted);font-size:.74rem;margin-top:2px}
+.gate-err-inline{color:var(--down);font-size:.8rem;min-height:1.1em;margin-bottom:6px}
+.empty{color:var(--muted);font-size:.84rem;padding:14px 0;text-align:center}
+.skel{color:transparent;background:linear-gradient(90deg,var(--surface-2),var(--rule),var(--surface-2));background-size:200% 100%;animation:sk 1.2s infinite;border-radius:6px}
+@keyframes sk{to{background-position:-200% 0}}
+@media (prefers-reduced-motion:reduce){.skel{animation:none}}
+footer{max-width:1240px;margin:0 auto;padding:0 20px 40px;font-size:.76rem;color:var(--muted);display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
 footer a{color:var(--muted)}
+@media (max-width:620px){
+  .top-in{padding:8px 16px;gap:10px}.page{padding:14px 16px 50px}
+  .ns-val{font-size:2.8rem}.ns{grid-template-columns:1fr}
+  .live span{display:none}.ibtn .lbl{display:none}
+  .fs{grid-template-columns:1fr 64px}.fs .bar{grid-column:1/3;grid-row:2}.fs .conv{grid-column:1/3}
+}
 </style>
 </head>
 <body>
-<div class="wrap">
 
-<div id="gate" class="gate">
+<div id="gate" class="gate" hidden>
+  <svg width="36" height="36" viewBox="0 0 36 36" aria-hidden="true"><rect x="5" y="18" width="7" height="13" rx="2" fill="var(--navy)"/><rect x="14.5" y="11" width="7" height="20" rx="2" fill="var(--navy)"/><rect x="24" y="5" width="7" height="26" rx="2" fill="var(--flame)"/></svg>
   <h2>Owner dashboard</h2>
   <p>Enter the admin key.</p>
   <input id="keyInput" type="password" placeholder="Admin key" autocomplete="off">
@@ -116,250 +233,396 @@ footer a{color:var(--muted)}
   <div class="err" id="gateErr"></div>
 </div>
 
-<div id="dash" style="display:none">
-  <header>
-    <h1>Count<b>My</b><span>owner</span></h1>
-    <div class="refresh-row">
-      <span id="refreshedAt"></span>
-      <button class="btn" id="refreshBtn">Refresh</button>
+<div id="dash" hidden>
+  <div class="top"><div class="top-in">
+    <div class="brand">
+      <svg width="22" height="22" viewBox="0 0 36 36" aria-hidden="true"><rect x="5" y="18" width="7" height="13" rx="2" fill="var(--navy)"/><rect x="14.5" y="11" width="7" height="20" rx="2" fill="var(--navy)"/><rect x="24" y="5" width="7" height="26" rx="2" fill="var(--flame)"/></svg>
+      <span>Count<b>My</b></span><span class="pill">Owner</span>
     </div>
-  </header>
-
-  <div class="tabs" id="tabs">
-    <button class="tab" data-period="day">Today</button>
-    <button class="tab active" data-period="week">This week</button>
-    <button class="tab" data-period="month">This month</button>
-    <button class="tab" data-period="all">Since launch</button>
-  </div>
-
-  <div class="kpis">
-    <div class="kpi k-used"><div class="label">Opened the app</div><div class="num" id="kActive">-</div><div class="sub" id="kActiveSub"></div></div>
-    <div class="kpi k-new"><div class="label">New people</div><div class="num" id="kSignups">-</div><div class="sub" id="kSignupsSub"></div></div>
-    <div class="kpi k-rec"><div class="label">Records saved</div><div class="num" id="kEntries">-</div><div class="sub" id="kEntriesSub"></div></div>
-    <div class="kpi k-back"><div class="label">Came back another day</div><div class="num" id="kBack">-</div><div class="sub" id="kBackSub"></div></div>
-  </div>
-
-  <div class="panel">
-    <h3>Tests running now</h3>
-    <p class="note">Judged only on what real people did on the site (our own records - not GA4 or Clarity, which miss people who leave in a second or two). Rules were set before any data came in, so nobody moves the goalposts.</p>
-    <div id="testsBox" class="empty-note">Loading...</div>
-  </div>
-
-  <div class="panel">
-    <h3>Where people come from (since launch)</h3>
-    <p class="note">Real people only - crawlers, ad reviewers and your own test devices are never counted. "In Ghana" is where the network says the visitor is; a low Ghana share means desktops and lookers, not customers.</p>
-    <p class="verdict" id="verdict"></p>
-    <div class="tw"><table><thead><tr><th>Source</th><th>People</th><th>This week</th><th>In Ghana</th><th>Made a record</th></tr></thead><tbody id="srcBody"><tr><td colspan="5" class="empty-note">Nobody yet.</td></tr></tbody></table></div>
-  </div>
-
-  <div class="panel">
-    <h3>This week: what people actually did</h3>
-    <p class="note">Each line is how many different people did that thing in the last 7 days. Read top to bottom: it is the path from opening the page to saving a record, and where it stops.</p>
-    <div id="weekEvents" class="empty-note">Nothing yet this week.</div>
-  </div>
-
-  <div class="panel">
-    <h3>Last 30 days, day by day</h3><p class="note">The last dot is today so far.</p>
-    <div class="legend">
-      <span><i style="background:var(--leaf)"></i>New people</span>
-      <span><i style="background:var(--steel)"></i>People who used it</span>
-      <span><i style="background:var(--flame)"></i>Records saved</span>
+    <div class="spacer"></div>
+    <div class="seg" id="range" role="group" aria-label="Date range">
+      <button data-days="7" aria-pressed="false">7D</button>
+      <button data-days="30" aria-pressed="true">30D</button>
+      <button data-days="90" aria-pressed="false">90D</button>
     </div>
-    <div id="chartDaily"></div>
-  </div>
+    <div class="live" id="live"><i></i><span id="updated">Loading</span></div>
+    <button class="ibtn" id="refreshBtn" title="Refresh"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M13.5 8a5.5 5.5 0 1 1-1.6-3.9M13.5 2.5v3h-3"/></svg><span class="lbl">Refresh</span></button>
+    <button class="ibtn" id="csvBtn" title="Download the numbers as a spreadsheet"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M8 2v8M4.5 7 8 10.5 11.5 7M3 13.5h10"/></svg><span class="lbl">CSV</span></button>
+    <button class="ibtn" id="themeBtn" title="Theme"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="8" cy="8" r="5.5"/><path d="M8 2.5v11" /><path d="M8 2.5a5.5 5.5 0 0 1 0 11z" fill="currentColor"/></svg><span class="lbl" id="themeLbl">Auto</span></button>
+  </div></div>
 
-  <div class="panel">
-    <h3>Business pages (since launch)</h3>
-    <div class="mini">
-      <div><div class="n" id="kShops">-</div><div class="l" id="kShopsL">pages made</div></div>
-      <div><div class="n" id="kShared">-</div><div class="l" id="kSharedL">people who shared theirs</div></div>
-      <div><div class="n" id="kShopViews">-</div><div class="l">times a page was opened</div></div>
+  <main class="page">
+    <div class="insights" id="insights" aria-live="polite"></div>
+    <div class="section-gap"></div>
+
+    <div class="grid">
+      <section class="card s8">
+        <div class="card-h">
+          <div><div class="eyebrow">North star</div><h2 class="t">Weekly active recorders</h2></div>
+          <span class="sub">Businesses that saved at least one record in the last 7 days</span>
+        </div>
+        <div class="ns">
+          <div class="ns-val" id="nsVal">-</div>
+          <div class="ns-meta"><span class="delta" id="nsDelta"></span><span class="sub" id="nsSub"></span></div>
+        </div>
+        <div class="chart" id="nsChart"></div>
+      </section>
+
+      <section class="card s4">
+        <div class="card-h"><div><div class="eyebrow">Today, Ghana time</div><h2 class="t" id="todayDate">Today</h2></div><span class="sub" id="lastSeen"></span></div>
+        <div class="today">
+          <div><div class="v" id="tNew">-</div><div class="l">new phones</div></div>
+          <div><div class="v" id="tActive">-</div><div class="l">people used it</div></div>
+          <div><div class="v" id="tRecorders">-</div><div class="l">businesses recorded</div></div>
+          <div><div class="v" id="tRecords">-</div><div class="l">records saved</div></div>
+        </div>
+        <div class="chips" id="todayChips"></div>
+      </section>
+
+      <div class="s12 kpis" id="kpis"></div>
+
+      <section class="card s7">
+        <div class="card-h">
+          <div><div class="eyebrow">Conversion</div><h2 class="t">From first visit to habit</h2></div>
+          <span class="sub" id="funSub"></span>
+        </div>
+        <div class="fun" id="funnel"></div>
+        <div class="chips" id="funChips"></div>
+        <details class="more"><summary>Every step people took in the last 7 days</summary><div id="weekEvents" class="tw"></div></details>
+      </section>
+
+      <section class="card s5">
+        <div class="card-h"><div><div class="eyebrow">Experiments</div><h2 class="t">Tests running now</h2></div><span class="sub">Rules set before the data</span></div>
+        <div id="tests"><div class="empty">Loading</div></div>
+      </section>
+
+      <section class="card s12">
+        <div class="card-h">
+          <div><div class="eyebrow">Activity</div><h2 class="t">Day by day</h2></div>
+          <div class="legend" id="actLegend"></div>
+        </div>
+        <div class="chart" id="actChart"></div>
+      </section>
+
+      <section class="card s12">
+        <div class="card-h">
+          <div><div class="eyebrow">Acquisition</div><h2 class="t">Where businesses come from</h2></div>
+          <span class="sub" id="srcSub"></span>
+        </div>
+        <div class="tw"><table id="srcTable"></table></div>
+        <form class="spend" id="spendForm" autocomplete="off">
+          <span class="eyebrow">Add ad spend</span>
+          <input type="date" id="spDay" required aria-label="Day">
+          <select id="spSource" aria-label="Source"></select>
+          <input type="number" id="spAmt" step="0.01" min="0" placeholder="£ amount" required aria-label="Amount in pounds">
+          <input type="text" id="spNote" placeholder="Note (optional)" aria-label="Note" style="flex:1;min-width:120px">
+          <button class="ibtn" type="submit">Save</button>
+          <span class="msg" id="spMsg">Type what Ads Manager shows. 0 removes a day.</span>
+        </form>
+        <details class="more"><summary>Spend ledger</summary><div id="ledger" class="tw"></div></details>
+      </section>
+
+      <section class="card s7">
+        <div class="card-h">
+          <div><div class="eyebrow">Retention</div><h2 class="t">Weekly cohorts</h2></div>
+          <div class="seg" id="cohMode" role="group" aria-label="Cohort measure"><button data-m="active" aria-pressed="true">Came back</button><button data-m="recorded" aria-pressed="false">Recorded</button></div>
+        </div>
+        <div class="tw" id="cohorts"></div>
+        <p class="sub" style="margin:10px 0 0">Each row is the phones that first arrived that week (Monday start). Each cell is the share of them active in that week after arriving.</p>
+      </section>
+
+      <section class="card s5">
+        <div class="card-h"><div><div class="eyebrow">Trust</div><h2 class="t">Data health</h2></div><span class="st" id="healthPill">Checking</span></div>
+        <dl class="hl" id="health"></dl>
+        <ul class="notes">
+          <li>Every number here is our own database, real people only. Test phones, crawlers and ad reviewers are counted apart and never mixed in.</li>
+          <li>GA4 and Clarity miss people who leave within a second or two, so they show fewer. Use them for behaviour, this page for counts.</li>
+          <li>Days are UTC, which is Ghana time all year.</li>
+        </ul>
+      </section>
+
+      <section class="card s12">
+        <div class="card-h"><div><div class="eyebrow">Product</div><h2 class="t">Voice, language and speed</h2></div></div>
+        <div class="kpis" id="product" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr))"></div>
+      </section>
+
+      <section class="card s12">
+        <details class="more" style="margin:0"><summary>What each number means</summary>
+          <div class="glossary" style="margin-top:12px">
+            <div><b>Weekly active recorders.</b> Different businesses that saved at least one record in the 7 days up to that day. The one number that says the notebook is being used.</div>
+            <div><b>New people.</b> Real phones seen for the first time in the range. A wiped browser counts as a new phone.</div>
+            <div><b>Activation.</b> Share of the new phones in the range that have saved at least one record.</div>
+            <div><b>Came back.</b> Businesses active in the range on a day after their first day.</div>
+            <div><b>Habit.</b> Businesses that recorded in the range and have recorded on two or more different days.</div>
+            <div><b>Cost per activated business.</b> Ad spend in the range divided by the new phones in the range that saved a record. Spend comes from the ledger you type in.</div>
+            <div><b>Change vs previous.</b> Against the same number of days just before the range. Below 5 on either side it shows the raw change, because percentages on tiny numbers mislead.</div>
+            <div><b>* on a change.</b> The previous range starts before launch, so it is only partly comparable.</div>
+            <div><b>Funnel.</b> Only the phones that arrived in the range, followed to today.</div>
+          </div>
+        </details>
+      </section>
+
+      <section class="card s12">
+        <details class="more" style="margin:0"><summary>Find someone's records (lost or broken phone)</summary>
+          <div class="grid" style="margin-top:12px">
+            <div class="s5" style="grid-column:span 5">
+              <div class="eyebrow" style="margin-bottom:6px">By Shop ID</div>
+              <p class="sub" style="margin:0 0 8px">Only works if they set a Shop ID. Most people never do, so use Browse.</p>
+              <div class="recover-row"><input id="recoverShopInput" type="text" placeholder="Shop ID, e.g. mama ama provisions" autocomplete="off"><button class="ibtn" id="recoverBtn">Look up</button></div>
+              <div id="recoverErr" class="gate-err-inline"></div>
+              <div id="recoverResults"></div>
+            </div>
+            <div class="s7" style="grid-column:span 7">
+              <div class="eyebrow" style="margin-bottom:6px">Browse recent backups</div>
+              <p class="sub" style="margin:0 0 8px">Every business that saved something in that time, with its last few records, so you can recognise whose it is. Real content: keep it private.</p>
+              <div class="recover-row">
+                <select id="browseDays"><option value="7">Last 7 days</option><option value="30" selected>Last 30 days</option><option value="90">Last 90 days</option><option value="365">Last year</option></select>
+                <button class="ibtn" id="browseBtn">Browse</button>
+              </div>
+              <div id="browseErr" class="gate-err-inline"></div>
+              <div id="browseResults"></div>
+            </div>
+          </div>
+        </details>
+      </section>
     </div>
-  </div>
-
-  <details class="tools">
-    <summary>Find someone's records (if a phone is lost or broken)</summary>
-    <div class="panel">
-      <h3>By Shop ID</h3>
-      <p class="note">Only works if they set a Shop ID. Most people never do - use "Browse" below instead.</p>
-      <div class="recover-row">
-        <input id="recoverShopInput" type="text" placeholder="Shop ID, e.g. mama ama provisions" autocomplete="off">
-        <button class="btn" id="recoverBtn">Look up</button>
-      </div>
-      <div id="recoverErr" class="gate-err-inline"></div>
-      <div id="recoverResults"></div>
-    </div>
-    <div class="panel">
-      <h3>Browse recent backups</h3>
-      <p class="note">Every business that saved something in that time, with its last few entries, so you can recognise whose it is. Real content - keep it private.</p>
-      <div class="recover-row">
-        <select id="browseDays">
-          <option value="7">Last 7 days</option>
-          <option value="30" selected>Last 30 days</option>
-          <option value="90">Last 90 days</option>
-          <option value="365">Last year</option>
-        </select>
-        <button class="btn" id="browseBtn">Browse</button>
-      </div>
-      <div id="browseErr" class="gate-err-inline"></div>
-      <div id="browseResults"></div>
-    </div>
-  </details>
-
-  <footer>
-    <span>"Today / this week / this month" = the last 24 h / 7 days / 30 days. Launch = 16 Sep 2026.</span>
-    <a href="admin-lab.html">Research view</a>
-  </footer>
-</div>
-
+  </main>
+  <footer><span id="footRange"></span><span><a href="admin-lab.html">Research view</a></span></footer>
 </div>
 
 <script>
 const API_BASE = 'https://countmy-api.boatengbobby.workers.dev';
 const KEY_STORAGE = 'countmy_admin_key';
-let statsData = null;
-let currentPeriod = 'week';
-
-const PERIOD_LABEL = { day: 'in the last 24 hours', week: 'in the last 7 days', month: 'in the last 30 days', all: 'since launch, 16 Sep 2026' };
-
-function fmtInt(n) { return (n || 0).toLocaleString('en-US'); }
+const THEME_STORAGE = 'countmy_admin_theme';
+const RANGE_STORAGE = 'countmy_admin_days';
+const DAY = 86400000;
+let OV = null, ST = null, SD = null, DAYS = 30;
+function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* private mode */ } }
+function lsDel(k) { try { localStorage.removeItem(k); } catch (e) { /* private mode */ } }
+const $ = id => document.getElementById(id);
+const fmt = n => (Math.round(Number(n) || 0)).toLocaleString('en-GB');
+const money = n => '£' + (Number(n) || 0).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const pct = (a, b, dp = 0) => b ? (100 * a / b).toFixed(dp) + '%' : '-';
 function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
-function showGateError(msg) { document.getElementById('gateErr').textContent = msg; }
+const isoDay = d => new Date(d * DAY).toISOString().slice(0, 10);
+const nice = iso => new Date(iso + 'T00:00:00Z').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' });
 
-async function loadStats(key) {
-  const res = await fetch(`${API_BASE}/admin/stats?key=${encodeURIComponent(key)}`);
-  if (res.status === 401) throw new Error('unauthorized');
-  if (!res.ok) throw new Error('failed to load (' + res.status + ')');
-  return res.json();
+// ---------- Theme ----------
+function applyTheme(t) {
+  if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t); else document.documentElement.removeAttribute('data-theme');
+  $('themeLbl').textContent = t === 'light' ? 'Light' : t === 'dark' ? 'Dark' : 'Auto';
 }
+applyTheme(lsGet(THEME_STORAGE) || 'auto');
+$('themeBtn').addEventListener('click', () => {
+  const next = { auto: 'light', light: 'dark', dark: 'auto' }[lsGet(THEME_STORAGE) || 'auto'];
+  lsSet(THEME_STORAGE, next); applyTheme(next);
+  if (OV) renderCharts();
+});
+const cssVar = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
 
-// Plain-English names for the raw source strings the app records.
+// ---------- Names ----------
 function sourceName(src) {
   const s = String(src || 'direct');
-  if (s === 'facebook/launch_b') return 'Facebook ad 1 (traffic)';
-  if (s === 'facebook/launch_b_leads') return 'Facebook ad 2 (leads)';
-  if (s === 'facebook/launch_book') return 'Facebook ad 3 (neutral, home test)';
-  if (s === 'facebook_group') return 'Facebook group post';
-  if (s === 'facebook') return 'Facebook (not from an ad)';
-  if (s === 'direct') return 'Typed the address, or unknown';
-  if (s === 'search') return 'Search engine';
-  if (s === 'shoppage') return "Someone's business page";
+  const fixed = {
+    'facebook/launch_b': 'Facebook ad 1 (traffic)', 'facebook/launch_b_leads': 'Facebook ad 2 (leads)',
+    'facebook/launch_book': 'Facebook ad 3 (neutral, home test)', facebook_group: 'Facebook group post',
+    facebook: 'Facebook, not from an ad', direct: 'Typed the address, or unknown', search: 'Search engine', shoppage: "Someone's business page"
+  };
+  if (fixed[s]) return fixed[s];
   if (s.startsWith('other:')) return 'Other website (' + s.slice(6) + ')';
   const i = s.indexOf('/');
   const head = i < 0 ? s : s.slice(0, i), tail = i < 0 ? '' : s.slice(i + 1);
-  const names = { whatsapp: 'WhatsApp', instagram: 'Instagram', tiktok: 'TikTok', twitter: 'X / Twitter', partner: 'Partner programme', radio: 'Radio', sms: 'SMS' };
-  const tails = { debt: 'debt reminder', backup: 'records they shared', eod: "today's summary", shop_page: 'business page link' };
+  const names = { whatsapp: 'WhatsApp', instagram: 'Instagram', tiktok: 'TikTok', twitter: 'X / Twitter', partner: 'Partner programme', radio: 'Radio', sms: 'SMS', facebook: 'Facebook' };
+  const tails = { debt: 'debt reminder', backup: 'records they shared', eod: "today's summary", shop_page: 'business page link', history: 'business history' };
   const base = names[head] || head.charAt(0).toUpperCase() + head.slice(1);
   return tail ? base + ' - ' + (tails[tail] || tail) : base;
 }
+const isPaid = src => /^facebook\/launch/.test(String(src));
 
-const EVENT_WORDS = {
-  iab_typed: 'Typed a record inside Facebook/Instagram', iab_example: 'Tapped the example inside Facebook/Instagram',
-  open: 'opened the page', iab: 'were inside the Facebook or Instagram browser',
-  iab_tap: 'tapped Open in Chrome (Android)', iab_tap_ios: 'tapped Open in Safari (iPhone)',
-  iab_auto: 'were sent to Chrome automatically (Android)', iab_escaped: 'arrived in Chrome from the Facebook browser (Android)', iab_stay: 'stayed in the Facebook browser (Android jump refused)',
-  iab_auto_ios: 'were sent to Safari automatically (iPhone)', iab_escaped_ios: 'arrived in Safari from the Facebook browser (iPhone)',
-  iab_mic_ok: 'microphone worked inside the Facebook browser', stt_browser: 'were heard by the phone\u2019s own recogniser (free)', stt_whisper: 'were heard by the server (Whisper, costs quota)', iab_note: 'recorded a voice note inside the Facebook browser',
-  tap: 'tapped a button (Sold, Spent, Owes me or Talk)', mic_denied: 'said no to the microphone', nomic: 'have no microphone in that browser',
-  mic_silent: 'tapped but nothing was heard', mic_timeout: 'waited too long for the voice server', mic_server: 'hit a voice server error',
-  mic_network: 'lost the connection mid-voice', busy: 'tapped while it was already working', empty: 'recorded nothing', silent: 'recorded silence',
-  timeout: 'timed out', server: 'server error', network: 'network error', save: 'saved a record', ask: 'asked a question',
-  sheet: 'opened a typed form', share_shop: 'shared a business page', voice_en: 'spoke English', voice_twi: 'spoke Twi', voice_pidgin: 'spoke Pidgin', voice_es: 'spoke Spanish',
-  remind: 'sent a WhatsApp reminder', install: 'installed it to the home screen', backup: 'backed up'
-};
-const EVENT_ORDER = ['open', 'iab', 'iab_typed', 'iab_example', 'iab_tap', 'iab_tap_ios', 'iab_auto', 'iab_escaped', 'iab_stay', 'iab_auto_ios', 'iab_escaped_ios', 'iab_mic_ok', 'iab_note', 'tap', 'stt_browser', 'stt_whisper', 'nomic', 'mic_denied', 'mic_silent', 'busy', 'mic_timeout', 'mic_server', 'mic_network', 'voice_en', 'voice_twi', 'voice_pidgin', 'voice_es', 'sheet', 'save', 'ask', 'remind', 'share_shop', 'install', 'backup'];
-function renderWeekEvents() {
-  const el = document.getElementById('weekEvents'); if (!el) return;
-  const rows = (statsData.weekEvents || []).filter(r => r.devices > 0);
-  if (!rows.length) { el.className = 'empty-note'; el.textContent = 'Nothing yet this week.'; return; }
-  const opened = (rows.find(r => r.event === 'open') || {}).devices || 0;
-  rows.sort((x, y) => { const ix = EVENT_ORDER.indexOf(x.event), iy = EVENT_ORDER.indexOf(y.event); return (ix < 0 ? 99 : ix) - (iy < 0 ? 99 : iy) || y.devices - x.devices; });
-  el.className = 'tw';
-  el.innerHTML = '<table><thead><tr><th>People</th><th>What they did</th><th>Share of openers</th></tr></thead><tbody>' + rows.map(r =>
-    `<tr><td>${fmtInt(r.devices)}</td><td>${esc(EVENT_WORDS[r.event] || r.event)}</td><td>${opened ? Math.round(100 * r.devices / opened) + '%' : ''}</td></tr>`).join('') + '</tbody></table>';
+// ---------- Data ----------
+async function getJSON(path) {
+  const key = lsGet(KEY_STORAGE);
+  const res = await fetch(API_BASE + path + (path.includes('?') ? '&' : '?') + 'key=' + encodeURIComponent(key), { cache: 'no-store' });
+  if (res.status === 401) throw new Error('unauthorized');
+  if (!res.ok) throw new Error('http ' + res.status);
+  return res.json();
 }
-function renderKpis() {
-  renderWeekEvents();
-  const p = (statsData.periods && statsData.periods[currentPeriod]) || { signups: 0, active: 0, entries: 0 };
-  const L = statsData.loop || {};
-  const label = PERIOD_LABEL[currentPeriod];
-  document.getElementById('kActive').textContent = fmtInt(p.active);
-  document.getElementById('kSignups').textContent = fmtInt(p.signups);
-  document.getElementById('kEntries').textContent = fmtInt(p.entries);
-  document.getElementById('kActiveSub').textContent = 'people, ' + label;
-  document.getElementById('kSignupsSub').textContent = 'their first time, ' + label;
-  document.getElementById('kEntriesSub').textContent = 'sales, costs and debts, ' + label + (p.notSaved ? ' - ' + fmtInt(p.notSaved) + ' more started but not saved' : '');
-  const back = (currentPeriod === 'day' || currentPeriod === 'week') ? L.returning7 : L.returning30;
-  document.getElementById('kBack').textContent = fmtInt(back);
-  document.getElementById('kBackSub').textContent = 'opened it on 2+ different days; last time within ' + ((currentPeriod === 'day' || currentPeriod === 'week') ? '7' : '30') + ' days (does not change with Today / Since launch)';
-
-  const rows = (statsData.sources || []).slice().sort((a, b) => b.devices - a.devices);
-  const pct = (n, d) => d ? `<span class="pct">${Math.round(100 * n / d)}%</span>` : '';
-  // "Best source" only when it means something: at least 3 records from that
-  // source, ranked by the share of its people who recorded, not raw count.
-  const eligible = rows.filter(r => r.activated >= 3);
-  const bestRec = eligible.length ? eligible.reduce((m, r) => (r.activated / r.devices > m.activated / m.devices ? r : m)) : null;
-  document.getElementById('srcBody').innerHTML = rows.length
-    ? rows.map(r => `<tr><td>${esc(sourceName(r.source))}</td><td>${fmtInt(r.devices)}</td><td>${fmtInt(r.week)}</td><td>${fmtInt(r.gh)}${pct(r.gh, r.devices)}</td><td class="${bestRec && r === bestRec ? 'best' : ''}">${fmtInt(r.activated)}${pct(r.activated, r.devices)}</td></tr>`).join('')
-    : '<tr><td colspan="5" class="empty-note">Nobody yet.</td></tr>';
-  const ads = rows.filter(r => /^facebook\//.test(r.source));
-  const adPeople = ads.reduce((s, r) => s + r.devices, 0), adRec = ads.reduce((s, r) => s + r.activated, 0);
-  const totalPeople = rows.reduce((s, r) => s + r.devices, 0), totalRec = rows.reduce((s, r) => s + r.activated, 0);
-  let v = `${fmtInt(totalPeople)} real people so far. ${fmtInt(totalRec)} of them made a record.`;
-  if (adPeople) v += ` From the Facebook ads: ${fmtInt(adPeople)} people, ${fmtInt(adRec)} made a record.`;
-  if (bestRec && rows.length > 1) v += ` Best source for records: ${sourceName(bestRec.source)} (${Math.round(100 * bestRec.activated / bestRec.devices)}% of its people recorded).`;
-  document.getElementById('verdict').textContent = rows.length ? v : '';
-  document.getElementById('verdict').style.display = rows.length ? '' : 'none';
-
-  document.getElementById('kShops').textContent = fmtInt(L.shops);
-  document.getElementById('kShopsL').textContent = 'pages made' + (L.shops7 ? ' - ' + fmtInt(L.shops7) + ' this week' : '');
-  document.getElementById('kShared').textContent = fmtInt(L.sharedEver);
-  document.getElementById('kSharedL').textContent = 'people who shared theirs' + (L.shared7 ? ' - ' + fmtInt(L.shared7) + ' this week' : '');
-  document.getElementById('kShopViews').textContent = fmtInt(L.shopViews);
+// Only the newest load may touch the page: a slow earlier request (a range
+// switch, a double Refresh) must never overwrite a newer result, or an old
+// failure hide a dashboard that has already loaded.
+let loadSeq = 0;
+async function load() {
+  const my = ++loadSeq;
+  $('live').classList.remove('stale');
+  $('updated').textContent = 'Loading';
+  const [ov, st, sd] = await Promise.allSettled([getJSON('/admin/overview?days=' + DAYS), getJSON('/admin/stats'), getJSON('/admin/source-daily?days=30')]);
+  if (my !== loadSeq) return false;
+  if (ov.status === 'rejected') throw ov.reason;
+  OV = ov.value; ST = st.status === 'fulfilled' ? st.value : null; SD = sd.status === 'fulfilled' ? sd.value : null;
+  render();
+  return true;
 }
 
-// Small dependency-free SVG line chart, last 30 days, three series.
-function renderChart() {
-  const d = statsData.daily || { signups: {}, active: {}, entries: {} };
-  const DAY = 86400000, days = 30, today = Math.floor(Date.now() / DAY);
-  const dates = [];
-  for (let i = days - 1; i >= 0; i--) dates.push(new Date((today - i) * DAY).toISOString().slice(0, 10));
-  // Drawn back to front: blue (used it) is always >= green (new), so green
-  // goes on top or it would be hidden whenever the two are equal.
-  const series = [
-    { data: d.active, color: 'var(--steel)', w: 4 },
-    { data: d.entries, color: 'var(--flame)', w: 2.5 },
-    { data: d.signups, color: 'var(--leaf)', w: 2.5 }
-  ];
-  const el = document.getElementById('chartDaily');
-  const any = series.some(s => dates.some(x => (s.data || {})[x]));
-  if (!any) { el.innerHTML = '<div class="empty-note">Nothing in the last 30 days yet.</div>'; return; }
-  const W = 860, H = 220, padL = 34, padR = 10, padT = 12, padB = 26;
-  const innerW = W - padL - padR, innerH = H - padT - padB;
-  let maxV = 1;
-  series.forEach(s => dates.forEach(x => { maxV = Math.max(maxV, (s.data || {})[x] || 0); }));
-  const X = i => padL + (i / (dates.length - 1)) * innerW;
-  const Y = v => padT + innerH - (v / maxV) * innerH;
-  let svg = `<svg viewBox="0 0 ${W} ${H}" width="100%" style="display:block">`;
-  for (let g = 0; g <= 2; g++) { const gy = padT + (innerH / 2) * g; svg += `<line x1="${padL}" y1="${gy}" x2="${W - padR}" y2="${gy}" stroke="var(--rule)"/>`; }
-  svg += `<text x="4" y="${padT + 4}" font-size="10">${fmtInt(maxV)}</text><text x="4" y="${padT + innerH + 4}" font-size="10">0</text>`;
-  series.forEach(s => {
-    const pts = dates.map((x, i) => [X(i), Y((s.data || {})[x] || 0)]);
-    svg += `<path d="${pts.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' ')}" fill="none" stroke="${s.color}" stroke-width="${s.w}" stroke-linecap="round" stroke-linejoin="round"/>`;
-    pts.forEach((p, i) => { const v = (s.data || {})[dates[i]]; if (v) svg += `<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="3.5" fill="${s.color}"><title>${dates[i]}: ${v}</title></circle>`; });
+// Window slices of the daily series: the current range is the last DAYS
+// entries, the previous range the DAYS before that.
+function cur(name) { const a = OV.series[name]; return a.slice(a.length - OV.days); }
+function prevSlice(name) { const a = OV.series[name]; return a.slice(a.length - 2 * OV.days, a.length - OV.days); }
+function seriesDates() { const d0 = Math.floor(Date.parse(OV.series.from + 'T00:00:00Z') / DAY); const n = OV.series.newp.length; return Array.from({ length: n }, (_, i) => isoDay(d0 + i)); }
+function spendIn(from, to) { return (OV.spend || []).filter(r => r.day >= from && (!to || r.day < to)).reduce((t, r) => t + r.amount, 0); }
+
+// Delta chip. Below 5 on either side the raw change is shown - a percentage
+// on 2 vs 1 is noise dressed up as a trend.
+function delta(now, before, opts = {}) {
+  const { pp = false, lowerIsBetter = false, money: m = false } = opts;
+  // The previous range starts before launch (16 Sep 2026): nothing to compare.
+  if (OV && OV.range.prevFrom < '2026-09-16' && !(OV.prev.newp || OV.prev.active || OV.prev.records)) return { cls: '', txt: 'no earlier data' };
+  if (OV && OV.range.prevFrom < '2026-09-16') opts.partial = true;
+  if (now == null || before == null || (isNaN(now) || isNaN(before))) return { cls: '', txt: 'no previous data' };
+  const diff = now - before;
+  if (Math.abs(diff) < 1e-9) return { cls: '', txt: 'no change' };
+  const good = lowerIsBetter ? diff < 0 : diff > 0;
+  const arrow = diff > 0 ? '▲' : '▼';
+  let txt;
+  if (pp) txt = arrow + ' ' + Math.abs(diff).toFixed(1) + ' pts';
+  else if (m) txt = arrow + ' ' + money(Math.abs(diff));
+  else if (before < 5 || now < 5) txt = arrow + ' ' + (diff > 0 ? '+' : '-') + fmt(Math.abs(diff));
+  else txt = arrow + ' ' + Math.round(100 * Math.abs(diff) / before) + '%';
+  return { cls: good ? 'up' : 'down', txt: txt + (opts.partial ? '*' : '') };
+}
+
+// ---------- Charts (dependency-free SVG) ----------
+function sparkline(vals, color) {
+  const W = 160, H = 30, n = vals.length; if (!n) return '';
+  const max = Math.max(1, ...vals);
+  const X = i => n === 1 ? W : (i / (n - 1)) * W, Y = v => H - 2 - (v / max) * (H - 5);
+  const pts = vals.map((v, i) => X(i).toFixed(1) + ',' + Y(v).toFixed(1));
+  const id = 'g' + Math.random().toString(36).slice(2, 8);
+  return `<svg class="spark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true"><defs><linearGradient id="${id}" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="${color}" stop-opacity=".22"/><stop offset="1" stop-color="${color}" stop-opacity="0"/></linearGradient></defs><path d="M0,${H} L${pts.join(' L')} L${W},${H} Z" fill="url(#${id})"/><polyline points="${pts.join(' ')}" fill="none" stroke="${color}" stroke-width="1.6" vector-effect="non-scaling-stroke" stroke-linejoin="round"/><circle cx="${X(n - 1)}" cy="${Y(vals[n - 1])}" r="2.4" fill="${color}"/></svg>`;
+}
+// Line/area chart with a hover crosshair. series: [{name, vals, color, area, bars}]
+function lineChart(el, dates, series, opts = {}) {
+  const W = Math.max(320, el.clientWidth || 800), H = opts.h || 220, pL = 34, pR = 12, pT = 12, pB = 24;
+  const iW = W - pL - pR, iH = H - pT - pB, n = dates.length;
+  const vis = series.filter(s => !s.off);
+  let max = 1; vis.forEach(s => s.vals.forEach(v => { max = Math.max(max, v); }));
+  const step = max <= 5 ? 1 : Math.pow(10, Math.floor(Math.log10(max))) * (max / Math.pow(10, Math.floor(Math.log10(max))) > 5 ? 2 : 1);
+  max = Math.ceil(max / step) * step;
+  const X = i => pL + (n === 1 ? iW : (i / (n - 1)) * iW), Y = v => pT + iH - (v / max) * iH;
+  const bw = Math.max(2, Math.min(18, iW / n * 0.55));
+  let g = '';
+  for (let t = 0; t <= max; t += step) { const y = Y(t).toFixed(1); g += `<line x1="${pL}" x2="${W - pR}" y1="${y}" y2="${y}" stroke="${cssVar('--rule')}" stroke-width="1"/><text x="${pL - 8}" y="${+y + 3}" text-anchor="end">${fmt(t)}</text>`; if (max / step > 6) t += step; }
+  const every = Math.ceil(n / Math.max(4, Math.floor(iW / 70)));
+  dates.forEach((d, i) => { if ((i % every === 0 && n - 1 - i >= every * 0.6) || i === n - 1) g += `<text x="${X(i).toFixed(1)}" y="${H - 6}" text-anchor="middle">${nice(d)}</text>`; });
+  vis.filter(s => s.bars).forEach(s => { s.vals.forEach((v, i) => { if (v) g += `<rect x="${(X(i) - bw / 2).toFixed(1)}" y="${Y(v).toFixed(1)}" width="${bw.toFixed(1)}" height="${(pT + iH - Y(v)).toFixed(1)}" rx="2" fill="${s.color}" opacity=".35"/>`; }); });
+  vis.filter(s => !s.bars).forEach((s, si) => {
+    const pts = s.vals.map((v, i) => X(i).toFixed(1) + ',' + Y(v).toFixed(1));
+    if (s.area) { const id = 'a' + si + Math.random().toString(36).slice(2, 7); g += `<defs><linearGradient id="${id}" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="${s.color}" stop-opacity=".25"/><stop offset="1" stop-color="${s.color}" stop-opacity="0"/></linearGradient></defs><path d="M${X(0)},${pT + iH} L${pts.join(' L')} L${X(n - 1)},${pT + iH} Z" fill="url(#${id})"/>`; }
+    g += `<polyline points="${pts.join(' ')}" fill="none" stroke="${s.color}" stroke-width="${s.w || 2}" stroke-linejoin="round" stroke-linecap="round"/>`;
+    g += `<circle cx="${X(n - 1).toFixed(1)}" cy="${Y(s.vals[n - 1]).toFixed(1)}" r="3.5" fill="${s.color}" stroke="${cssVar('--surface')}" stroke-width="2"/>`;
   });
-  dates.forEach((x, i) => { if (i % 5 === 0 || i === dates.length - 1) svg += `<text x="${X(i).toFixed(1)}" y="${H - 8}" font-size="10" text-anchor="middle">${x.slice(8)}/${x.slice(5, 7)}</text>`; });
-  el.innerHTML = svg + '</svg>';
+  el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(opts.label || 'chart')}">${g}<line class="xh" x1="0" x2="0" y1="${pT}" y2="${pT + iH}" stroke="${cssVar('--rule-strong')}" stroke-dasharray="3 3" opacity="0"/><rect x="${pL}" y="${pT}" width="${iW}" height="${iH}" fill="transparent"/></svg><div class="tip"></div>`;
+  const svg = el.querySelector('svg'), tip = el.querySelector('.tip'), xh = el.querySelector('.xh');
+  const move = ev => {
+    const r = svg.getBoundingClientRect(); const cx = ((ev.touches ? ev.touches[0].clientX : ev.clientX) - r.left) * (W / r.width);
+    const i = Math.max(0, Math.min(n - 1, Math.round((cx - pL) / (iW / Math.max(1, n - 1)))));
+    xh.setAttribute('x1', X(i)); xh.setAttribute('x2', X(i)); xh.setAttribute('opacity', 1);
+    tip.innerHTML = `<div style="margin-bottom:3px;opacity:.75">${nice(dates[i])}</div>` + vis.map(s => `<div><i style="background:${s.color}"></i>${esc(s.name)} <b>${fmt(s.vals[i])}</b></div>`).join('');
+    const px = X(i) * r.width / W; tip.style.left = Math.max(70, Math.min(r.width - 70, px)) + 'px'; tip.style.top = (pT * r.height / H) + 'px'; tip.style.opacity = 1;
+  };
+  svg.addEventListener('mousemove', move); svg.addEventListener('touchstart', move, { passive: true }); svg.addEventListener('touchmove', move, { passive: true });
+  svg.addEventListener('mouseleave', () => { tip.style.opacity = 0; xh.setAttribute('opacity', 0); });
 }
 
-function setPeriod(period) {
-  currentPeriod = period;
-  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.period === period));
+// ---------- Render ----------
+const ACT = [
+  { key: 'active', name: 'People who used it', color: '--steel' },
+  { key: 'newp', name: 'New people', color: '--navy' },
+  { key: 'recorders', name: 'Businesses that recorded', color: '--flame' },
+  { key: 'records', name: 'Records saved', color: '--flame', bars: true }
+];
+let actOff = new Set(['records']);
+let cohMode = 'active';
+
+function render() {
+  const c = OV.cur, p = OV.prev, days = OV.days;
+  const updated = new Date(OV.generatedAt);
+  $('updated').textContent = 'Updated ' + updated.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+  $('footRange').textContent = nice(OV.range.from) + ' to ' + nice(OV.range.to) + ' (' + days + ' days), compared with the ' + days + ' days before. Launch: 16 Sep 2026. Worker ' + OV.wv + '.';
+
+  // North star
+  $('nsVal').textContent = fmt(c.war_end);
+  const nd = delta(c.war_end, p.war_end);
+  $('nsDelta').className = 'delta ' + nd.cls; $('nsDelta').textContent = nd.txt === 'no earlier data' ? nd.txt : nd.txt + ' vs ' + days + ' days ago';
+  $('nsSub').textContent = fmt(c.recorders) + ' different businesses recorded in the last ' + days + ' days';
+
+  // Today
+  const L = OV.series.newp.length - 1;
+  $('todayDate').textContent = new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short', timeZone: 'UTC' });
+  $('tNew').textContent = fmt(OV.series.newp[L]); $('tActive').textContent = fmt(OV.series.active[L]);
+  $('tRecorders').textContent = fmt(OV.series.recorders[L]); $('tRecords').textContent = fmt(OV.series.records[L]);
+  const h = OV.health;
+  const ago = ts => { if (!ts) return 'never'; const m = Math.round((Date.now() - ts) / 60000); return m < 1 ? 'just now' : m < 60 ? m + ' min ago' : m < 1440 ? Math.round(m / 60) + ' h ago' : Math.round(m / 1440) + ' days ago'; };
+  $('lastSeen').textContent = 'Last visit ' + ago(h.lastEvent);
+  const stale = h.lastEvent && Date.now() - h.lastEvent > 6 * 3600000;
+  $('live').classList.toggle('stale', !!stale);
+  $('todayChips').innerHTML = `<span class="chip">Last record ${ago(h.lastEntry)}</span><span class="chip">${fmt(h.events24h)} actions in 24 h</span>`;
+
+  renderKpis();
+  renderFunnel();
+  renderTests();
+  renderSources();
+  renderCohorts();
+  renderHealth();
+  renderProduct();
+  renderWeekEvents();
+  renderInsights();
+  renderCharts();
+}
+
+function renderCharts() {
+  const dates = seriesDates().slice(-OV.days);
+  lineChart($('nsChart'), dates, [
+    { name: 'Weekly active recorders', vals: cur('war'), color: cssVar('--flame'), area: true, w: 2.5 },
+    { name: 'Recorded that day', vals: cur('recorders'), color: cssVar('--flame'), bars: true }
+  ], { h: 190, label: 'Weekly active recorders' });
+  $('actLegend').innerHTML = ACT.map(s => `<button type="button" data-k="${s.key}" aria-pressed="${!actOff.has(s.key)}"><i style="background:var(${s.color})${s.bars ? ';opacity:.45' : ''}"></i>${s.name}</button>`).join('');
+  $('actLegend').querySelectorAll('button').forEach(b => b.addEventListener('click', () => { const k = b.dataset.k; actOff.has(k) ? actOff.delete(k) : actOff.add(k); renderCharts(); }));
+  lineChart($('actChart'), dates, ACT.map(s => ({ name: s.name, vals: cur(s.key), color: cssVar(s.color), bars: s.bars, off: actOff.has(s.key), w: s.key === 'active' ? 2.5 : 2 })), { h: 240, label: 'Daily activity' });
   renderKpis();
 }
 
-// Tests (25 Sep): Book vs Today home screen (brand-new phones, 50/50) and
-// the neutral paid ad. Data: /admin/source-daily, real people only.
+function renderKpis() {
+  const c = OV.cur, p = OV.prev;
+  const spendCur = spendIn(OV.range.from), spendPrev = spendIn(OV.range.prevFrom, OV.range.from);
+  const act = c.newp ? 100 * c.activated_cohort / c.newp : null, actP = p.newp ? 100 * p.activated_cohort / p.newp : null;
+  const cpa = c.activated_cohort ? spendCur / c.activated_cohort : null, cpaP = p.activated_cohort ? spendPrev / p.activated_cohort : null;
+  const K = [
+    { l: 'New people', v: fmt(c.newp), d: delta(c.newp, p.newp), s: fmt(c.gh) + ' in Ghana (' + pct(c.gh, c.newp) + ')', sp: cur('newp'), col: '--navy', info: 'Real phones seen for the first time in the range.' },
+    { l: 'Activation', v: act == null ? '-' : act.toFixed(1) + '%', d: act == null || actP == null ? { cls: '', txt: 'no earlier data' } : delta(act, actP, { pp: true }), s: fmt(c.activated_cohort) + ' of ' + fmt(c.newp) + ' saved a record', sp: cur('activated'), col: '--flame', info: 'Share of new phones in the range that saved at least one record.' },
+    { l: 'Records saved', v: fmt(c.records), d: delta(c.records, p.records), s: c.recorders ? (c.records / c.recorders).toFixed(1) + ' per recording business' : 'none yet', sp: cur('records'), col: '--flame', info: 'Sales, costs and debts saved in the range.' },
+    { l: 'Came back', v: fmt(c.returning), d: delta(c.returning, p.returning), s: 'active on a later day than their first', sp: cur('returning'), col: '--steel', info: 'Businesses active in the range on a day after their first day.' },
+    { l: 'Habit', v: fmt(c.habit), d: delta(c.habit, p.habit), s: 'recorded on 2+ different days', sp: cur('recorders'), col: '--up', info: 'Businesses that recorded in the range and have recorded on two or more different days.' },
+    { l: 'Cost per activated', v: !spendCur ? '-' : cpa == null ? '∞' : money(cpa), d: !spendCur && !spendPrev ? { cls: '', txt: 'no ad spend' } : cpa == null || cpaP == null ? { cls: '', txt: spendCur ? money(spendCur) + ' spent, none activated' : 'no spend in range' } : delta(cpa, cpaP, { money: true, lowerIsBetter: true }), s: money(spendCur) + ' ad spend in range', sp: null, col: '--warn', info: 'Ad spend in the range divided by new phones in the range that saved a record.' }
+  ];
+  $('kpis').innerHTML = K.map(k => `<div class="card kpi"><div class="k-l"><span>${k.l}</span><span class="info" title="${esc(k.info)}">?</span></div><div class="k-v">${k.v}</div><span class="delta ${k.d.cls}">${k.d.txt}</span>${k.sp ? sparkline(k.sp, cssVar(k.col)) : '<div class="spark"></div>'}<div class="k-s">${esc(k.s)}</div></div>`).join('');
+}
+
+function renderFunnel() {
+  const c = OV.cur;
+  const steps = [
+    ['Arrived', c.newp], ['Tapped a button', c.tapped], ['Saved a first record', c.activated_cohort],
+    ['Came back another day', c.came_back], ['Recorded on 2+ days', c.habit_cohort], ['Asked CountMy a question', c.asked_cohort]
+  ];
+  let worst = -1, worstRate = 2;
+  for (let i = 1; i < 4; i++) { const r = steps[i - 1][1] ? steps[i][1] / steps[i - 1][1] : 1; if (steps[i - 1][1] >= 5 && r < worstRate) { worstRate = r; worst = i; } }
+  const top = Math.max(1, steps[0][1]);
+  $('funnel').innerHTML = steps.map((s, i) => `<div class="fs${i === worst ? ' leak' : ''}"><div class="n">${s[0]}</div><div class="bar"><span style="width:${(100 * s[1] / top).toFixed(1)}%"></span></div><div class="v">${fmt(s[1])}</div>${i ? `<div class="conv">${pct(s[1], steps[i - 1][1], 1)} of the step before${i === worst ? ' - the biggest leak' : ''} · ${pct(s[1], top, 1)} of arrivals</div>` : ''}</div>`).join('');
+  $('funSub').textContent = 'Phones that arrived ' + nice(OV.range.from) + ' to ' + nice(OV.range.to);
+  $('funChips').innerHTML = `<span class="chip">${pct(c.in_app, c.newp)} opened inside Facebook or Instagram</span><span class="chip">${pct(c.gh, c.newp)} in Ghana</span><span class="chip">${pct(c.mobile, c.newp)} on a phone</span><span class="chip">${fmt(c.installed_cohort)} added it to the home screen</span>`;
+}
+
+// Tests: Fisher's exact test on "saved a record", pre-set rules (25 Sep).
 function fisherP(a, b, c, d) {
   const lf = n => { let t = 0; for (let i = 2; i <= n; i++) t += Math.log(i); return t; };
   const n = a + b + c + d, r1 = a + b, c1 = a + c;
@@ -368,152 +631,270 @@ function fisherP(a, b, c, d) {
   for (let x = Math.max(0, c1 - (n - r1)); x <= Math.min(r1, c1); x++) { const px = p(x); if (px <= p0 * 1.0000001) tot += px; }
   return Math.min(1, tot);
 }
-async function renderTests(key) {
-  const box = document.getElementById('testsBox');
-  let rows = [];
-  try {
-    const r = await fetch(API_BASE + '/admin/source-daily?days=30&key=' + encodeURIComponent(key));
-    rows = (await r.json()).rows || [];
-  } catch (e) { box.textContent = 'Could not load the test numbers.'; return; }
+function renderTests() {
+  const box = $('tests');
+  if (!SD) { box.innerHTML = '<div class="empty">Could not load the test numbers.</div>'; return; }
+  const rows = SD.rows || [];
   const design = v => /book$/.test(v) ? 'book' : /today$/.test(v) ? 'today' : null;
-  const paid = src => /^facebook\/launch/.test(src);
   const z = () => ({ dev: 0, iab: 0, tap: 0, saved: 0 });
+  const add = (a, r) => { a.dev += r.devices; a.iab += r.in_app; a.tap += r.tapped; a.saved += r.saved; };
   const arms = { book: { all: z(), paid: z(), org: z() }, today: { all: z(), paid: z(), org: z() } };
-  rows.forEach(r => { const d = design(r.ver); if (!d) return; for (const k of ['all', paid(r.source) ? 'paid' : 'org']) { const a = arms[d][k]; a.dev += r.devices; a.iab += r.in_app; a.tap += r.tapped; a.saved += r.saved; } });
-  const pct = (x, n) => n ? Math.round(x / n * 100) + '%' : '-';
-  const line = (label, a) => '<tr><td>' + label + '</td><td>' + a.dev + '</td><td>' + a.iab + '</td><td>' + a.tap + ' (' + pct(a.tap, a.dev) + ')</td><td><b>' + a.saved + ' (' + pct(a.saved, a.dev) + ')</b></td></tr>';
+  rows.forEach(r => { const d = design(r.ver); if (!d) return; add(arms[d].all, r); add(arms[d][isPaid(r.source) ? 'paid' : 'org'], r); });
   const B = arms.book.all, T = arms.today.all;
   const p = (B.dev && T.dev) ? fisherP(B.saved, B.dev - B.saved, T.saved, T.dev - T.saved) : 1;
-  const deadline = new Date('2026-10-02T23:59:00Z');
-  const ready = (B.dev >= 100 && T.dev >= 100) || Date.now() > deadline.getTime();
-  let verdict;
-  if (!ready) verdict = 'Too early to call. Needs 100 new phones on each design, or 2 Oct. So far: Book ' + B.dev + ', Today ' + T.dev + '.';
-  else if (p < 0.1) verdict = (B.saved / B.dev > T.saved / T.dev ? 'BOOK' : 'TODAY') + ' wins (chance it is luck: ' + Math.round(p * 1000) / 10 + '%).';
-  else verdict = 'No real difference (chance it is luck: ' + Math.round(p * 1000) / 10 + '%). Rule: keep the Book.';
+  const ready = (B.dev >= 100 && T.dev >= 100) || Date.now() > Date.parse('2026-10-02T23:59:00Z');
+  let pill, verdict;
+  if (!ready) { pill = '<span class="st run">Collecting</span>'; verdict = 'Too early to call. Decides at 100 new phones per design, or on 2 Oct.'; }
+  else if (p < 0.1) { const w = B.saved / B.dev > T.saved / T.dev ? 'Book' : 'Today'; pill = `<span class="st win">${w} wins</span>`; verdict = w + ' saves more (chance it is luck: ' + (p * 100).toFixed(1) + '%).'; }
+  else { pill = '<span class="st warn">No difference</span>'; verdict = 'No real difference (chance it is luck: ' + (p * 100).toFixed(1) + '%). Rule: keep the Book.'; }
+  const maxRate = Math.max(0.01, B.dev ? B.saved / B.dev : 0, T.dev ? T.saved / T.dev : 0);
+  const arm = (name, a) => `<div class="arm"><span>${name}</span><div class="bar"><span style="width:${a.dev ? (100 * (a.saved / a.dev) / maxRate).toFixed(1) : 0}%"></span></div><span class="v">${a.saved}/${a.dev} · ${pct(a.saved, a.dev)}</span></div>`;
+  const prog = Math.min(100, Math.min(B.dev, T.dev));
+  // Ad 3
   const ad = rows.filter(r => r.source === 'facebook/launch_book');
-  const byDay = {};
-  ad.forEach(r => { const a = byDay[r.day] || (byDay[r.day] = z()); a.dev += r.devices; a.iab += r.in_app; a.tap += r.tapped; a.saved += r.saved; });
-  const adTot = Object.values(byDay).reduce((t, a) => ({ dev: t.dev + a.dev, iab: t.iab + a.iab, tap: t.tap + a.tap, saved: t.saved + a.saved }), z());
-  const adVerdict = adTot.saved >= 3 ? 'Passing: 3+ records - keep it.' : (Date.now() > new Date('2026-09-28T11:00:00Z').getTime() ? (adTot.saved === 0 ? 'Ended with 0 records - switch to the Records (Leads) ad at £10/day.' : 'Ended with ' + adTot.saved + ' record(s) - between the two rules; look at cost per record.') : 'Running until Mon 28 Sep 12:00. Rule: 3+ records = keep; 0 = switch to the Records ad.');
-  const head = '<thead><tr><th></th><th>New phones</th><th>In Facebook browser</th><th>Tapped</th><th>Saved a record</th></tr></thead>';
+  const at = z(); ad.forEach(r => add(at, r));
+  const ended = Date.now() > Date.parse('2026-09-28T11:00:00Z');
+  let adPill, adVerdict;
+  if (at.saved >= 3) { adPill = '<span class="st win">Passing</span>'; adVerdict = '3+ businesses saved a record. Rule: keep it.'; }
+  else if (!ended) { adPill = '<span class="st run">Running</span>'; adVerdict = 'Until Mon 28 Sep 12:00. Rule: 3+ records keep it; 0 switch to the Records (Leads) ad at £10/day.'; }
+  else if (at.saved === 0) { adPill = '<span class="st lose">Failed</span>'; adVerdict = 'Ended with 0 records. Rule: switch to the Records (Leads) ad at £10/day.'; }
+  else { adPill = '<span class="st warn">In between</span>'; adVerdict = 'Ended with ' + at.saved + ' record(s). Judge on cost per activated business.'; }
+  const adSpend = (OV.spend || []).filter(r => r.source === 'facebook/launch_book').reduce((t, r) => t + r.amount, 0);
   box.innerHTML =
-    '<p><b>1. Home screen: Book vs Today</b> (new phones since 25 Sep, split 50/50)</p>' +
-    '<div class="tw"><table>' + head + '<tbody>' + line('Book - all', B) + line('Today - all', T) + line('Book - from ads', arms.book.paid) + line('Today - from ads', arms.today.paid) + line('Book - not from ads', arms.book.org) + line('Today - not from ads', arms.today.org) + '</tbody></table></div>' +
-    '<p class="verdict">' + esc(verdict) + '</p>' +
-    '<p><b>2. Facebook ad 3 (neutral image, £5/day, 25-28 Sep)</b></p>' +
-    '<div class="tw"><table>' + head.replace('<th></th>', '<th>Day (UTC)</th>') + '<tbody>' + Object.keys(byDay).sort().map(d => line(d, byDay[d])).join('') + line('Total', adTot) + '</tbody></table></div>' +
-    '<p class="verdict">' + esc(adVerdict) + '</p>';
+    `<div class="exp"><div class="exp-h"><b>Home screen: Book vs Today</b>${pill}</div>
+      <div class="sub" style="margin-bottom:6px">Brand-new phones split 50/50. Saved a record:</div>
+      ${arm('Book', B)}${arm('Today', T)}
+      <div class="rule">From ads: Book ${arms.book.paid.saved}/${arms.book.paid.dev}, Today ${arms.today.paid.saved}/${arms.today.paid.dev} · Not from ads: Book ${arms.book.org.saved}/${arms.book.org.dev}, Today ${arms.today.org.saved}/${arms.today.org.dev}</div>
+      <div class="rule">${esc(verdict)}</div>
+      <div class="progress" title="${Math.min(B.dev, T.dev)} of 100 phones on the smaller side"><span style="width:${prog}%"></span></div></div>
+     <div class="exp"><div class="exp-h"><b>Facebook ad 3 (neutral image)</b>${adPill}</div>
+      <div class="today four">
+        <div><div class="v">${at.dev}</div><div class="l">phones</div></div>
+        <div><div class="v">${pct(at.iab, at.dev)}</div><div class="l">in FB browser</div></div>
+        <div><div class="v">${at.tap}</div><div class="l">tapped</div></div>
+        <div><div class="v">${at.saved}</div><div class="l">saved</div></div>
+      </div>
+      <div class="rule">${esc(adVerdict)}${adSpend ? ' Spent ' + money(adSpend) + (at.saved ? ', ' + money(adSpend / at.saved) + ' per business that saved.' : '.') : ' Add its spend below to see cost per business.'}</div></div>`;
 }
 
-async function boot(key) {
+let srcSort = { k: 'people', dir: -1 };
+function renderSources() {
+  const rows = (OV.sources || []).map(r => ({ ...r, name: sourceName(r.source), act: r.people ? r.activated / r.people : 0, cpp: r.spend && r.people ? r.spend / r.people : null, cpa: r.spend ? (r.activated ? r.spend / r.activated : Infinity) : null }));
+  const tot = rows.reduce((t, r) => { ['people', 'gh', 'in_app', 'tapped', 'activated', 'came_back', 'spend'].forEach(k => { t[k] += r[k]; }); return t; }, { people: 0, gh: 0, in_app: 0, tapped: 0, activated: 0, came_back: 0, spend: 0 });
+  const k = srcSort.k;
+  rows.sort((a, b) => { const x = a[k], y = b[k]; if (typeof x === 'string') return srcSort.dir * x.localeCompare(y); return srcSort.dir * (((x == null ? -1 : x) === Infinity ? 1e9 : (x == null ? -1 : x)) - ((y == null ? -1 : y) === Infinity ? 1e9 : (y == null ? -1 : y))); });
+  const cols = [['name', 'Source'], ['people', 'People'], ['gh', 'In Ghana'], ['in_app', 'In FB browser'], ['tapped', 'Tapped'], ['activated', 'Saved a record'], ['came_back', 'Came back'], ['spend', 'Spend'], ['cpp', 'Per person'], ['cpa', 'Per activated']];
+  const cell = (n, d) => `${fmt(n)}<span class="p">${pct(n, d)}</span>`;
+  const bestAct = Math.max(0, ...rows.filter(r => r.people >= 10).map(r => r.act));
+  $('srcTable').innerHTML = '<thead><tr>' + cols.map(([key, label]) => `<th data-k="${key}"${key === k ? ` aria-sort="${srcSort.dir < 0 ? 'descending' : 'ascending'}"` : ''}>${label}</th>`).join('') + '</tr></thead><tbody>' +
+    (rows.length ? rows.map(r => `<tr><td class="src">${esc(r.name)}<small>${esc(r.source)}</small></td><td>${fmt(r.people)}</td><td>${cell(r.gh, r.people)}</td><td>${cell(r.in_app, r.people)}</td><td>${cell(r.tapped, r.people)}</td><td${r.people >= 10 && r.act === bestAct && bestAct > 0 ? ' style="font-weight:700"' : ''}>${cell(r.activated, r.people)}<span class="minibar"><span style="width:${(100 * r.act).toFixed(0)}%"></span></span></td><td>${cell(r.came_back, r.people)}</td><td>${r.spend ? money(r.spend) : '<span class="p">-</span>'}</td><td>${r.cpp == null ? '<span class="p">-</span>' : money(r.cpp)}</td><td class="${r.cpa === Infinity ? 'c-bad' : ''}">${r.cpa == null ? '<span class="p">-</span>' : r.cpa === Infinity ? 'none yet' : money(r.cpa)}</td></tr>`).join('') : '<tr><td colspan="10" class="empty">Nobody in this range yet.</td></tr>') +
+    `</tbody><tfoot><tr class="tot"><td>All sources</td><td>${fmt(tot.people)}</td><td>${cell(tot.gh, tot.people)}</td><td>${cell(tot.in_app, tot.people)}</td><td>${cell(tot.tapped, tot.people)}</td><td>${cell(tot.activated, tot.people)}</td><td>${cell(tot.came_back, tot.people)}</td><td>${tot.spend ? money(tot.spend) : '-'}</td><td>${tot.spend && tot.people ? money(tot.spend / tot.people) : '-'}</td><td>${tot.spend ? (tot.activated ? money(tot.spend / tot.activated) : 'none yet') : '-'}</td></tr></tfoot>`;
+  $('srcTable').querySelectorAll('th').forEach(th => th.addEventListener('click', () => { const key = th.dataset.k; srcSort = { k: key, dir: srcSort.k === key ? -srcSort.dir : (key === 'name' ? 1 : -1) }; renderSources(); }));
+  const paid = rows.filter(r => isPaid(r.source)), paidP = paid.reduce((t, r) => t + r.people, 0), paidA = paid.reduce((t, r) => t + r.activated, 0);
+  $('srcSub').textContent = 'New phones ' + nice(OV.range.from) + ' to ' + nice(OV.range.to) + ' · paid ' + fmt(paidP) + ' (' + fmt(paidA) + ' saved) · organic ' + fmt(tot.people - paidP) + ' (' + fmt(tot.activated - paidA) + ' saved)';
+  // Spend form + ledger
+  const known = Array.from(new Set(['facebook/launch_book', 'facebook/launch_b', 'facebook/launch_b_leads', ...(OV.sources || []).filter(r => isPaid(r.source)).map(r => r.source), ...(OV.spend || []).map(r => r.source)]));
+  const sel = $('spSource'); const was = sel.value;
+  sel.innerHTML = known.map(s => `<option value="${esc(s)}">${esc(sourceName(s))}</option>`).join('');
+  if (was && known.includes(was)) sel.value = was;
+  if (!$('spDay').value) $('spDay').value = new Date().toISOString().slice(0, 10);
+  const led = OV.spend || [];
+  $('ledger').innerHTML = led.length ? '<table><thead><tr><th>Day</th><th>Source</th><th>Amount</th><th>Note</th></tr></thead><tbody>' + led.slice().reverse().map(r => `<tr><td>${esc(r.day)}</td><td>${esc(sourceName(r.source))}</td><td>${money(r.amount)}</td><td style="text-align:left">${esc(r.note)}</td></tr>`).join('') + `</tbody><tfoot><tr class="tot"><td>Total</td><td></td><td>${money(led.reduce((t, r) => t + r.amount, 0))}</td><td></td></tr></tfoot></table>` : '<div class="empty">No spend entered yet.</div>';
+}
+
+function renderCohorts() {
+  const cs = OV.cohorts || [];
+  if (!cs.length) { $('cohorts').innerHTML = '<div class="empty">No cohorts yet.</div>'; return; }
+  const maxW = Math.max(...cs.map(c => c.active.length));
+  const heat = cssVar('--heat');
+  $('cohorts').innerHTML = '<table class="coh"><thead><tr><th style="text-align:left">Arrived week of</th><th>Phones</th>' + Array.from({ length: maxW }, (_, w) => `<th>Week ${w}</th>`).join('') + '</tr></thead><tbody>' +
+    cs.map(c => '<tr><td>' + nice(c.week) + '</td><td>' + fmt(c.size) + '</td>' + Array.from({ length: maxW }, (_, w) => {
+      const v = c[cohMode][w]; if (v == null) return '<td></td>';
+      const r = c.size ? v / c.size : 0;
+      return `<td class="c" style="background:rgba(${heat},${(0.08 + 0.85 * Math.min(1, r * 2)).toFixed(2)});color:${r > 0.3 ? '#fff' : 'var(--ink)'}" title="${v} of ${c.size}">${(100 * r).toFixed(0)}%</td>`;
+    }).join('') + '</tr>').join('') + '</tbody></table>';
+}
+
+function renderHealth() {
+  const h = OV.health, t = (ST && ST.test) || {};
+  const fresh = h.lastEvent && Date.now() - h.lastEvent < 6 * 3600000;
+  const pill = $('healthPill');
+  pill.className = 'st ' + (fresh ? 'win' : 'warn'); pill.textContent = fresh ? 'Flowing' : 'Quiet';
+  const dc = (h.dcTop || []).map(r => r.org + ' ' + r.n).join(', ');
+  $('health').innerHTML = [
+    ['Last visit recorded', h.lastEvent ? new Date(h.lastEvent).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : 'never', fresh ? 'c-ok' : 'c-wn'],
+    ['Real people, all time', fmt(h.people), ''],
+    ['Records, all time', fmt(h.recordsAll) + (h.notSavedAll ? ' (+' + fmt(h.notSavedAll) + ' abandoned)' : ''), ''],
+    ['Crawlers and ad reviewers left out', fmt(h.dcDevices), ''],
+    ['Test phones left out', fmt(h.testDevices) + (t.entries ? ' (' + fmt(t.entries) + ' test records)' : ''), ''],
+    ['Server version', OV.wv, '']
+  ].map(([k, v, cls]) => `<dt>${k}</dt><dd class="${cls}">${esc(v)}</dd>`).join('') + (dc ? `<dt style="grid-column:1/3;font-size:.74rem;color:var(--muted)">Left out: ${esc(dc)}</dt>` : '');
+}
+
+function renderProduct() {
+  const el = $('product');
+  if (!ST) { el.innerHTML = '<div class="empty">Could not load.</div>'; return; }
+  const tm = ST.timing || {};
+  const sec = ms => ms == null ? '-' : ms < 60000 ? Math.round(ms / 1000) + 's' : (ms / 60000).toFixed(1) + ' min';
+  const sp = ST.spoken || [];
+  const spokenTotal = sp.reduce((t, r) => t + r.entries, 0);
+  const langName = { en: 'English', twi: 'Twi', pidgin: 'Pidgin', es: 'Spanish' };
+  const cards = [
+    ['Time to first tap', sec(tm.tapMedianMs), 'median of ' + fmt(tm.tapN) + ' people'],
+    ['Time to first record', sec(tm.recordMedianMs), 'median of ' + fmt(tm.recordN) + ' people'],
+    ['Voice records', fmt(spokenTotal), sp.map(r => (langName[r.lang] || r.lang) + ' ' + pct(r.entries, spokenTotal)).join(' · ') || 'none yet'],
+    ['Asked CountMy', fmt((ST.loop || {}).asked), 'different businesses, all time'],
+    ['Business pages', fmt((ST.loop || {}).shops), fmt((ST.loop || {}).shopViews) + ' page views'],
+    ['Shared their page', fmt((ST.loop || {}).sharedEver), fmt((ST.loop || {}).shared7) + ' this week']
+  ];
+  el.innerHTML = cards.map(([l, v, s]) => `<div class="kpi" style="background:var(--surface-2);border-radius:12px"><div class="k-l"><span>${l}</span></div><div class="k-v" style="font-size:1.45rem">${v}</div><div class="k-s">${esc(s)}</div></div>`).join('');
+}
+
+const EVENT_WORDS = {
+  open: 'opened the page', iab: 'were inside the Facebook or Instagram browser', iab_typed: 'typed a record inside Facebook/Instagram', iab_example: 'tapped the example inside Facebook/Instagram',
+  iab_tap: 'tapped Open in Chrome (Android)', iab_tap_ios: 'tapped Open in Safari (iPhone)', iab_auto: 'were sent to Chrome automatically', iab_escaped: 'arrived in Chrome from the Facebook browser',
+  iab_stay: 'stayed in the Facebook browser', iab_auto_ios: 'were sent to Safari automatically', iab_escaped_ios: 'arrived in Safari from the Facebook browser', iab_mic_ok: 'microphone worked inside Facebook',
+  stt_browser: "were heard by the phone's own recogniser (free)", stt_whisper: 'were heard by the server', iab_note: 'recorded a voice note inside Facebook',
+  tap: 'tapped a button (Sold, Spent, Owes me or Talk)', mic_denied: 'said no to the microphone', mic_nomic: 'have no microphone in that browser', mic_silent: 'tapped but nothing was heard',
+  mic_timeout: 'waited too long for the voice server', mic_server: 'hit a voice server error', mic_network: 'lost the connection mid-voice', mic_busy: 'tapped while it was already working', mic_empty: 'recorded nothing',
+  save: 'saved a record', ask: 'asked a question', share_shop: 'shared a business page', shop_created: 'made a business page',
+  voice_en: 'spoke English', voice_twi: 'spoke Twi', voice_pidgin: 'spoke Pidgin', voice_es: 'spoke Spanish', install: 'installed it to the home screen'
+};
+const EVENT_ORDER = ['open', 'iab', 'iab_typed', 'iab_example', 'iab_tap', 'iab_tap_ios', 'iab_auto', 'iab_escaped', 'iab_stay', 'iab_auto_ios', 'iab_escaped_ios', 'iab_mic_ok', 'iab_note', 'tap', 'stt_browser', 'stt_whisper', 'mic_nomic', 'mic_denied', 'mic_silent', 'mic_busy', 'mic_empty', 'mic_timeout', 'mic_server', 'mic_network', 'voice_en', 'voice_twi', 'voice_pidgin', 'voice_es', 'save', 'ask', 'share_shop', 'shop_created', 'install'];
+function renderWeekEvents() {
+  const el = $('weekEvents');
+  const rows = ((ST && ST.weekEvents) || []).filter(r => r.devices > 0);
+  if (!rows.length) { el.innerHTML = '<div class="empty">Nothing yet this week.</div>'; return; }
+  const opened = (rows.find(r => r.event === 'open') || {}).devices || 0;
+  rows.sort((x, y) => { const ix = EVENT_ORDER.indexOf(x.event), iy = EVENT_ORDER.indexOf(y.event); return (ix < 0 ? 99 : ix) - (iy < 0 ? 99 : iy) || y.devices - x.devices; });
+  el.innerHTML = '<table style="margin-top:8px"><thead><tr><th>What they did</th><th>People</th><th>Of openers</th></tr></thead><tbody>' + rows.map(r => `<tr><td>${esc(EVENT_WORDS[r.event] || r.event)}</td><td>${fmt(r.devices)}</td><td>${opened ? pct(r.devices, opened) : ''}</td></tr>`).join('') + '</tbody></table>';
+}
+
+// Insights: plain statements computed from the numbers above, never opinion.
+function renderInsights() {
+  const c = OV.cur, p = OV.prev, out = [];
+  const steps = [['Arrived', c.newp], ['tapped a button', c.tapped], ['saved a first record', c.activated_cohort], ['came back another day', c.came_back]];
+  let worst = null; for (let i = 1; i < steps.length; i++) { if (steps[i - 1][1] >= 5) { const r = steps[i][1] / steps[i - 1][1]; if (!worst || r < worst.r) worst = { r, from: steps[i - 1], to: steps[i] }; } }
+  if (worst) out.push({ cls: 'bad', t: `Biggest leak: of ${fmt(worst.from[1])} who ${worst.from[0] === 'Arrived' ? 'arrived' : worst.from[0]}, ${fmt(worst.to[1])} ${worst.to[0]} (${pct(worst.to[1], worst.from[1])}).` });
+  if (c.newp >= 10 && c.in_app / c.newp > 0.6) out.push({ cls: 'warn', t: `${pct(c.in_app, c.newp)} of new phones opened CountMy inside Facebook or Instagram's own browser, where voice often fails.` });
+  const paid = (OV.sources || []).filter(r => isPaid(r.source) && r.spend > 0);
+  const burn = paid.filter(r => r.activated === 0);
+  if (burn.length) out.push({ cls: 'bad', t: `${money(burn.reduce((t, r) => t + r.spend, 0))} spent on ${burn.map(r => sourceName(r.source)).join(', ')} with no business saving a record yet.` });
+  const best = (OV.sources || []).filter(r => r.people >= 10).sort((a, b) => b.activated / b.people - a.activated / a.people)[0];
+  if (best && best.activated) out.push({ cls: 'good', t: `Best source for activation: ${sourceName(best.source)}, ${pct(best.activated, best.people)} of its ${fmt(best.people)} people saved a record.` });
+  if (c.recorders) out.push({ cls: c.habit / c.recorders < 0.25 ? 'bad' : 'good', t: `${fmt(c.habit)} of the ${fmt(c.recorders)} businesses that recorded have recorded on 2+ different days. A notebook is only useful if it is used again.` });
+  const d = delta(c.war_end, p.war_end);
+  if (d.txt !== 'no earlier data') out.push({ cls: d.cls === 'up' ? 'good' : d.cls === 'down' ? 'bad' : '', t: `Weekly active recorders: ${fmt(c.war_end)} today, ${fmt(p.war_end)} on ${nice(isoDay(Math.floor(Date.now() / DAY) - OV.days))}.` });
+  $('insights').innerHTML = out.slice(0, 4).map(i => `<div class="ins ${i.cls}"><span class="dot"></span><span>${esc(i.t)}</span></div>`).join('');
+}
+
+// ---------- CSV ----------
+function csvCell(v) { const x = String(v == null ? '' : v); return /[",\n\r]/.test(x) ? '"' + x.replace(/"/g, '""') + '"' : x; }
+function downloadCsv() {
+  if (!OV) return;
+  const dates = seriesDates();
+  const S = OV.series;
+  const lines = [['date', 'new_people', 'activated', 'active', 'came_back', 'businesses_recorded', 'records', 'weekly_active_recorders', 'weekly_active_users'].join(',')];
+  dates.forEach((d, i) => lines.push([d, S.newp[i], S.activated[i], S.active[i], S.returning[i], S.recorders[i], S.records[i], S.war[i], S.wau[i]].join(',')));
+  lines.push('');
+  lines.push(['source', 'people', 'in_ghana', 'in_fb_browser', 'tapped', 'activated', 'came_back', 'spend_gbp'].join(','));
+  (OV.sources || []).forEach(r => lines.push([r.source, r.people, r.gh, r.in_app, r.tapped, r.activated, r.came_back, r.spend].map(csvCell).join(',')));
+  const url = URL.createObjectURL(new Blob(['﻿' + lines.join('\n') + '\n'], { type: 'text/csv;charset=utf-8' }));
+  const a = document.createElement('a'); a.href = url; a.download = 'countmy-owner-' + OV.range.to + '-' + OV.days + 'd.csv';
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 5000);
+}
+
+// ---------- Wiring ----------
+async function boot() {
+  const my = loadSeq + 1;
   try {
-    statsData = await loadStats(key);
+    if (!(await load())) return;
+    $('gate').hidden = true; $('dash').hidden = false;
+    renderCharts();
   } catch (err) {
-    if (err.message === 'unauthorized') localStorage.removeItem(KEY_STORAGE);
-    document.getElementById('gate').style.display = '';
-    document.getElementById('dash').style.display = 'none';
-    showGateError(err.message === 'unauthorized' ? 'Wrong key.' : 'Could not reach the server - check your connection and try again.');
-    return;
+    if (my !== loadSeq) return;
+    if (err.message === 'unauthorized') lsDel(KEY_STORAGE);
+    $('dash').hidden = true; $('gate').hidden = false;
+    $('gateErr').textContent = err.message === 'unauthorized' ? 'Wrong key.' : 'Could not reach the server. Check the connection and try again.';
   }
-  document.getElementById('gate').style.display = 'none';
-  document.getElementById('dash').style.display = '';
-  document.getElementById('refreshedAt').textContent = 'Updated ' + new Date(statsData.generatedAt).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
-  renderKpis();
-  renderChart();
-  renderTests(key);
 }
-
-document.getElementById('unlockBtn').addEventListener('click', () => {
-  const key = document.getElementById('keyInput').value.trim();
-  if (!key) return;
-  localStorage.setItem(KEY_STORAGE, key);
-  boot(key);
+$('unlockBtn').addEventListener('click', () => { const k = $('keyInput').value.trim(); if (!k) return; lsSet(KEY_STORAGE, k); boot(); });
+$('keyInput').addEventListener('keydown', e => { if (e.key === 'Enter') $('unlockBtn').click(); });
+$('refreshBtn').addEventListener('click', () => boot());
+$('csvBtn').addEventListener('click', downloadCsv);
+$('range').querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
+  DAYS = Number(b.dataset.days); lsSet(RANGE_STORAGE, String(DAYS));
+  $('range').querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+  boot();
+}));
+$('cohMode').querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
+  cohMode = b.dataset.m; $('cohMode').querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', String(x === b))); renderCohorts();
+}));
+$('spendForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const msg = $('spMsg'); msg.textContent = 'Saving';
+  try {
+    const res = await fetch(API_BASE + '/admin/spend?key=' + encodeURIComponent(lsGet(KEY_STORAGE)), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ day: $('spDay').value, source: $('spSource').value, amount: Number($('spAmt').value), note: $('spNote').value }) });
+    const j = await res.json();
+    if (!res.ok) { msg.textContent = j.error || 'Could not save.'; return; }
+    OV.spend = j.spend.map(r => ({ ...r, amount: Number(r.amount) || 0 }));
+    const from = OV.range.from;
+    (OV.sources || []).forEach(r => { r.spend = OV.spend.filter(s => s.source === r.source && s.day >= from).reduce((t, s) => t + s.amount, 0); });
+    OV.spend.filter(s => s.day >= from && !(OV.sources || []).some(r => r.source === s.source)).forEach(s => OV.sources.push({ source: s.source, people: 0, gh: 0, in_app: 0, tapped: 0, activated: 0, came_back: 0, habit: 0, spend: s.amount }));
+    $('spAmt').value = ''; $('spNote').value = '';
+    msg.textContent = 'Saved.';
+    render();
+  } catch (err) { msg.textContent = 'Could not reach the server.'; }
 });
-document.getElementById('keyInput').addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('unlockBtn').click(); });
-document.getElementById('refreshBtn').addEventListener('click', () => { const key = localStorage.getItem(KEY_STORAGE); if (key) boot(key); });
-document.querySelectorAll('.tab').forEach(t => t.addEventListener('click', () => setPeriod(t.dataset.period)));
+let rt; window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => { if (OV) renderCharts(); }, 150); });
 
-// ---- Recovery tools (unchanged behaviour) ----
+// ---------- Recovery tools (unchanged behaviour) ----------
 const TYPE_LABEL = { sale: 'Sale', expense: 'Expense', debt_in: 'Customer owes', debt_out: 'Owed to supplier' };
-function fmtCedis(n) { return fmtInt(Math.round(Number(n) || 0)) + ' cedis'; }
+function fmtCedis(n) { return fmt(n) + ' cedis'; }
 function entryLine(e) {
   const label = TYPE_LABEL[e.type] || e.type;
   const when = new Date(e.ts).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
   const qty = e.type === 'sale' && e.qty ? `${e.qty} x ` : '';
   return `${label}: ${qty}${e.item || ''}${e.note ? ' - ' + e.note : ''} - ${fmtCedis(e.amount)} (${when})${e.deleted ? ' [deleted on phone]' : ''}`;
 }
-async function lookupShop(params, key) {
-  const errEl = document.getElementById('recoverErr');
-  const resEl = document.getElementById('recoverResults');
-  errEl.textContent = '';
-  resEl.innerHTML = 'Looking up...';
-  resEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+async function lookupShop(params) {
+  const errEl = $('recoverErr'), resEl = $('recoverResults'), key = lsGet(KEY_STORAGE);
+  errEl.textContent = ''; resEl.innerHTML = 'Looking up...';
   try {
     const qs = params.shopHash ? `shopHash=${encodeURIComponent(params.shopHash)}` : `shop=${encodeURIComponent(params.shop)}`;
     const res = await fetch(`${API_BASE}/admin/entries?key=${encodeURIComponent(key)}&${qs}`);
     if (res.status === 401) { errEl.textContent = 'Wrong key.'; resEl.innerHTML = ''; return; }
     if (!res.ok) { errEl.textContent = 'Could not reach the server - try again.'; resEl.innerHTML = ''; return; }
-    const data = await res.json();
-    const entries = data.entries || [];
-    if (!entries.length) { resEl.innerHTML = '<div class="empty-note">Nothing backed up yet for that shop.</div>'; return; }
-    resEl.innerHTML = entries.map(e => `
-      <div class="recover-entry${e.deleted ? ' is-deleted' : ''}${e.status === 'not_saved' ? ' is-not-saved' : ''}">
-        <div class="re-top"><span>${esc(TYPE_LABEL[e.type] || e.type)}${e.deleted ? ' (deleted on phone)' : ''}${e.status === 'not_saved' ? ' (started, not saved)' : ''}</span><span>${fmtCedis(e.amount)}</span></div>
-        <div>${esc(e.item || '')}${e.note ? ' - ' + esc(e.note) : ''}</div>
-        <div class="re-meta">${new Date(e.ts).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</div>
-      </div>`).join('') + `<button class="btn recover-copy-btn" id="recoverCopyBtn">Copy all as text (paste into WhatsApp)</button>`;
-    document.getElementById('recoverCopyBtn').addEventListener('click', () => {
-      const text = entries.filter(e => e.status !== 'not_saved').map(entryLine).join('\n');
-      navigator.clipboard.writeText(text).then(() => {
-        document.getElementById('recoverCopyBtn').textContent = 'Copied!';
-        setTimeout(() => { document.getElementById('recoverCopyBtn').textContent = 'Copy all as text (paste into WhatsApp)'; }, 1500);
-      });
+    const entries = (await res.json()).entries || [];
+    if (!entries.length) { resEl.innerHTML = '<div class="empty">Nothing backed up yet for that shop.</div>'; return; }
+    resEl.innerHTML = entries.map(e => `<div class="recover-entry${e.deleted ? ' is-deleted' : ''}"><div class="re-top"><span>${esc(TYPE_LABEL[e.type] || e.type)}${e.deleted ? ' (deleted on phone)' : ''}${e.status === 'not_saved' ? ' (started, not saved)' : ''}</span><span>${fmtCedis(e.amount)}</span></div><div>${esc(e.item || '')}${e.note ? ' - ' + esc(e.note) : ''}</div><div class="re-meta">${new Date(e.ts).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</div></div>`).join('') + '<button class="ibtn" id="recoverCopyBtn" style="width:100%;justify-content:center">Copy all as text (paste into WhatsApp)</button>';
+    $('recoverCopyBtn').addEventListener('click', () => {
+      navigator.clipboard.writeText(entries.filter(e => e.status !== 'not_saved').map(entryLine).join('\n')).then(() => { $('recoverCopyBtn').textContent = 'Copied'; setTimeout(() => { $('recoverCopyBtn').textContent = 'Copy all as text (paste into WhatsApp)'; }, 1500); });
     });
-  } catch (err) {
-    errEl.textContent = 'Could not reach the server - try again.';
-    resEl.innerHTML = '';
-  }
+    resEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  } catch (err) { errEl.textContent = 'Could not reach the server - try again.'; resEl.innerHTML = ''; }
 }
-document.getElementById('recoverBtn').addEventListener('click', () => {
-  const shop = document.getElementById('recoverShopInput').value.trim();
-  const key = localStorage.getItem(KEY_STORAGE);
-  if (!shop || !key) return;
-  lookupShop({ shop }, key);
-});
-document.getElementById('recoverShopInput').addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('recoverBtn').click(); });
-async function browseRecent(days, key) {
-  const errEl = document.getElementById('browseErr');
-  const resEl = document.getElementById('browseResults');
-  errEl.textContent = '';
-  resEl.innerHTML = 'Loading...';
+$('recoverBtn').addEventListener('click', () => { const shop = $('recoverShopInput').value.trim(); if (shop) lookupShop({ shop }); });
+$('recoverShopInput').addEventListener('keydown', e => { if (e.key === 'Enter') $('recoverBtn').click(); });
+async function browseRecent(days) {
+  const errEl = $('browseErr'), resEl = $('browseResults'), key = lsGet(KEY_STORAGE);
+  errEl.textContent = ''; resEl.innerHTML = 'Loading...';
   try {
     const res = await fetch(`${API_BASE}/admin/entries/recent?key=${encodeURIComponent(key)}&days=${encodeURIComponent(days)}`);
     if (res.status === 401) { errEl.textContent = 'Wrong key.'; resEl.innerHTML = ''; return; }
     if (!res.ok) { errEl.textContent = 'Could not reach the server - try again.'; resEl.innerHTML = ''; return; }
-    const data = await res.json();
-    const shops = data.shops || [];
-    if (!shops.length) { resEl.innerHTML = '<div class="empty-note">No backups in that window.</div>'; return; }
-    resEl.innerHTML = shops.map(s => `
-      <div class="browse-shop">
-        <div class="browse-shop-head">
-          <span>${s.total} entr${s.total === 1 ? 'y' : 'ies'} - last active ${new Date(s.lastSeen).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
-          <code>${esc(String(s.shopHash || '').slice(0, 10))}</code>
-        </div>
-        ${s.preview.map(p => `<div class="browse-preview-line">${esc(TYPE_LABEL[p.type] || p.type)}: ${esc(p.item || '')}${p.note ? ' - ' + esc(p.note) : ''} - ${fmtCedis(p.amount)}${p.deleted ? ' (deleted on phone)' : ''}${p.status === 'not_saved' ? ' (started, not saved)' : ''}</div>`).join('')}
-        <button class="btn browse-use-btn" data-hash="${esc(s.shopHash)}">See all entries for this one</button>
-      </div>`).join('');
-    resEl.querySelectorAll('.browse-use-btn').forEach(btn => btn.addEventListener('click', () => lookupShop({ shopHash: btn.dataset.hash }, localStorage.getItem(KEY_STORAGE))));
-  } catch (err) {
-    errEl.textContent = 'Could not reach the server - try again.';
-    resEl.innerHTML = '';
-  }
+    const shops = (await res.json()).shops || [];
+    if (!shops.length) { resEl.innerHTML = '<div class="empty">No backups in that window.</div>'; return; }
+    resEl.innerHTML = shops.map(s => `<div class="browse-shop"><div class="browse-shop-head"><span>${s.total} entr${s.total === 1 ? 'y' : 'ies'} - last active ${new Date(s.lastSeen).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span><code>${esc(String(s.shopHash || '').slice(0, 10))}</code></div>${s.preview.map(p => `<div class="browse-preview-line">${esc(TYPE_LABEL[p.type] || p.type)}: ${esc(p.item || '')}${p.note ? ' - ' + esc(p.note) : ''} - ${fmtCedis(p.amount)}${p.deleted ? ' (deleted on phone)' : ''}${p.status === 'not_saved' ? ' (started, not saved)' : ''}</div>`).join('')}<button class="ibtn browse-use-btn" style="margin-top:8px" data-hash="${esc(s.shopHash)}">See all records for this one</button></div>`).join('');
+    resEl.querySelectorAll('.browse-use-btn').forEach(btn => btn.addEventListener('click', () => lookupShop({ shopHash: btn.dataset.hash })));
+  } catch (err) { errEl.textContent = 'Could not reach the server - try again.'; resEl.innerHTML = ''; }
 }
-document.getElementById('browseBtn').addEventListener('click', () => {
-  const key = localStorage.getItem(KEY_STORAGE);
-  if (key) browseRecent(document.getElementById('browseDays').value, key);
-});
+$('browseBtn').addEventListener('click', () => browseRecent($('browseDays').value));
 
-(function init() { const saved = localStorage.getItem(KEY_STORAGE); if (saved) boot(saved); })();
+(function init() {
+  const d = Number(lsGet(RANGE_STORAGE)); if ([7, 30, 90].includes(d)) { DAYS = d; $('range').querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', String(Number(x.dataset.days) === d))); }
+  if (lsGet(KEY_STORAGE)) boot(); else $('gate').hidden = false;
+})();
 </script>
 </body>
 </html>
