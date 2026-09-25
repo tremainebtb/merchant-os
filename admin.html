@@ -452,6 +452,8 @@ function sourceName(src) {
     facebook: 'Facebook, not from an ad', direct: 'Typed the address, or unknown', search: 'Search engine', shoppage: "Someone's business page"
   };
   if (fixed[s]) return fixed[s];
+  // Records (Leads) ad from 25 Sep: facebook/launch_leads_book.<placement>
+  if (s.indexOf('facebook/launch_leads_book') === 0) { const pl = s.slice('facebook/launch_leads_book'.length + 1); return 'Facebook ad 4 (records, Book image)' + (pl ? ' - ' + pl.replace(/_/g, ' ') : ''); }
   if (s.startsWith('other:')) return 'Other website (' + s.slice(6) + ')';
   const i = s.indexOf('/');
   const head = i < 0 ? s : s.slice(0, i), tail = i < 0 ? '' : s.slice(i + 1);

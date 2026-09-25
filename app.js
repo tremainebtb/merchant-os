@@ -4753,7 +4753,11 @@ async function restoreFromKey() {
             : 'other:' + clean(h).slice(0, 24);
         }
       }
-      localStorage.setItem('kym_source', (src || 'direct') + (camp ? '/' + camp : ''));
+      // 25 Sep: the ad link carries Meta's placement (utm_content={{placement}},
+      // e.g. Facebook_Mobile_Reels). Kept on the campaign so the dashboard can
+      // tell which placements bring people who actually tap and save.
+      const placement = clean(u.get('utm_content'));
+      localStorage.setItem('kym_source', (src || 'direct') + (camp ? '/' + camp + (placement && src === 'facebook' ? '.' + placement : '') : ''));
     }
   } catch (e) { /* optional */ }
   console.info('CountMy ' + window.KYM_VERSION);
