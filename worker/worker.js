@@ -729,6 +729,31 @@ async function handleAdminTts(request, env) {
   return cors(new Response(await r.arrayBuffer(), { headers: { 'Content-Type': r.headers.get('content-type') || 'audio/mpeg' } }));
 }
 
+// Owner-only English voice (25 Sep) for fixed clips shipped with the app
+// (first-screen explainer). Workers AI, same account as Whisper. Returns mp3.
+async function handleAdminTtsEn(request, env) {
+  const url = new URL(request.url);
+  const key = url.searchParams.get('key') || '';
+  if (!env.ADMIN_KEY || key !== env.ADMIN_KEY) return cors(new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401 }));
+  let body = {}; try { body = await request.json(); } catch (e) { /* empty */ }
+  const text = String(body.text || '').trim().slice(0, 600);
+  if (!text) return cors(new Response(JSON.stringify({ error: 'no text' }), { status: 400 }));
+  const model = String(body.model || '@cf/myshell-ai/melotts');
+  try {
+    if (model.indexOf('melotts') >= 0) {
+      const out = await env.AI.run(model, { prompt: text, lang: 'en' });
+      const b64 = out && (out.audio || out.result && out.result.audio);
+      if (!b64) return cors(new Response(JSON.stringify({ error: 'no audio', keys: Object.keys(out || {}) }), { status: 502, headers: { 'Content-Type': 'application/json' } }));
+      const bin = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+      return cors(new Response(bin, { headers: { 'Content-Type': 'audio/mpeg' } }));
+    }
+    const out = await env.AI.run(model, { text, speaker: String(body.speaker || 'asteria'), encoding: 'mp3' }, { returnRawResponse: true });
+    return cors(new Response(out.body, { headers: { 'Content-Type': 'audio/mpeg' } }));
+  } catch (e) {
+    return cors(new Response(JSON.stringify({ error: String(e).slice(0, 300) }), { status: 502, headers: { 'Content-Type': 'application/json' } }));
+  }
+}
+
 async function handleAdminAsrBench(request, env) {
   const url = new URL(request.url);
   const key = url.searchParams.get('key') || '';
@@ -1546,7 +1571,7 @@ async function handleTranscribe(request, env) {
 // 50 is a transcription/parsing error, not a fabrication) - evidence-checking
 // targets fabrication specifically, not every possible error; the review UI is
 // still what catches a wrong-but-grounded number.
-const WORKER_VERSION = 'w113';
+const WORKER_VERSION = 'w114';
 
 // Spanish (Venezuela) twin of EXTRACT_SYSTEM_PROMPT below: same event types,
 // same {value, evidence} rule, same JSON-only answer. Amounts are bare
@@ -3412,6 +3437,7 @@ export default {
       else if (path === '/admin/purge-test' && request.method === 'POST') adminResp = await handleAdminPurgeTest(request, env);
       else if (path === '/admin/asr-bench' && request.method === 'POST') adminResp = await handleAdminAsrBench(request, env);
       else if (path === '/admin/tts' && request.method === 'POST') adminResp = await handleAdminTts(request, env);
+      else if (path === '/admin/tts-en' && request.method === 'POST') adminResp = await handleAdminTtsEn(request, env);
       else if (path === '/admin/source-daily' && request.method === 'GET') adminResp = await handleAdminSourceDaily(request, env);
       else if (path === '/admin/overview' && request.method === 'GET') adminResp = await handleAdminOverview(request, env);
       else if (path === '/admin/spend' && request.method === 'POST') adminResp = await handleAdminSpend(request, env);
