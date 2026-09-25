@@ -693,6 +693,33 @@ async function handleAdminMarkTest(request, env) {
   return cors(new Response(JSON.stringify({ hash: h.slice(0, 8) + '...', flagged: out }), { headers: { 'Content-Type': 'application/json' } }));
 }
 
+// Owner-only journeys (25 Sep): for each real phone that arrived since ?hours
+// ago (optionally whose source starts with ?source=), the ORDER and timing of
+// what it did - event names and seconds after arrival - plus the SHAPE of its
+// records (type, whether a word was added, amount band). Never the words,
+// names or amounts themselves; ids are cut to 6 characters.
+async function handleAdminJourneys(request, env) {
+  const url = new URL(request.url);
+  if (!env.ADMIN_KEY || (url.searchParams.get('key') || '') !== env.ADMIN_KEY) return cors(new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401 }));
+  await ensureTestSchema(env);
+  const hours = Math.min(168, Math.max(1, parseInt(url.searchParams.get('hours') || '24', 10) || 24));
+  const src = String(url.searchParams.get('source') || '').toLowerCase().replace(/[^a-z0-9_./:-]/g, '').slice(0, 60);
+  const since = Date.now() - hours * 3600000;
+  const devs = (await env.COUNTMY_DB.prepare("SELECT device_hash AS h, source, first_ts AS f, COALESCE(first_ver,'') AS v, COALESCE(country,'') AS c, saved_ts AS s FROM people_devices WHERE first_ts >= ? AND source LIKE ? ORDER BY first_ts DESC LIMIT 80").bind(since, src + '%').all()).results || [];
+  const out = [];
+  for (const d of devs) {
+    const ev = (await env.COUNTMY_DB.prepare('SELECT event_type AS e, ts FROM live_events WHERE shop_hash = ? ORDER BY ts LIMIT 200').bind(d.h).all()).results || [];
+    const en = (await env.COUNTMY_DB.prepare("SELECT type, item, note, amount, ts, status FROM live_entries WHERE shop_hash = ? ORDER BY ts LIMIT 100").bind(d.h).all()).results || [];
+    const generic = /^(sale|spent|venta|gasto|)$/i;
+    out.push({
+      id: d.h.slice(0, 6), source: d.source, ver: d.v, country: d.c, arrived: new Date(d.f).toISOString(),
+      events: ev.map(x => x.e + '@' + Math.round((x.ts - d.f) / 1000) + 's'),
+      records: en.map(x => ({ type: x.type, status: x.status, words: !generic.test(String(x.item || '').trim()) || !!x.note, band: Number(x.amount) < 20 ? '<20' : Number(x.amount) < 100 ? '20-99' : Number(x.amount) < 500 ? '100-499' : '500+', at: Math.round((x.ts - d.f) / 1000) + 's' }))
+    });
+  }
+  return cors(new Response(JSON.stringify({ hours, source: src, n: out.length, journeys: out }), { headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } }));
+}
+
 async function handleRestore(request, env) {
   if (!env.COUNTMY_DB) return cors(new Response(JSON.stringify({ error: 'not configured' }), { status: 503 }));
   let body = {};
@@ -1701,7 +1728,7 @@ async function handleTranscribe(request, env) {
 // targets fabrication specifically, not every possible error; the review UI is
 // still what catches a wrong-but-grounded number.
 // w116: listen_tw / listen_en accepted by /ping (first-screen listen buttons).
-const WORKER_VERSION = 'w119';
+const WORKER_VERSION = 'w120';
 
 // Spanish (Venezuela) twin of EXTRACT_SYSTEM_PROMPT below: same event types,
 // same {value, evidence} rule, same JSON-only answer. Amounts are bare
@@ -3577,6 +3604,7 @@ export default {
       else if (path === '/admin/tts-en' && request.method === 'POST') adminResp = await handleAdminTtsEn(request, env);
       else if (path === '/admin/push-test' && request.method === 'POST') adminResp = await handleAdminPushTest(request, env);
       else if (path === '/admin/mark-test' && request.method === 'POST') adminResp = await handleAdminMarkTest(request, env);
+      else if (path === '/admin/journeys' && request.method === 'GET') adminResp = await handleAdminJourneys(request, env);
       else if (path === '/admin/source-daily' && request.method === 'GET') adminResp = await handleAdminSourceDaily(request, env);
       else if (path === '/admin/overview' && request.method === 'GET') adminResp = await handleAdminOverview(request, env);
       else if (path === '/admin/spend' && request.method === 'POST') adminResp = await handleAdminSpend(request, env);
