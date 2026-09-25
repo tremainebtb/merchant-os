@@ -577,7 +577,9 @@ function render() {
   renderProduct();
   renderWeekEvents();
   renderInsights();
-  renderCharts();
+  // Charts are sized from their container, so they are drawn only once the
+  // dashboard is visible (a hidden box measures 0 wide).
+  if (!$('dash').hidden) renderCharts();
 }
 
 function renderCharts() {
