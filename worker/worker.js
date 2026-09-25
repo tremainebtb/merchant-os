@@ -728,6 +728,28 @@ async function handleAdminAsrBench(request, env) {
   return cors(new Response(JSON.stringify({ n: out.length, meanWer: { whisper: avg('whisper'), whisperPrompted: avg('whisperPrompted'), khaya: avg('khaya') }, meanCer: { whisper: avgC('whisper'), whisperPrompted: avgC('whisperPrompted'), khaya: avgC('khaya') }, rows: out, wv: WORKER_VERSION }), { headers: { 'Content-Type': 'application/json' } }));
 }
 
+// Owner-only (25 Sep): real people per source, per UTC day and first app
+// version - arrived, inside an in-app browser, tapped, saved. Answers "is
+// this ad worth it" on what visitors did, not on clicks. ?days= (max 30).
+async function handleAdminSourceDaily(request, env) {
+  if (!env.COUNTMY_DB) return cors(new Response(JSON.stringify({ error: 'not configured' }), { status: 503 }));
+  const url = new URL(request.url);
+  const key = url.searchParams.get('key') || '';
+  if (!env.ADMIN_KEY || key !== env.ADMIN_KEY) return cors(new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401 }));
+  await ensureTestSchema(env);
+  const days = Math.min(30, Math.max(1, parseInt(url.searchParams.get('days') || '10', 10) || 10));
+  const since = Date.now() - days * 86400000;
+  const r = await env.COUNTMY_DB.prepare(
+    "SELECT d.source AS source, strftime('%Y-%m-%d', d.first_ts / 1000, 'unixepoch') AS day, COALESCE(d.first_ver, '') AS ver, COUNT(*) AS devices, " +
+    "SUM(CASE WHEN d.country = 'GH' THEN 1 ELSE 0 END) AS gh, " +
+    "SUM(CASE WHEN EXISTS (SELECT 1 FROM events e WHERE e.shop_hash = d.device_hash AND e.event_type = 'iab') THEN 1 ELSE 0 END) AS in_app, " +
+    "SUM(CASE WHEN d.tapped_ts IS NOT NULL OR EXISTS (SELECT 1 FROM events e WHERE e.shop_hash = d.device_hash AND e.event_type = 'tap') THEN 1 ELSE 0 END) AS tapped, " +
+    "SUM(CASE WHEN d.saved_ts IS NOT NULL OR EXISTS (SELECT 1 FROM events e WHERE e.shop_hash = d.device_hash AND e.event_type = 'save') THEN 1 ELSE 0 END) AS saved " +
+    "FROM people_devices d WHERE d.first_ts >= ? GROUP BY d.source, day, ver ORDER BY day DESC, d.source"
+  ).bind(since).all();
+  return cors(new Response(JSON.stringify({ days, rows: r.results || [], wv: WORKER_VERSION }), { headers: { 'Content-Type': 'application/json' } }));
+}
+
 async function handleAdminRecentEntries(request, env) {
   if (!env.COUNTMY_DB) return cors(new Response(JSON.stringify({ error: 'not configured' }), { status: 503 }));
   const url = new URL(request.url);
@@ -1251,7 +1273,7 @@ async function handleTranscribe(request, env) {
 // 50 is a transcription/parsing error, not a fabrication) - evidence-checking
 // targets fabrication specifically, not every possible error; the review UI is
 // still what catches a wrong-but-grounded number.
-const WORKER_VERSION = 'w108';
+const WORKER_VERSION = 'w109';
 
 // Spanish (Venezuela) twin of EXTRACT_SYSTEM_PROMPT below: same event types,
 // same {value, evidence} rule, same JSON-only answer. Amounts are bare
@@ -3116,6 +3138,7 @@ export default {
       else if (path === '/admin/purge-test' && request.method === 'POST') adminResp = await handleAdminPurgeTest(request, env);
       else if (path === '/admin/asr-bench' && request.method === 'POST') adminResp = await handleAdminAsrBench(request, env);
       else if (path === '/admin/tts' && request.method === 'POST') adminResp = await handleAdminTts(request, env);
+      else if (path === '/admin/source-daily' && request.method === 'GET') adminResp = await handleAdminSourceDaily(request, env);
       if (adminResp) {
         if (adminResp.status === 401) await bumpAdminFail(env, ip);
         return adminResp;
