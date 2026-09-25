@@ -204,7 +204,7 @@ async function handlePing(request, env) {
   // ping was silently rejected with a 400 here (ping() swallows the error),
   // so Spanish usage never once showed up in the spoken-language stats.
   if (!['open', 'save', 'share_shop', 'shop_created', 'ask', 'tap', 'install', 'voice_en', 'voice_twi', 'voice_pidgin', 'voice_es',
-    'restore', 'iab', 'iab_tap', 'iab_tap_ios', 'iab_typed', 'iab_example', 'stt_browser', 'stt_whisper', 'iab_auto', 'iab_auto_ios', 'iab_stay', 'iab_escaped', 'iab_escaped_ios', 'iab_mic_ok', 'iab_note', 'mic_denied', 'mic_nomic', 'mic_busy', 'mic_empty', 'mic_silent', 'mic_timeout', 'mic_server', 'mic_network'].includes(eventType)) {
+    'restore', 'push_on', 'push_open', 'iab', 'iab_tap', 'iab_tap_ios', 'iab_typed', 'iab_example', 'stt_browser', 'stt_whisper', 'iab_auto', 'iab_auto_ios', 'iab_stay', 'iab_escaped', 'iab_escaped_ios', 'iab_mic_ok', 'iab_note', 'mic_denied', 'mic_nomic', 'mic_busy', 'mic_empty', 'mic_silent', 'mic_timeout', 'mic_server', 'mic_network'].includes(eventType)) {
     return cors(new Response(JSON.stringify({ error: 'invalid event' }), { status: 400 }));
   }
   const shopHash = (await sha256Hex(shop)).slice(0, 32);
@@ -564,6 +564,95 @@ async function handleSync(request, env) {
 // that book's saved records so the other browser shows the same book.
 // Only anonymous random ids (UUID v4, 122 random bits) are accepted - never
 // a typed shop name, which could be guessed. Rate limited like /sync.
+// ---------------------------------------------------------------------------
+// Evening reminder (25 Sep). The owner asked for a day-2 trigger; evidence:
+// reminders raise follow-through (Karlan et al., NBER w16205), traders count
+// money in the evening, and the average app loses ~77% of users in 3 days.
+// Web Push, no payload: the push only wakes the phone; the service worker
+// writes the words from the phone's OWN records ("Today: sold 120, spent 40")
+// - no amount, name or item ever leaves the phone for this. Free to run.
+// The VAPID key pair is generated here once and kept in D1 (schema_meta), so
+// there is no secret to set by hand. Push services allowed: Google (Chrome /
+// Android), Mozilla, Apple (installed iPhone apps), Microsoft.
+// ---------------------------------------------------------------------------
+const PUSH_HOSTS = /^(fcm\.googleapis\.com|updates\.push\.services\.mozilla\.com|push\.services\.mozilla\.com|web\.push\.apple\.com|[a-z0-9-]+\.notify\.windows\.com)$/;
+function b64u(buf) { let s = ''; const b = new Uint8Array(buf); for (let i = 0; i < b.length; i++) s += String.fromCharCode(b[i]); return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); }
+async function ensurePushTables(env) {
+  await env.COUNTMY_DB.prepare('CREATE TABLE IF NOT EXISTS schema_meta (k TEXT PRIMARY KEY, v TEXT)').run();
+  await env.COUNTMY_DB.prepare('CREATE TABLE IF NOT EXISTS push_subs (device_hash TEXT PRIMARY KEY, endpoint TEXT NOT NULL, lang TEXT, created INTEGER, last_sent INTEGER, last_status INTEGER, fails INTEGER DEFAULT 0, is_test INTEGER DEFAULT 0)').run();
+}
+let vapidCache = null;
+async function getVapid(env) {
+  if (vapidCache) return vapidCache;
+  await ensurePushTables(env);
+  let row = await env.COUNTMY_DB.prepare("SELECT v FROM schema_meta WHERE k = 'vapid'").first();
+  if (!row) {
+    const kp = await crypto.subtle.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, true, ['sign', 'verify']);
+    const jwk = await crypto.subtle.exportKey('jwk', kp.privateKey);
+    const pub = b64u(await crypto.subtle.exportKey('raw', kp.publicKey));
+    await env.COUNTMY_DB.prepare("INSERT OR IGNORE INTO schema_meta (k, v) VALUES ('vapid', ?)").bind(JSON.stringify({ jwk, pub })).run();
+    row = await env.COUNTMY_DB.prepare("SELECT v FROM schema_meta WHERE k = 'vapid'").first(); // another isolate may have won
+  }
+  const { jwk, pub } = JSON.parse(row.v);
+  const key = await crypto.subtle.importKey('jwk', jwk, { name: 'ECDSA', namedCurve: 'P-256' }, false, ['sign']);
+  vapidCache = { key, pub };
+  return vapidCache;
+}
+async function sendPush(env, endpoint) {
+  const v = await getVapid(env);
+  const aud = new URL(endpoint).origin;
+  const enc = o => b64u(new TextEncoder().encode(JSON.stringify(o)));
+  const unsigned = enc({ typ: 'JWT', alg: 'ES256' }) + '.' + enc({ aud, exp: Math.floor(Date.now() / 1000) + 12 * 3600, sub: 'https://countmy.app' });
+  const sig = await crypto.subtle.sign({ name: 'ECDSA', hash: 'SHA-256' }, v.key, new TextEncoder().encode(unsigned));
+  const res = await fetch(endpoint, { method: 'POST', headers: { TTL: '10800', Urgency: 'normal', Authorization: 'vapid t=' + unsigned + '.' + b64u(sig) + ', k=' + v.pub, 'Content-Length': '0' } });
+  return res.status;
+}
+async function handlePushKey(env) {
+  if (!env.COUNTMY_DB) return cors(new Response('{}', { status: 503 }));
+  const v = await getVapid(env);
+  return cors(new Response(JSON.stringify({ key: v.pub }), { headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=3600' } }));
+}
+async function handlePushSub(request, env) {
+  if (!env.COUNTMY_DB) return cors(new Response('{}', { status: 503 }));
+  let b = {}; try { b = await request.json(); } catch (e) { return cors(new Response(JSON.stringify({ error: 'invalid request' }), { status: 400 })); }
+  const device = String(b.device || '').trim().slice(0, 100);
+  const endpoint = String(b.endpoint || '').trim().slice(0, 1000);
+  let host = ''; try { const u = new URL(endpoint); host = u.protocol === 'https:' ? u.hostname : ''; } catch (e) { /* invalid */ }
+  if (!device || !PUSH_HOSTS.test(host)) return cors(new Response(JSON.stringify({ error: 'invalid subscription' }), { status: 400 }));
+  await ensurePushTables(env);
+  const h = (await sha256Hex(device)).slice(0, 32);
+  if (b.off) { await env.COUNTMY_DB.prepare('DELETE FROM push_subs WHERE device_hash = ?').bind(h).run(); return cors(new Response('{"ok":true}', { headers: { 'Content-Type': 'application/json' } })); }
+  await env.COUNTMY_DB.prepare('INSERT INTO push_subs (device_hash, endpoint, lang, created, is_test) VALUES (?, ?, ?, ?, ?) ON CONFLICT(device_hash) DO UPDATE SET endpoint = excluded.endpoint, lang = excluded.lang, fails = 0, is_test = excluded.is_test')
+    .bind(h, endpoint, String(b.lang || '').slice(0, 5), Date.now(), testFlag(b)).run();
+  return cors(new Response('{"ok":true}', { headers: { 'Content-Type': 'application/json' } }));
+}
+// Sends to every subscription (or only test ones). A push service answering
+// 404/410 means the phone unsubscribed or the browser data was cleared: the
+// row is deleted. Three other failures in a row also retire it.
+async function pushAll(env, onlyTest) {
+  await ensurePushTables(env);
+  const rows = (await env.COUNTMY_DB.prepare('SELECT device_hash, endpoint, fails FROM push_subs' + (onlyTest ? ' WHERE is_test = 1' : '') + ' LIMIT 5000').all()).results || [];
+  let ok = 0, gone = 0, failed = 0;
+  for (let i = 0; i < rows.length; i += 20) {
+    await Promise.all(rows.slice(i, i + 20).map(async r => {
+      let status = 0;
+      try { status = await sendPush(env, r.endpoint); } catch (e) { status = 0; }
+      if (status === 404 || status === 410 || (!(status >= 200 && status < 300) && (r.fails || 0) >= 2)) { gone++; await env.COUNTMY_DB.prepare('DELETE FROM push_subs WHERE device_hash = ?').bind(r.device_hash).run(); return; }
+      if (status >= 200 && status < 300) { ok++; await env.COUNTMY_DB.prepare('UPDATE push_subs SET last_sent = ?, last_status = ?, fails = 0 WHERE device_hash = ?').bind(Date.now(), status, r.device_hash).run(); }
+      else { failed++; await env.COUNTMY_DB.prepare('UPDATE push_subs SET last_status = ?, fails = COALESCE(fails, 0) + 1 WHERE device_hash = ?').bind(status, r.device_hash).run(); }
+    }));
+  }
+  console.log('PUSH', JSON.stringify({ total: rows.length, ok, gone, failed, onlyTest: !!onlyTest }));
+  return { total: rows.length, ok, gone, failed };
+}
+async function handleAdminPushTest(request, env) {
+  const url = new URL(request.url);
+  if (!env.ADMIN_KEY || (url.searchParams.get('key') || '') !== env.ADMIN_KEY) return cors(new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401 }));
+  const out = await pushAll(env, url.searchParams.get('all') !== '1');
+  const n = await env.COUNTMY_DB.prepare('SELECT COUNT(*) AS n, SUM(CASE WHEN is_test = 1 THEN 1 ELSE 0 END) AS t FROM push_subs').first();
+  return cors(new Response(JSON.stringify({ sent: out, subscriptions: n }), { headers: { 'Content-Type': 'application/json' } }));
+}
+
 async function handleRestore(request, env) {
   if (!env.COUNTMY_DB) return cors(new Response(JSON.stringify({ error: 'not configured' }), { status: 503 }));
   let body = {};
@@ -1571,7 +1660,7 @@ async function handleTranscribe(request, env) {
 // 50 is a transcription/parsing error, not a fabrication) - evidence-checking
 // targets fabrication specifically, not every possible error; the review UI is
 // still what catches a wrong-but-grounded number.
-const WORKER_VERSION = 'w114';
+const WORKER_VERSION = 'w115';
 
 // Spanish (Venezuela) twin of EXTRACT_SYSTEM_PROMPT below: same event types,
 // same {value, evidence} rule, same JSON-only answer. Amounts are bare
@@ -3370,6 +3459,10 @@ async function handleWaWebhook(request, env, ctx) {
 }
 
 export default {
+  // 19:00 UTC = 19:00 in Ghana (GMT all year): the evening reminder.
+  async scheduled(event, env, ctx) {
+    if (env.COUNTMY_DB) ctx.waitUntil(pushAll(env, false));
+  },
   async fetch(request, env, ctx) {
     if (request.method === 'OPTIONS') {
       return cors(new Response(null, { status: 204 }));
@@ -3394,7 +3487,7 @@ export default {
       const path = url.pathname;
       const isAiRoute = path === '/transcribe' || path === '/extract' || path === '/transcribe-and-extract' || path === '/extract-from-image';
       const isSayRoute = path === '/say' && request.method === 'GET';
-      const isWriteRoute = path === '/ping' || path === '/sync' || path === '/shop' || path === '/owner-log' || path === '/restore';
+      const isWriteRoute = path === '/ping' || path === '/sync' || path === '/shop' || path === '/owner-log' || path === '/restore' || path === '/push/sub';
       const isAdminRoute = path.startsWith('/admin/');
       const ip = clientIp(request);
       if ((isAiRoute && request.method === 'POST') || isSayRoute) {
@@ -3424,6 +3517,8 @@ export default {
       }
       if (path === '/sync' && request.method === 'POST') return withLimitHeader(await handleSync(request, env));
       if (path === '/restore' && request.method === 'POST') return withLimitHeader(await handleRestore(request, env));
+      if (path === '/push/key' && request.method === 'GET') return await handlePushKey(env);
+      if (path === '/push/sub' && request.method === 'POST') return withLimitHeader(await handlePushSub(request, env));
       if (path === '/shop' && request.method === 'POST') return withLimitHeader(await handleShopUpsert(request, env));
       if (path.startsWith('/shop/') && request.method === 'GET') return withLimitHeader(await handleShopJson(env, path.slice(6).toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, 44)));
       if (path.startsWith('/b/') && request.method === 'GET') return await handleShopPage(request, env, path.slice(3).toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, 44));
@@ -3438,6 +3533,7 @@ export default {
       else if (path === '/admin/asr-bench' && request.method === 'POST') adminResp = await handleAdminAsrBench(request, env);
       else if (path === '/admin/tts' && request.method === 'POST') adminResp = await handleAdminTts(request, env);
       else if (path === '/admin/tts-en' && request.method === 'POST') adminResp = await handleAdminTtsEn(request, env);
+      else if (path === '/admin/push-test' && request.method === 'POST') adminResp = await handleAdminPushTest(request, env);
       else if (path === '/admin/source-daily' && request.method === 'GET') adminResp = await handleAdminSourceDaily(request, env);
       else if (path === '/admin/overview' && request.method === 'GET') adminResp = await handleAdminOverview(request, env);
       else if (path === '/admin/spend' && request.method === 'POST') adminResp = await handleAdminSpend(request, env);

@@ -18,6 +18,10 @@ routes = [
 # WhatsApp Cloud API (19 Sep). Plain vars: the phone number id is not a secret
 # and the verify token only gates Meta's one-time GET handshake. The access
 # token (WHATSAPP_TOKEN) is a dashboard secret and never lives here.
+# Evening reminder (25 Sep): 19:00 UTC is 19:00 in Ghana all year.
+[triggers]
+crons = ["0 19 * * *"]
+
 [vars]
 WHATSAPP_PHONE_ID = "1373693199154891"
 WHATSAPP_VERIFY_TOKEN = "countmy-wa-c6f660c7e91fc60aecc69c22"
