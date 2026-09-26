@@ -4819,8 +4819,11 @@ function guideToSold(kind, isDraft) {
     let tip = document.getElementById('bkGuide');
     if (!tip) { tip = document.createElement('span'); tip.id = 'bkGuide'; tip.className = 'bk-guide'; tip.setAttribute('aria-hidden', 'true'); bar.appendChild(tip); }
     const label = { in: t('Sold', 'Vend\u00ed'), out: t('Spent', 'Gast\u00e9'), owe: t('Owes me', 'Me deben') }[kind];
-    tip.textContent = isDraft ? t(`Not saved: tap ${label} \u2193`, `Sin guardar: toca ${label} \u2193`)
-      : (voiceLang() === 'tw' && !ES ? label + ' \u2193' : t(`Your turn: tap ${label} \u2193`, `Te toca: toca ${label} \u2193`));
+    const msg = isDraft ? t(`Not saved: tap ${label}`, `Sin guardar: toca ${label}`)
+      : (voiceLang() === 'tw' && !ES ? label : t(`Your turn: tap ${label}`, `Te toca: toca ${label}`));
+    // The arrow sits at the end nearest its own button (live check 26 Sep:
+    // on Spent it ended up over Owes me): first for Sold/Spent, last for Owes me.
+    tip.textContent = kind === 'owe' ? msg + ' \u2193' : '\u2193 ' + msg;
     // Over its own button; the right-hand one anchors right so it stays on screen.
     if (kind === 'owe') { tip.style.left = 'auto'; tip.style.right = '0'; } else { tip.style.right = 'auto'; tip.style.left = btn.offsetLeft + 'px'; }
     // Red team 25 Sep: tapping the bubble itself did nothing (the tap was lost),
