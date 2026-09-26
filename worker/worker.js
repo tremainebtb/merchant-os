@@ -1005,7 +1005,7 @@ async function handleAdminMarkets(request, env) {
   ]);
   const out = {};
   for (const r of (people.results || [])) out[r.c || '??'] = { people: r.people, tapped: r.tapped, saved: r.saved, installed: r.installed, records: {} };
-  for (const r of (recs.results || [])) { const k = r.c || '??'; (out[k] = out[k] || { people: 0, tapped: 0, saved: 0, installed: 0, records: {} }).records[r.cur || (k === 'GH' ? 'GHS' : '?')] = r.n; }
+  for (const r of (recs.results || [])) { const k = r.c || '??'; (out[k] = out[k] || { people: 0, tapped: 0, saved: 0, installed: 0, records: {} }).records[r.cur || 'GHS'] = (out[k].records[r.cur || 'GHS'] || 0) + r.n; } // no currency = an English-mode (cedi) record; Spanish records always carry one
   return cors(new Response(JSON.stringify({ days, from: new Date(from).toISOString().slice(0, 10), markets: out, wv: WORKER_VERSION }), { headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } }));
 }
 async function handleAdminOverview(request, env) {
@@ -1754,7 +1754,7 @@ async function handleTranscribe(request, env) {
 // targets fabrication specifically, not every possible error; the review UI is
 // still what catches a wrong-but-grounded number.
 // w116: listen_tw / listen_en accepted by /ping (first-screen listen buttons).
-const WORKER_VERSION = 'w127';
+const WORKER_VERSION = 'w128';
 
 // Spanish (Venezuela) twin of EXTRACT_SYSTEM_PROMPT below: same event types,
 // same {value, evidence} rule, same JSON-only answer. Amounts are bare
