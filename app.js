@@ -97,6 +97,28 @@ function detectCountry() {
 const COUNTRY = detectCountry();
 const CO = ES && COUNTRY === 'CO';
 const tc = (ve, co) => (CO ? co : ve);
+if (ES) {
+  // 26 Sep (Venezuela phase 1): "How it works" was English-only and hidden
+  // for Spanish. On 25 Sep every Ghana saver looked at it before their first
+  // tap, so Spanish gets it too, with dollars, and in Venezuela one plain
+  // line about SENIAT (sourced: traders fear fiscal machines and fines).
+  try {
+    const how = document.getElementById('howItWorks');
+    if (how) {
+      how.setAttribute('aria-label', 'C\u00f3mo funciona');
+      how.querySelector('.how-h').textContent = 'C\u00f3mo funciona';
+      const li = how.querySelectorAll('.how-steps li');
+      const amt = tc('$5', '$5.000');
+      li[0].innerHTML = '<span class="how-pic how-sold" aria-hidden="true">Vend\u00ed</span><span>Toca <b>Vend\u00ed</b></span>';
+      li[1].innerHTML = '<span class="how-pic how-key" aria-hidden="true">' + amt + '</span><span>Pon la plata</span>';
+      li[2].innerHTML = '<span class="how-pic how-line" aria-hidden="true">+ ' + amt + ' &#10003;</span><span>Queda anotado. Ma\u00f1ana sigue ah\u00ed.</span>';
+      how.querySelector('.how-note').textContent = 'Gratis. Sin registro. Si pierdes el tel\u00e9fono, tu cuaderno vuelve.';
+      if (!CO) { const p = document.createElement('p'); p.className = 'how-note'; p.textContent = 'No es factura ni m\u00e1quina fiscal. CountMy no le manda nada al SENIAT.'; how.querySelector('.how-note').after(p); }
+      document.getElementById('howTry').textContent = 'Pru\u00e9balo ya: anota una venta';
+      how.dataset.es = '1';
+    }
+  } catch (e) { /* not marked Spanish, so it stays hidden */ }
+}
 // Default currency for typed entries: Colombia pesos, Venezuela dollars.
 const HOME_CUR = CO ? 'COP' : 'USD';
 // The Book home screen (v169, 24 Sep). The one switch back: set
@@ -2551,7 +2573,7 @@ async function render() {
     if (exRes && firstUse) exRes.textContent = !ES ? '3 waakye, 60 cedis' : tc('3 refrescos, $6', '5 camisas, $50.000');
   }
   document.getElementById('trustLine').hidden = !firstUse;
-  { const how = document.getElementById('howItWorks'); if (how) how.hidden = !(firstUse && BOOK_ON && !ES); }
+  { const how = document.getElementById('howItWorks'); if (how) how.hidden = !(firstUse && BOOK_ON && (!ES || how.dataset.es === '1')); }
   if (typeof renderInstallBanner === 'function') renderInstallBanner();
 
   // Real advice, 28 Aug, sought independently from two AI reviews after
@@ -3173,12 +3195,12 @@ async function afterEntrySaved(entry) {
     // record 3, when a tester has become a user. Offers and sends are now
     // counted in our own backend.
     let waSent = false; try { waSent = localStorage.getItem('kym_wa_sent') === '1'; } catch (e) { /* optional */ }
-    if ((all.length === 1 || (all.length === 3 && !waSent)) && !ES) {
+    if (all.length === 1 || (all.length === 3 && !waSent)) {
       clearOtherPrompts('milestone');
       const lead = all.length === 1
-        ? t('Saved. Do not lose your book: send it to your own WhatsApp. Tomorrow, one tap brings it back.', '')
-        : t('3 records written. Keep them safe: send your book to your own WhatsApp.', '');
-      const box = floatNotice(`${escapeHtml(lead)} <button type="button" class="remind-btn" id="firstWaBtn">${t('Send to my WhatsApp', '')}</button>${reminderButtonHtml()}`, 0);
+        ? t('Saved. Do not lose your book: send it to your own WhatsApp. Tomorrow, one tap brings it back.', 'Anotado. No pierdas tu cuaderno: m\u00e1ndatelo a tu propio WhatsApp. Ma\u00f1ana, con un toque, vuelve.')
+        : t('3 records written. Keep them safe: send your book to your own WhatsApp.', 'Ya van 3 cuentas. Gu\u00e1rdalas: manda tu cuaderno a tu WhatsApp.');
+      const box = floatNotice(`${escapeHtml(lead)} <button type="button" class="remind-btn" id="firstWaBtn">${t('Send to my WhatsApp', 'Mandarlo a mi WhatsApp')}</button>${reminderButtonHtml()}`, 0);
       wireReminderButton(box);
       track('first_wa_offer', { n: all.length }); ping('wa_offer');
       box.querySelector('#firstWaBtn').addEventListener('click', () => { track('first_wa_send', { n: all.length }); ping('wa_send'); try { localStorage.setItem('kym_wa_sent', '1'); } catch (e) { /* optional */ } box.hidden = true; exportBackup(); });
@@ -4893,9 +4915,9 @@ async function enableEveningReminder() {
     const key = ((await (await fetch(API_BASE + '/push/key')).json()) || {}).key;
     if (!key) return false;
     const sub = (await reg.pushManager.getSubscription()) || await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64uToBytes(key) });
-    const res = await fetch(API_BASE + '/push/sub', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ device: getDeviceId(), endpoint: sub.endpoint, lang: ES ? 'es' : 'en', test: (isTestDevice() || window.KYM_IS_OWNER_DEVICE) ? 1 : 0 }) });
+    const res = await fetch(API_BASE + '/push/sub', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ device: getDeviceId(), endpoint: sub.endpoint, lang: ES ? (CO ? 'es-CO' : 'es-VE') : 'en', test: (isTestDevice() || window.KYM_IS_OWNER_DEVICE) ? 1 : 0 }) });
     if (!res.ok) return false;
-    if (reg.active) reg.active.postMessage({ kymPrefs: { es: !!ES } });
+    if (reg.active) reg.active.postMessage({ kymPrefs: { es: !!ES, co: !!CO } });
     try { localStorage.setItem('kym_push', '1'); } catch (e) { /* optional */ }
     ping('push_on'); track('push_on');
     return true;
@@ -5054,9 +5076,9 @@ async function restoreFromKey() {
   if (new URLSearchParams(location.search).get('r') === 'push') { ping('push_open'); track('push_open'); }
   try {
     const asked = Number(localStorage.getItem('kym_push_asked') || 0);
-    if (!ES && pushSupported() && localStorage.getItem('kym_push') !== '1' && hasAnyRecord && Date.now() - asked > 3 * 86400000 && (Number(localStorage.getItem('kym_visits')) || 0) >= 2) {
+    if (pushSupported() && localStorage.getItem('kym_push') !== '1' && hasAnyRecord && Date.now() - asked > 3 * 86400000 && (Number(localStorage.getItem('kym_visits')) || 0) >= 2) {
       localStorage.setItem('kym_push_asked', String(Date.now()));
-      const box = floatNotice(escapeHtml(t('Want a reminder every evening to write your sales?', '')) + reminderButtonHtml(), 0);
+      const box = floatNotice(escapeHtml(t('Want a reminder every evening to write your sales?', '\u00bfQuieres que te recuerde cada noche anotar tus ventas?')) + reminderButtonHtml(), 0);
       wireReminderButton(box);
     }
   } catch (e) { /* optional */ }

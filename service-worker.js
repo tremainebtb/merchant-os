@@ -1,6 +1,6 @@
 // Bump CACHE on every deploy - this is what forces a stale phone to pick up new code.
-const CACHE = 'kym-v194';
-const ASSETS = ['./', './index.html', './app.js?v=194', './safety.html', './seguridad.html', './privacidad.html', './manifest.json', './icon.svg', './favicon.ico'];
+const CACHE = 'kym-v195';
+const ASSETS = ['./', './index.html', './app.js?v=195', './safety.html', './seguridad.html', './privacidad.html', './manifest.json', './icon.svg', './favicon.ico'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)));
@@ -82,15 +82,22 @@ function todayEntries() {
 }
 self.addEventListener('push', e => {
   e.waitUntil((async () => {
-    let es = false;
-    try { const r = await caches.open('kym-prefs').then(c => c.match('/__prefs')); if (r) es = !!(await r.json()).es; } catch (x) { /* default English */ }
+    let es = false, co = false;
+    try { const r = await caches.open('kym-prefs').then(c => c.match('/__prefs')); if (r) { const p = await r.json(); es = !!p.es; co = !!p.co; } } catch (x) { /* default English */ }
     const list = await todayEntries();
     const sum = t => list.filter(x => x.type === t).reduce((a, x) => a + (Number(x.amount) || 0), 0);
     const sold = Math.round(sum('sale') * 100) / 100, spent = Math.round(sum('expense') * 100) / 100;
     const n = v => v.toLocaleString('en-GH');
     let body;
     if (!list.length) body = es ? 'Hoy no has anotado nada. \u00bfQu\u00e9 vendiste?' : 'Nothing written today. What did you sell?';
-    else if (es) body = 'Hoy: vendiste ' + n(sold) + ', gastaste ' + n(spent) + '. \u00bfAlgo m\u00e1s para anotar?';
+    else if (es) {
+      // 26 Sep: dollars and bolivares were added into one number. Each
+      // currency is its own total, in the local way of writing numbers.
+      const loc = co ? 'es-CO' : 'es-VE', home = co ? 'COP' : 'USD';
+      const sym = c => c === 'VES' ? 'Bs ' : (c === 'USD' && co ? 'US$' : '$');
+      const per = type => { const m = {}; list.filter(x => x.type === type).forEach(x => { const c = x.cur || home; m[c] = (m[c] || 0) + (Number(x.amount) || 0); }); const parts = Object.keys(m).map(c => sym(c) + (Math.round(m[c] * 100) / 100).toLocaleString(loc)); return parts.length ? parts.join(' y ') : '0'; };
+      body = 'Hoy: vendiste ' + per('sale') + ', gastaste ' + per('expense') + '. \u00bfAlgo m\u00e1s para anotar?';
+    }
     else body = 'Today: sold GH\u20b5' + n(sold) + ', spent GH\u20b5' + n(spent) + '. Anything else to write?';
     await self.registration.showNotification('CountMy', { body, icon: 'icon.svg', tag: 'kym-evening', renotify: true, data: { url: es ? './?lang=es&r=push' : './?r=push' } });
   })());

@@ -21,7 +21,7 @@ routes = [
 # Evening reminder (25 Sep): 18:30 UTC = 6:30pm in Ghana (GMT all year).
 # Stalls close ~6pm; the NCA messaging code keeps messages 8am-7pm.
 [triggers]
-crons = ["30 18 * * *"]
+crons = ["30 18 * * *", "30 22 * * *", "30 23 * * *"]
 
 [vars]
 WHATSAPP_PHONE_ID = "1373693199154891"

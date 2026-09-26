@@ -650,9 +650,14 @@ async function handlePushSub(request, env) {
 // Sends to every subscription (or only test ones). A push service answering
 // 404/410 means the phone unsubscribed or the browser data was cleared: the
 // row is deleted. Three other failures in a row also retire it.
-async function pushAll(env, onlyTest) {
+// zone: 'gh' | 've' | 'co' picks the phones whose 6:30pm this is (26 Sep:
+// Spanish users were getting nothing, and one 18:30 UTC send would reach
+// Caracas at 14:30). Old rows saved 'es' count as Venezuela.
+const PUSH_ZONES = { gh: "(lang IS NULL OR lang NOT LIKE 'es%')", ve: "(lang = 'es' OR lang = 'es-VE')", co: "(lang = 'es-CO')" };
+async function pushAll(env, onlyTest, zone) {
   await ensurePushTables(env);
-  const rows = (await env.COUNTMY_DB.prepare('SELECT device_hash, endpoint, fails FROM push_subs' + (onlyTest ? ' WHERE is_test = 1' : '') + ' LIMIT 5000').all()).results || [];
+  const where = [onlyTest ? 'is_test = 1' : '', zone && PUSH_ZONES[zone] ? PUSH_ZONES[zone] : ''].filter(Boolean).join(' AND ');
+  const rows = (await env.COUNTMY_DB.prepare('SELECT device_hash, endpoint, fails FROM push_subs' + (where ? ' WHERE ' + where : '') + ' LIMIT 5000').all()).results || [];
   let ok = 0, gone = 0, failed = 0;
   for (let i = 0; i < rows.length; i += 20) {
     await Promise.all(rows.slice(i, i + 20).map(async r => {
@@ -663,7 +668,7 @@ async function pushAll(env, onlyTest) {
       else { failed++; await env.COUNTMY_DB.prepare('UPDATE push_subs SET last_status = ?, fails = COALESCE(fails, 0) + 1 WHERE device_hash = ?').bind(status, r.device_hash).run(); }
     }));
   }
-  console.log('PUSH', JSON.stringify({ total: rows.length, ok, gone, failed, onlyTest: !!onlyTest }));
+  console.log('PUSH', JSON.stringify({ total: rows.length, ok, gone, failed, onlyTest: !!onlyTest, zone: zone || 'all' }));
   return { total: rows.length, ok, gone, failed };
 }
 async function handleAdminPushTest(request, env) {
@@ -1728,7 +1733,7 @@ async function handleTranscribe(request, env) {
 // targets fabrication specifically, not every possible error; the review UI is
 // still what catches a wrong-but-grounded number.
 // w116: listen_tw / listen_en accepted by /ping (first-screen listen buttons).
-const WORKER_VERSION = 'w124';
+const WORKER_VERSION = 'w125';
 
 // Spanish (Venezuela) twin of EXTRACT_SYSTEM_PROMPT below: same event types,
 // same {value, evidence} rule, same JSON-only answer. Amounts are bare
@@ -3527,9 +3532,14 @@ async function handleWaWebhook(request, env, ctx) {
 }
 
 export default {
-  // 18:30 UTC = 6:30pm in Ghana (GMT all year): the evening reminder.
+  // The evening reminder at 6:30pm on each phone's clock (no daylight saving
+  // in any of the three): 18:30 UTC Ghana, 22:30 UTC Caracas, 23:30 UTC Bogota.
   async scheduled(event, env, ctx) {
-    if (env.COUNTMY_DB) ctx.waitUntil(pushAll(env, false));
+    // Red team 26 Sep: an unknown cron must send nothing - defaulting to Ghana
+    // would give Ghana phones three reminders a day if a schedule string drifted.
+    const zone = { '30 18 * * *': 'gh', '30 22 * * *': 've', '30 23 * * *': 'co' }[event.cron];
+    if (!zone) { console.log('PUSH skipped: unknown cron', JSON.stringify(event.cron)); return; }
+    if (env.COUNTMY_DB) ctx.waitUntil(pushAll(env, false, zone));
   },
   async fetch(request, env, ctx) {
     if (request.method === 'OPTIONS') {
