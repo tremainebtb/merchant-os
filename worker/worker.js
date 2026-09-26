@@ -228,11 +228,19 @@ async function handlePing(request, env) {
     'restore', 'push_on', 'push_open', 'listen_tw', 'listen_en', 'how_seen', 'how_try', 'momo_saved', 'plus_pay_open', 'plus_paid', 'wa_offer', 'wa_send', 'draft_kept', 'draft_restored', 'draft_saved', 'owe_no_name', 'tap_held', 'listen_end', 'sheet_abandon_typed', 'sheet_abandon_empty', 'iab', 'iab_tap', 'iab_tap_ios', 'iab_typed', 'iab_example', 'stt_browser', 'stt_whisper', 'iab_auto', 'iab_auto_ios', 'iab_stay', 'iab_escaped', 'iab_escaped_ios', 'iab_mic_ok', 'iab_note', 'mic_denied', 'mic_nomic', 'mic_busy', 'mic_empty', 'mic_silent', 'mic_timeout', 'mic_server', 'mic_network'].includes(eventType)) {
     return cors(new Response(JSON.stringify({ error: 'invalid event' }), { status: 400 }));
   }
+  // 26 Sep: a phone that was offline keeps its events and sends them later
+  // with the time they really happened (a real trader recorded 20 entries over
+  // two days offline and every tap/save ping was lost). Accepted only inside
+  // the last 14 days and never in the future; otherwise the server's clock.
+  // Red team 26 Sep: never trust the phone's clock (wrong dates after a flat
+  // battery are common). A queued event says how long ago it happened.
+  const nowTs = Date.now(), ago = Number(body && body.ago);
+  const evTs = (isFinite(ago) && ago > 0 && ago < 14 * 86400000) ? nowTs - Math.floor(ago) : nowTs;
   const shopHash = (await sha256Hex(shop)).slice(0, 32);
   await ensureTestSchema(env);
   const isTest = testFlag(body);
   await env.COUNTMY_DB.prepare('INSERT INTO events (shop_hash, event_type, ts, is_test) VALUES (?, ?, ?, ?)')
-    .bind(shopHash, eventType, Date.now(), isTest).run();
+    .bind(shopHash, eventType, evTs, isTest).run();
   // Programme attribution (15 Sep). The only revenue route with a Ghanaian
   // payer in evidence is an institution paying per trader (Oze's payers are
   // banks; MTN Adwumapa already bundles third-party tools). An institution
@@ -253,12 +261,13 @@ async function handlePing(request, env) {
       const memberHash = device ? (await sha256Hex(device)).slice(0, 32) : shopHash;
       await env.COUNTMY_DB.prepare('CREATE TABLE IF NOT EXISTS programme_members (shop_hash TEXT PRIMARY KEY, programme TEXT NOT NULL, first_ts INTEGER NOT NULL)').run();
       await env.COUNTMY_DB.prepare('INSERT OR IGNORE INTO programme_members (shop_hash, programme, first_ts) VALUES (?, ?, ?)')
-        .bind(memberHash, programme, Date.now()).run();
+        .bind(memberHash, programme, evTs).run();
+      await env.COUNTMY_DB.prepare('UPDATE programme_members SET first_ts = ? WHERE shop_hash = ? AND first_ts > ?').bind(evTs, memberHash, evTs).run();
       // Activity joins on the events table, which is keyed by shop hash, so the
       // device's activity is also stamped under the member hash when they differ.
       if (memberHash !== shopHash) {
         await env.COUNTMY_DB.prepare('INSERT INTO events (shop_hash, event_type, ts, is_test) VALUES (?, ?, ?, ?)')
-          .bind(memberHash, eventType, Date.now(), isTest).run();
+          .bind(memberHash, eventType, evTs, isTest).run();
       }
     } catch (e) { /* attribution must never fail a ping */ }
   }
@@ -283,20 +292,22 @@ async function handlePing(request, env) {
       const mobile = (body.mobile === 1 || body.mobile === '1') ? 1 : 0;
       const lang = String((body && body.lang) || '').replace(/[^a-zA-Z-]/g, '').slice(0, 12);
       const standalone = (body.standalone === 1 || body.standalone === '1') ? 1 : 0;
-      await env.COUNTMY_DB.prepare('INSERT OR IGNORE INTO devices (device_hash, source, first_ts, is_test, country, nudge, first_ver, asn_org, is_dc, mobile, lang) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').bind(dh, source, Date.now(), isTest, country, nudge, ver, asnOrg, isDc, mobile, lang).run();
+      await env.COUNTMY_DB.prepare('INSERT OR IGNORE INTO devices (device_hash, source, first_ts, is_test, country, nudge, first_ver, asn_org, is_dc, mobile, lang) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').bind(dh, source, evTs, isTest, country, nudge, ver, asnOrg, isDc, mobile, lang).run();
+      // An offline event can arrive after a newer one: the earliest time wins.
+      await env.COUNTMY_DB.prepare('UPDATE devices SET first_ts = ? WHERE device_hash = ? AND first_ts > ?').bind(evTs, dh, evTs).run();
       // Devices first seen before these columns existed get them on their next visit.
       await env.COUNTMY_DB.prepare('UPDATE devices SET asn_org = ?, is_dc = ?, mobile = ?, lang = ? WHERE device_hash = ? AND asn_org IS NULL').bind(asnOrg, isDc, mobile, lang, dh).run();
       if (eventType === 'install') {
-        await env.COUNTMY_DB.prepare('UPDATE devices SET installed_ts = ? WHERE device_hash = ? AND installed_ts IS NULL').bind(Date.now(), dh).run();
+        await env.COUNTMY_DB.prepare('UPDATE devices SET installed_ts = ? WHERE device_hash = ? AND (installed_ts IS NULL OR installed_ts > ?)').bind(evTs, dh, evTs).run();
       }
       if (eventType === 'open' && standalone) {
-        await env.COUNTMY_DB.prepare('UPDATE devices SET icon_opens = COALESCE(icon_opens, 0) + 1, installed_ts = COALESCE(installed_ts, ?) WHERE device_hash = ?').bind(Date.now(), dh).run();
+        await env.COUNTMY_DB.prepare('UPDATE devices SET icon_opens = COALESCE(icon_opens, 0) + 1, installed_ts = MIN(COALESCE(installed_ts, ?), ?) WHERE device_hash = ?').bind(evTs, evTs, dh).run();
       }
       if (eventType === 'tap') {
-        await env.COUNTMY_DB.prepare('UPDATE devices SET tapped_ts = ? WHERE device_hash = ? AND tapped_ts IS NULL').bind(Date.now(), dh).run();
+        await env.COUNTMY_DB.prepare('UPDATE devices SET tapped_ts = ? WHERE device_hash = ? AND (tapped_ts IS NULL OR tapped_ts > ?)').bind(evTs, dh, evTs).run();
       }
       if (eventType === 'ask') {
-        await env.COUNTMY_DB.prepare('UPDATE devices SET asked_ts = ? WHERE device_hash = ? AND asked_ts IS NULL').bind(Date.now(), dh).run();
+        await env.COUNTMY_DB.prepare('UPDATE devices SET asked_ts = ? WHERE device_hash = ? AND (asked_ts IS NULL OR asked_ts > ?)').bind(evTs, dh, evTs).run();
       }
       if (isTest) {
         // A test device's whole history is test data, including rows written before it was flagged.
@@ -305,7 +316,7 @@ async function handlePing(request, env) {
         await env.COUNTMY_DB.prepare('UPDATE entries SET is_test = 1 WHERE shop_hash = ?').bind(shopHash).run();
       }
       if (eventType === 'save') {
-        await env.COUNTMY_DB.prepare('UPDATE devices SET saved_ts = ? WHERE device_hash = ? AND saved_ts IS NULL').bind(Date.now(), dh).run();
+        await env.COUNTMY_DB.prepare('UPDATE devices SET saved_ts = ? WHERE device_hash = ? AND (saved_ts IS NULL OR saved_ts > ?)').bind(evTs, dh, evTs).run();
       }
     }
   } catch (e) { /* attribution must never fail a ping */ }
@@ -1754,7 +1765,7 @@ async function handleTranscribe(request, env) {
 // targets fabrication specifically, not every possible error; the review UI is
 // still what catches a wrong-but-grounded number.
 // w116: listen_tw / listen_en accepted by /ping (first-screen listen buttons).
-const WORKER_VERSION = 'w128';
+const WORKER_VERSION = 'w129';
 
 // Spanish (Venezuela) twin of EXTRACT_SYSTEM_PROMPT below: same event types,
 // same {value, evidence} rule, same JSON-only answer. Amounts are bare

@@ -2140,10 +2140,11 @@ function ping(eventType) {
   try {
     if (window.KYM_IS_OWNER_DEVICE) return; // see the ?owner=1 flag set in index.html
     const shop = getShopId() || getDeviceId();
+    const payload = { shop, event: eventType, programme: localStorage.getItem('kym_programme') || '', device: getDeviceId(), source: localStorage.getItem('kym_source') || '', test: isTestDevice(), nudge: nudgeCohort(), ver: window.KYM_VERSION || '', lang: (navigator.language || '').slice(0, 12), mobile: /Mobi|Android/i.test(navigator.userAgent) ? 1 : 0, standalone: isStandalone() ? 1 : 0 };
     fetch(`${API_BASE}/ping`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ shop, event: eventType, programme: localStorage.getItem('kym_programme') || '', device: getDeviceId(), source: localStorage.getItem('kym_source') || '', test: isTestDevice(), nudge: nudgeCohort(), ver: window.KYM_VERSION || '', lang: (navigator.language || '').slice(0, 12), mobile: /Mobi|Android/i.test(navigator.userAgent) ? 1 : 0, standalone: isStandalone() ? 1 : 0 }),
+      body: JSON.stringify(payload),
       // Real bug, 23 Sep: a visitor who backgrounds or closes the page within
       // the first second or two (exactly what Facebook's in-app browser did
       // to a real Ghanaian visitor today - Clarity's own summary: "hid the
@@ -2153,11 +2154,41 @@ function ping(eventType) {
       // once - not undercounted, erased - which is exactly the kind of gap
       // that made a real "I had 3 users" report look like only 1-2 happened.
       keepalive: true
-    }).catch(() => {});
+    }).catch(() => queuePing(Object.assign({ at: Date.now() }, payload)));
   } catch (err) {
     // Usage reporting must never interrupt a locally committed save.
   }
 }
+// 26 Sep: offline, a ping used to vanish. A real trader recorded 20 entries
+// over two days without data and we saw none of her taps or saves. Failed
+// pings now wait on the phone (max 200) and go when she is back online, each
+// with the time it really happened.
+function queuePing(p) {
+  try { const q = JSON.parse(localStorage.getItem('kym_pingq') || '[]'); q.push(p); localStorage.setItem('kym_pingq', JSON.stringify(q.slice(-200))); } catch (e) { /* optional */ }
+}
+let pingFlushing = false;
+// Red team 26 Sep: the server keeps its own clock (only 'how long ago' is
+// sent), a busy server (429) or an error (5xx) keeps the queue for later,
+// the queue is re-read every step so a ping queued meanwhile is never lost,
+// and at most 100 go per flush on a slow line.
+async function flushPings() {
+  if (pingFlushing || !navigator.onLine || window.KYM_IS_OWNER_DEVICE) return;
+  pingFlushing = true;
+  try {
+    for (let i = 0; i < 100; i++) {
+      const q = JSON.parse(localStorage.getItem('kym_pingq') || '[]'); if (!q.length) break;
+      const p = q[0];
+      const body = Object.assign({}, p, { ago: Math.max(0, Date.now() - (p.at || Date.now())) }); delete body.at;
+      const res = await fetch(`${API_BASE}/ping`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      if (res.status === 429 || res.status >= 500) break;
+      const q2 = JSON.parse(localStorage.getItem('kym_pingq') || '[]');
+      if (q2.length && q2[0].at === p.at && q2[0].event === p.event) q2.shift();
+      localStorage.setItem('kym_pingq', JSON.stringify(q2));
+    }
+  } catch (e) { /* still offline: keep the rest */ }
+  pingFlushing = false;
+}
+window.addEventListener('online', () => { flushPings(); });
 
 // Real gap, found 30 Aug from a live screenshot: a garbled voice entry sat
 // in Recent as a wrong 1,000 cedis "sale" with no way for the owner to fix
@@ -5085,6 +5116,7 @@ async function restoreFromKey() {
   maybeShowEodPrompt();
   ping('open');
   flushUnsynced();
+  setTimeout(flushPings, 1500);
   if (new URLSearchParams(location.search).get('r') === 'push') { ping('push_open'); track('push_open'); }
   try {
     const asked = Number(localStorage.getItem('kym_push_asked') || 0);
