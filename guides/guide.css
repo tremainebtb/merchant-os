@@ -1,7 +1,7 @@
 /* CountMy guides (18 Sep 2026). Same tokens as the app, built to be read:
    cedi numbers first, short sections, tables not prose, one action repeated. */
-:root{--paper:#F8F3EC;--surface:#FFFFFF;--ink:#221A12;--ink-soft:#5C5142;--muted:#6E6353;--rule:#E7DDCD;--flame:#D9541A;--flame-deep:#A83F12;--flame-soft:#FBE3D2;--leaf:#1B7A43;--leaf-deep:#125C32;--leaf-soft:#E1F2E7;--navy:#1E2F55;--steel-soft:#E1EAF6}
-@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--paper:#121417;--surface:#1B1E23;--ink:#F2F1EE;--ink-soft:#C7C9CE;--muted:#8B8F97;--rule:#2E323A;--flame:#F0713A;--flame-deep:#F79764;--flame-soft:#2E2119;--leaf:#4CC585;--leaf-deep:#6FD79E;--leaf-soft:#152420;--navy:#D6DEF2;--steel-soft:#1F2A3D}}
+:root{color-scheme:light dark;--link:#1D4E9E;--on-accent:#FFFFFF;--paper:#F8F3EC;--surface:#FFFFFF;--ink:#221A12;--ink-soft:#5C5142;--muted:#6E6353;--rule:#E7DDCD;--flame:#D9541A;--flame-deep:#A83F12;--flame-soft:#FBE3D2;--leaf:#1B7A43;--leaf-deep:#125C32;--leaf-soft:#E1F2E7;--navy:#1E2F55;--steel-soft:#E1EAF6}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--link:#9DBBF2;--on-accent:#121417;--paper:#121417;--surface:#1B1E23;--ink:#F2F1EE;--ink-soft:#C7C9CE;--muted:#8B8F97;--rule:#2E323A;--flame:#F0713A;--flame-deep:#F79764;--flame-soft:#2E2119;--leaf:#4CC585;--leaf-deep:#6FD79E;--leaf-soft:#152420;--navy:#D6DEF2;--steel-soft:#1F2A3D}}
 *{box-sizing:border-box}
 body{margin:0;background:var(--paper);color:var(--ink);font-family:"Work Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:1.02rem;line-height:1.55}
 .wrap{max-width:720px;margin:0 auto;padding:16px 18px 60px}
@@ -23,7 +23,7 @@ th{background:var(--steel-soft);color:var(--navy);font-weight:700}
 td.num,th.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
 .say{background:var(--leaf-soft);border-radius:14px;padding:12px 14px;margin:14px 0}
 .say b{color:var(--leaf-deep)}
-.cta{display:flex;align-items:center;justify-content:center;gap:10px;background:var(--flame);color:#fff;text-decoration:none;font-family:"Manrope",sans-serif;font-weight:800;font-size:1.15rem;border-radius:16px;padding:16px 18px;margin:18px 0}
+.cta{display:flex;align-items:center;justify-content:center;gap:10px;background:var(--flame);color:var(--on-accent);text-decoration:none;font-family:"Manrope",sans-serif;font-weight:800;font-size:1.2rem;border-radius:16px;padding:16px 18px;margin:18px 0}
 .cta svg{width:26px;height:26px}
 .cta:active{background:var(--flame-deep)}
 .cta-sub{text-align:center;color:var(--muted);font-size:.88rem;margin:-10px 0 18px}
@@ -37,3 +37,10 @@ li{margin:0 0 6px}
 .foot a{color:var(--muted)}
 .jump{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 16px}
 .jump a{background:var(--surface);border:1px solid var(--rule);border-radius:100px;padding:6px 12px;font-size:.88rem;color:var(--navy);text-decoration:none;font-weight:600}
+/* Contrast pass 26 Sep (measured): links had no colour, so dark mode showed the
+   browser's default blue at 1.8:1 on the dark page. Links now follow the theme
+   (7.2:1 light, 9.5:1 dark) and stay underlined so they read as links. */
+a{color:var(--link)}
+a:visited{color:var(--link)}
+.cta,.cta:visited{color:var(--on-accent)}
+.cta:active{color:var(--on-accent)}

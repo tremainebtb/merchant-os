@@ -56,7 +56,7 @@
      app.js?v=. Lets anyone - a reviewer, a tester in Kumasi, a future session -
      answer "which CountMy am I looking at?" from view-source or the console,
      the same way the Worker answers with "wv". -->
-<meta name="countmy-version" content="v192">
+<meta name="countmy-version" content="v193">
 <!-- Real finding, 28 Aug: the bare "CountMy" title carried no keywords at all
      for what people actually search - a free sales/expense ledger for
      Ghanaian shop owners. The <title> tag is the single strongest on-page
@@ -559,6 +559,13 @@ body.iab-first .home-mic-btn{opacity:.55}
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--filled-ink:#221A12;--small-flame-bg:var(--flame)}}
 :root[data-theme="dark"]{--filled-ink:#221A12;--small-flame-bg:var(--flame)}
 .home-mic-btn,.act-sale,.act-expense,.act-owe-me,.act-payment,.btn-save,.voice-card-status.saved,.eod-send-btn,.act-banner-go,.hear-btn.speaking{color:var(--filled-ink)}
+/* Contrast pass 26 Sep (measured, WCAG): white text on a brand colour that turns
+   pale in dark mode read at 1.35-2.95:1 (selected Twi/Eng, Open in Chrome).
+   Every filled control takes --filled-ink; small text on orange takes the
+   deeper --small-flame-bg (white on #D9541A is only 4.0:1). */
+.intro-listen button[aria-pressed="true"],.iab-open,.iab-save,.iab-top .iab-open{color:var(--filled-ink)}
+.iab-open,.iab-save,.act-banner-go,.hear-btn.speaking,.iab-top .iab-open{background:var(--small-flame-bg)}
+:root{color-scheme:light dark}:root[data-theme="light"]{color-scheme:light}:root[data-theme="dark"]{color-scheme:dark}
 .act-banner-go,.hear-btn.speaking{background:var(--small-flame-bg)}
 .home-mic-btn .mic-level-meter span{background:currentColor}
 /* Measured live: typed inputs and Save/Cancel/export rendered in Arial -
@@ -586,7 +593,7 @@ body.iab-first .home-mic-btn{opacity:.55}
 @media (max-height:680px){:root{--bk-key:46px}}
 html.home-book .today-strip,html.home-book .ask-line,html.home-book .try-line,html.home-book #exampleChat,html.home-book .mic-lang-line,html.home-book #demoBtn,html.home-book #homeGreeting{display:none !important}
 html.has-records #whatIs{display:none}
-.intro-listen button[aria-pressed="true"]{background:var(--navy);color:#fff;border-color:var(--navy)}
+.intro-listen button[aria-pressed="true"]{background:var(--navy);color:var(--filled-ink);border-color:var(--navy)}
 .wrap{position:relative}
 .intro-listen{position:absolute;top:20px;right:12px;display:flex;gap:4px;z-index:2}
 .intro-listen button{border:1.5px solid var(--rule);background:var(--surface);color:var(--navy);border-radius:999px;min-height:38px;padding:4px 9px;font:800 .82rem "Manrope",system-ui,sans-serif;cursor:pointer;white-space:nowrap}
@@ -884,7 +891,7 @@ body.book-on .act-snap{background:var(--surface);color:var(--navy);border:1.5px 
     y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
   })(window, document, "clarity", "script", window.CLARITY_ID);
 </script>
-<script src="app.js?v=192" defer></script>
+<script src="app.js?v=193" defer></script>
 </head>
 <body>
 <main class="wrap">
