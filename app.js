@@ -4213,6 +4213,15 @@ function bkOpen(kind, debt) {
     } catch (e) { /* optional */ }
   }
   bk$('bkScrim').hidden = false; sh.hidden = false; sh.scrollTop = 0;
+  // Taps wait until the sheet has finished sliding in (26 Sep: on a slow
+  // phone a tap mid-slide landed on the wrong key or on the display). The
+  // sheet swallows them - it does not let them through to the page below.
+  bkTapHeldSent = false;
+  if (getComputedStyle(sh).animationName !== 'none') { // reduced motion: no slide, nothing to wait for
+    sh.dataset.opening = '1';
+    const letIn = () => { delete sh.dataset.opening; sh.removeEventListener('animationend', letIn); };
+    sh.addEventListener('animationend', letIn); setTimeout(letIn, 300);
+  }
   bkRefresh();
   if (draft) bkDraftSave();
   ping('tap');
@@ -4239,7 +4248,7 @@ function bkPrompt(kind) {
 }
 // 25 Sep: 2 of 6 people who opened a Sold/Spent sheet left without saving,
 // and we could not see why. Each close without a save is now counted.
-let bkSheetOpenAt = 0, bkSheetSaved = false, bkOweNoNameSent = false;
+let bkSheetOpenAt = 0, bkSheetSaved = false, bkOweNoNameSent = false, bkTapHeldSent = false;
 function bkCloseSheets() {
   try {
     if (bkSheetOpenAt && !bk$('bkEntry').hidden && !bkSheetSaved) {
@@ -4473,6 +4482,7 @@ function bookNudgeTiles() {
     bk$('bkSpent').addEventListener('click', () => bkOpen('out'));
     bk$('bkOwes').addEventListener('click', () => bkOpen('owe'));
     bk$('bkWrite').addEventListener('click', bkWrite);
+    bk$('bkEntry').addEventListener('click', ev => { if (bk$('bkEntry').dataset.opening) { ev.stopPropagation(); ev.preventDefault(); if (!bkTapHeldSent) { bkTapHeldSent = true; ping('tap_held'); } } }, true);
     // Kept on every key, chip and word - Facebook's Android browser can kill
     // the page without any 'hidden' event first (red team 26 Sep).
     bk$('bkEntry').addEventListener('click', () => setTimeout(bkDraftSave, 0));

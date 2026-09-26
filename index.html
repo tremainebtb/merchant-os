@@ -56,7 +56,7 @@
      app.js?v=. Lets anyone - a reviewer, a tester in Kumasi, a future session -
      answer "which CountMy am I looking at?" from view-source or the console,
      the same way the Worker answers with "wv". -->
-<meta name="countmy-version" content="v195">
+<meta name="countmy-version" content="v196">
 <!-- Real finding, 28 Aug: the bare "CountMy" title carried no keywords at all
      for what people actually search - a free sales/expense ledger for
      Ghanaian shop owners. The <title> tag is the single strongest on-page
@@ -698,7 +698,13 @@ body.book-on .act-snap{background:var(--surface);color:var(--navy);border:1.5px 
 .bk-scrim{position:fixed;inset:0;background:rgba(20,18,15,.42);z-index:50}
 .bk-sheet{position:fixed;left:0;right:0;bottom:0;z-index:51;max-width:520px;margin:0 auto;max-height:100vh;overflow-y:auto;background:var(--surface);color:var(--ink);border-radius:22px 22px 0 0;padding:12px 14px calc(12px + env(safe-area-inset-bottom,0px));box-shadow:0 -6px 24px rgba(0,0,0,.2);animation:bk-up .22s ease-out}
 @supports (max-height:100dvh){.bk-sheet{max-height:100dvh}}
-@keyframes bk-up{from{transform:translateY(30%)}to{transform:none}}
+/* 26 Sep (Clarity 13:52 UK, a GH₵500+ saver fought dead taps for ~45 s): hit-testing
+   follows the slide, so a tap while the sheet was still 30% (~166px) low landed on
+   the display or a key two rows up. A 24px slide keeps a mid-animation tap within
+   its key; bkOpen also holds taps until the slide ends. */
+@keyframes bk-up{from{transform:translateY(24px)}to{transform:none}}
+.bk-key,.bk-act,.bk-write,.bk-chip{touch-action:manipulation;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none}
+.bk-write:active,.bk-chip:active{filter:brightness(.88)}
 .bk-sh-top{display:flex;align-items:center;gap:10px;margin-bottom:8px}
 .bk-sh-ico{width:40px;height:40px;border-radius:12px;display:grid;place-items:center;color:var(--filled-ink);flex:none}
 .bk-sh-ico svg{width:26px;height:26px}
@@ -891,7 +897,7 @@ body.book-on .act-snap{background:var(--surface);color:var(--navy);border:1.5px 
     y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
   })(window, document, "clarity", "script", window.CLARITY_ID);
 </script>
-<script src="app.js?v=195" defer></script>
+<script src="app.js?v=196" defer></script>
 </head>
 <body>
 <main class="wrap">
