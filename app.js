@@ -4125,7 +4125,7 @@ function bkOpen(kind, debt) {
   bookHideToast(); bkCloseSheets();
   bkTargetDay = bkViewDay;
   bkKind = kind; bkDebt = debt || null; bkTyped = ''; bkPrefilled = false;
-  bkSheetOpenAt = Date.now(); bkSheetSaved = false;
+  bkSheetOpenAt = Date.now(); bkSheetSaved = false; bkOweNoNameSent = false;
   // A floating offer (WhatsApp / reminder) sits above the sheet and covered
   // the lower keys and Write it on the 2nd record. It steps aside while the
   // keypad is open and comes back when the sheet closes.
@@ -4133,12 +4133,13 @@ function bkOpen(kind, debt) {
   // First sheet ever: one line on what to do (removed after the first save).
   try {
     let hint = document.getElementById('bkHint');
-    const first = localStorage.getItem('kym_bk_hint_done') !== '1' && (kind === 'in' || kind === 'out' || kind === 'owe');
+    const first = (localStorage.getItem('kym_bk_hint_done') !== '1' && (kind === 'in' || kind === 'out' || kind === 'owe'))
+      || (kind === 'owe' && localStorage.getItem('kym_bk_hint_owe') !== '1' && !bkEntries.some(e => e.type === 'debt_in'));
     if (first && !hint) {
       hint = document.createElement('p'); hint.id = 'bkHint'; hint.className = 'bk-hint';
       const disp = bk$('bkDisp'); disp.parentNode.insertBefore(hint, disp.nextSibling);
     }
-    if (hint) { hint.hidden = !first; hint.textContent = kind === 'owe' ? t('Name, how much, then \u2713 Write it', 'Nombre, cu\u00e1nto y \u2713 Anotar') : t('Type how much, then tap \u2713 Write it', 'Escribe cu\u00e1nto y toca \u2713 Anotar'); }
+    if (hint) { hint.classList.remove('warn'); hint.hidden = !first; hint.textContent = kind === 'owe' ? t('Name, how much, then \u2713 Write it', 'Nombre, cu\u00e1nto y \u2713 Anotar') : t('Type how much, then tap \u2713 Write it', 'Escribe cu\u00e1nto y toca \u2713 Anotar'); }
   } catch (e) { /* optional */ }
   bkCur = !ES ? undefined : debt ? (debt.cur || HOME_CUR) : (CO ? 'COP' : bkSavedCur());
   if (kind === 'pay') { bkTyped = String(bkLeftOn(debt)); bkPrefilled = true; }
@@ -4173,7 +4174,7 @@ function bkOpen(kind, debt) {
   const wc = bk$('bkWhoChips'); wc.textContent = '';
   Object.values(names).sort((a, b) => b.ts - a.ts).slice(0, 6).forEach(x => {
     const b = document.createElement('button'); b.type = 'button'; b.className = 'bk-chip'; b.textContent = x.n;
-    b.addEventListener('click', () => { bk$('bkWho').value = x.n; bk$('bkWho').blur(); bkRefresh(); });
+    b.addEventListener('click', () => { bk$('bkWho').value = x.n; bk$('bkWho').blur(); bk$('bkWho').dispatchEvent(new Event('input')); });
     wc.appendChild(b);
   });
   if (draft) {
@@ -4214,7 +4215,7 @@ function bkPrompt(kind) {
 }
 // 25 Sep: 2 of 6 people who opened a Sold/Spent sheet left without saving,
 // and we could not see why. Each close without a save is now counted.
-let bkSheetOpenAt = 0, bkSheetSaved = false;
+let bkSheetOpenAt = 0, bkSheetSaved = false, bkOweNoNameSent = false;
 function bkCloseSheets() {
   try {
     if (bkSheetOpenAt && !bk$('bkEntry').hidden && !bkSheetSaved) {
@@ -4234,7 +4235,19 @@ async function bkWrite() {
   if (bkBusy) return;
   if (!(bkAmount() > 0)) { bkShake(bk$('bkDisp')); return; }
   const who = bk$('bkWho').value.trim();
-  if (bkKind === 'owe' && !who) { bkShake(bk$('bkWhoBox')); bk$('bkWho').focus(); return; }
+  if (bkKind === 'owe' && !who) {
+    // 26 Sep Clarity: Write it only shook the name box - she did not see why,
+    // and left. Now it says what is missing, and asks out loud.
+    try {
+      let hint = document.getElementById('bkHint');
+      if (!hint) { hint = document.createElement('p'); hint.id = 'bkHint'; hint.className = 'bk-hint'; const disp = bk$('bkDisp'); disp.parentNode.insertBefore(hint, disp.nextSibling); }
+      hint.hidden = false; hint.classList.add('warn');
+      hint.textContent = t('Type the name: who owes you? \u2191', 'Escribe el nombre: \u00bfqui\u00e9n te debe? \u2191');
+      if (hasTwClip('owe')) sayVoice('owe', t('Who owes you?', '\u00bfQui\u00e9n te debe?')); else speakShort(t('Who owes you? Type the name.', '\u00bfQui\u00e9n te debe? Escribe el nombre.'));
+      if (!bkOweNoNameSent) { bkOweNoNameSent = true; ping('owe_no_name'); track('owe_no_name'); } // once per sheet, not per tap
+    } catch (e) { /* optional */ }
+    bkShake(bk$('bkWhoBox')); bk$('bkWho').focus(); return;
+  }
   bkBusy = true;
   const n = Math.round(bkAmount() * 100) / 100, ts = Date.now(), nowDay = todayKey(ts);
   let record = null, undo = null, msg = t('Written', 'Anotado');
@@ -4288,7 +4301,7 @@ async function bkWrite() {
   bkSheetSaved = true;
   if (bkRestored) { ping('draft_saved'); bkRestored = false; }
   bkDraftClear();
-  try { localStorage.setItem('kym_bk_hint_done', '1'); } catch (e) { /* optional */ }
+  try { localStorage.setItem('kym_bk_hint_done', '1'); if (record && record.type === 'debt_in') localStorage.setItem('kym_bk_hint_owe', '1'); } catch (e) { /* optional */ }
   bkCloseSheets();
   try { await render(); } catch (e) { /* saved; the next render catches up */ }
   bkChime(); bkTick(25);
@@ -4444,7 +4457,7 @@ function bookNudgeTiles() {
     // After a reload with a fresh draft: point at the right button once.
     // Never opens the sheet by itself.
     setTimeout(() => { try { const d = bkDraftGet(); if (d && bk$('bkScrim').hidden && !(introAudio && !introAudio.paused)) guideToSold(d.kind, true); } catch (e) { /* optional */ } }, 2500);
-    bk$('bkWho').addEventListener('input', bkRefresh);
+    bk$('bkWho').addEventListener('input', () => { bkRefresh(); const h = document.getElementById('bkHint'); if (h && h.classList.contains('warn') && bk$('bkWho').value.trim()) { h.classList.remove('warn'); h.textContent = t('Now tap \u2713 Write it', 'Ahora toca \u2713 Anotar'); } });
     bk$('bkWho').addEventListener('keydown', ev => { if (ev.key === 'Enter') { ev.preventDefault(); bk$('bkWho').blur(); } });
     bk$('bkNote').addEventListener('keydown', ev => { if (ev.key === 'Enter') { ev.preventDefault(); bk$('bkNote').blur(); } });
     bk$('bkWordsBtn').addEventListener('click', () => { bk$('bkNote').hidden = false; bk$('bkWordsBtn').hidden = true; bk$('bkNote').focus(); });
