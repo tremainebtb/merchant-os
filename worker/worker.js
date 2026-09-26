@@ -1026,7 +1026,7 @@ async function handleAdminMarkets(request, env) {
   const [people, recs, devRows, actRows] = await db.batch([
     db.prepare("SELECT COALESCE(country, '') AS c, COUNT(*) AS people, SUM(CASE WHEN tapped_ts IS NOT NULL THEN 1 ELSE 0 END) AS tapped, SUM(CASE WHEN saved_ts IS NOT NULL THEN 1 ELSE 0 END) AS saved, SUM(CASE WHEN installed_ts IS NOT NULL THEN 1 ELSE 0 END) AS installed FROM people_devices WHERE first_ts >= ? GROUP BY c ORDER BY people DESC").bind(from),
     db.prepare("SELECT COALESCE(pd.country, '') AS c, COALESCE(e.cur, '') AS cur, COUNT(*) AS n FROM entries e JOIN people_devices pd ON pd.device_hash = e.shop_hash WHERE e.status = 'saved' AND COALESCE(e.deleted, 0) = 0 AND COALESCE(e.is_test, 0) = 0 AND e.ts >= ? GROUP BY c, cur").bind(from),
-    db.prepare("SELECT device_hash AS h, COALESCE(country, '') AS c, source, first_ts AS f FROM people_devices WHERE first_ts >= ?").bind(from),
+    db.prepare("SELECT device_hash AS h, COALESCE(country, '') AS c, source, first_ts AS f, saved_ts AS s FROM people_devices WHERE first_ts >= ?").bind(from),
     db.prepare('SELECT DISTINCT shop_hash AS h, CAST(ts / 3600000 AS INTEGER) AS hr FROM live_events WHERE ts >= ?').bind(from)
   ]);
   const out = {};
@@ -1043,10 +1043,11 @@ async function handleAdminMarkets(request, env) {
     const off = OFF[dv.c] || 0, dayOf = ts => Math.floor((ts + off) / DAY), todayL = dayOf(Date.now());
     const k = dv.c || '??', fd = dayOf(dv.f), grp = /^facebook\/launch/.test(dv.source || '') ? 'paid' : 'organic';
     const m = out[k] = out[k] || { people: 0, tapped: 0, saved: 0, installed: 0, records: {} };
-    const c = ((m.returns = m.returns || {})[grp] = m.returns[grp] || { d1_eligible: 0, d1: 0, d7_eligible: 0, d7: 0 });
+    const c = ((m.returns = m.returns || {})[grp] = m.returns[grp] || { d1_eligible: 0, d1: 0, d7_eligible: 0, d7: 0, savers_d1_eligible: 0, savers_d1: 0, savers_d7_eligible: 0, savers_d7: 0 });
     const act = new Set((hrs.get(dv.h) || []).map(hr => dayOf(hr * 3600000)));
-    if (fd + 1 < todayL) { c.d1_eligible++; if (act.has(fd + 1)) c.d1++; }
-    if (fd + 7 < todayL) { c.d7_eligible++; for (let d = fd + 1; d <= fd + 7; d++) if (act.has(d)) { c.d7++; break; } }
+    const back1 = act.has(fd + 1), back7 = [1, 2, 3, 4, 5, 6, 7].some(i => act.has(fd + i));
+    if (fd + 1 < todayL) { c.d1_eligible++; if (back1) c.d1++; if (dv.s) { c.savers_d1_eligible++; if (back1) c.savers_d1++; } }
+    if (fd + 7 < todayL) { c.d7_eligible++; if (back7) c.d7++; if (dv.s) { c.savers_d7_eligible++; if (back7) c.savers_d7++; } }
   }
   for (const r of (recs.results || [])) { const k = r.c || '??'; (out[k] = out[k] || { people: 0, tapped: 0, saved: 0, installed: 0, records: {} }).records[r.cur || 'GHS'] = (out[k].records[r.cur || 'GHS'] || 0) + r.n; } // no currency = an English-mode (cedi) record; Spanish records always carry one
   return cors(new Response(JSON.stringify({ days, from: new Date(from).toISOString().slice(0, 10), markets: out, wv: WORKER_VERSION }), { headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } }));
@@ -1797,7 +1798,7 @@ async function handleTranscribe(request, env) {
 // targets fabrication specifically, not every possible error; the review UI is
 // still what catches a wrong-but-grounded number.
 // w116: listen_tw / listen_en accepted by /ping (first-screen listen buttons).
-const WORKER_VERSION = 'w130';
+const WORKER_VERSION = 'w131';
 
 // Spanish (Venezuela) twin of EXTRACT_SYSTEM_PROMPT below: same event types,
 // same {value, evidence} rule, same JSON-only answer. Amounts are bare
