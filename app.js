@@ -3157,6 +3157,7 @@ function speakShort(text) {
 // prompts stacked after one save is exactly the "too much going on" this
 // app keeps being told about.
 async function afterEntrySaved(entry) {
+  bkDraftClear(); // a voice save of the same thing must not leave a draft behind
   try {
     if (entry && entry.type === 'debt_in') { showDebtReminder(entry); return; }
     const all = await getAllEntries();
@@ -4090,7 +4091,37 @@ function bkPress(v) {
 function bkShake(el) { el.classList.remove('bk-shake'); void el.offsetWidth; el.classList.add('bk-shake'); bkTick(40); }
 function bkSavedCur() { try { return localStorage.getItem('kym_bk_cur') === 'VES' ? 'VES' : 'USD'; } catch (e) { return 'USD'; } }
 let bkTargetDay = null;
+// ---- keep what she typed if the page dies (26 Sep, Clarity e60b2c) --------
+// A real user typed an amount and words, left the page for a minute, and
+// Facebook's browser reloaded it: the record was gone and she gave up. So
+// while a Sold/Spent/Owes-me sheet is open, what is typed is kept on the
+// phone. It is thrown away on any deliberate close (x, outside, Esc), on any
+// save, after 30 minutes, or on another day - so it only survives when the
+// page itself vanished. Red team 26 Sep: never for 'pay', a restored amount
+// is replaced by the first key, and nothing ever opens a sheet by itself.
+const BK_DRAFT = 'kym_bk_draft';
+let bkRestored = false;
+function bkDraftClear() { try { localStorage.removeItem(BK_DRAFT); } catch (e) { /* optional */ } }
+function bkDraftSave() {
+  try {
+    if (!bkSheetOpenAt || bkSheetSaved || bk$('bkEntry').hidden) return;
+    if (bkKind !== 'in' && bkKind !== 'out' && bkKind !== 'owe') return;
+    const note = bk$('bkNote').value.trim().slice(0, 40), who = bk$('bkWho').value.trim().slice(0, 30);
+    const chip = bkKind === 'out' ? bk$('bkCats').querySelector('.bk-chip.on') : null;
+    if (!(bkAmount() > 0) && !note && !who) { bkDraftClear(); return; }
+    localStorage.setItem(BK_DRAFT, JSON.stringify({ kind: bkKind, typed: bkTyped, note, who, chip: chip ? chip.dataset.item : '', cur: bkCur || '', day: bkTargetDay || bkViewDay, ts: Date.now() }));
+  } catch (e) { /* optional */ }
+}
+function bkDraftGet(kind) {
+  try {
+    const d = JSON.parse(localStorage.getItem(BK_DRAFT) || 'null');
+    if (!d || (kind && d.kind !== kind)) return null;
+    if (Date.now() - (d.ts || 0) > 30 * 60 * 1000 || d.day !== bkToday || bkViewDay !== bkToday) { bkDraftClear(); return null; }
+    return d;
+  } catch (e) { return null; }
+}
 function bkOpen(kind, debt) {
+  const draft = (kind === 'in' || kind === 'out' || kind === 'owe') ? bkDraftGet(kind) : null;
   bookHideToast(); bkCloseSheets();
   bkTargetDay = bkViewDay;
   bkKind = kind; bkDebt = debt || null; bkTyped = ''; bkPrefilled = false;
@@ -4111,6 +4142,8 @@ function bkOpen(kind, debt) {
   } catch (e) { /* optional */ }
   bkCur = !ES ? undefined : debt ? (debt.cur || HOME_CUR) : (CO ? 'COP' : bkSavedCur());
   if (kind === 'pay') { bkTyped = String(bkLeftOn(debt)); bkPrefilled = true; }
+  bkRestored = false;
+  if (draft) { if (ES && draft.cur) bkCur = draft.cur; if (draft.typed) { bkTyped = String(draft.typed); bkPrefilled = true; } bkRestored = true; }
   const sh = bk$('bkEntry');
   sh.className = 'bk-sheet bk-k-' + kind;
   bk$('bkIco').innerHTML = BK_ICON[kind];
@@ -4143,8 +4176,20 @@ function bkOpen(kind, debt) {
     b.addEventListener('click', () => { bk$('bkWho').value = x.n; bk$('bkWho').blur(); bkRefresh(); });
     wc.appendChild(b);
   });
+  if (draft) {
+    try {
+      if (draft.note) { bk$('bkNote').value = draft.note; bk$('bkNote').hidden = false; bk$('bkWordsBtn').hidden = true; }
+      if (draft.who && kind === 'owe') bk$('bkWho').value = draft.who;
+      if (draft.chip) cats.querySelectorAll('.bk-chip').forEach(x => x.classList.toggle('on', x.dataset.item === draft.chip));
+      let hint = document.getElementById('bkHint');
+      if (!hint) { hint = document.createElement('p'); hint.id = 'bkHint'; hint.className = 'bk-hint'; const disp = bk$('bkDisp'); disp.parentNode.insertBefore(hint, disp.nextSibling); }
+      hint.hidden = false; hint.textContent = t('Not saved yet \u2013 tap \u2713 Write it', 'A\u00fan no se guard\u00f3 \u2013 toca \u2713 Anotar');
+      ping('draft_restored'); track('draft_restored', { kind });
+    } catch (e) { /* optional */ }
+  }
   bk$('bkScrim').hidden = false; sh.hidden = false; sh.scrollTop = 0;
   bkRefresh();
+  if (draft) bkDraftSave();
   ping('tap');
   track('book_open', { kind });
   bkPrompt(kind);
@@ -4175,9 +4220,10 @@ function bkCloseSheets() {
     if (bkSheetOpenAt && !bk$('bkEntry').hidden && !bkSheetSaved) {
       const typed = (typeof bkAmount === 'function' && bkAmount() > 0);
       ping(typed ? 'sheet_abandon_typed' : 'sheet_abandon_empty');
-      track('sheet_abandon', { typed: typed ? 1 : 0, kind: bkKind, secs: Math.round((Date.now() - bkSheetOpenAt) / 1000) });
+      track('sheet_abandon', { typed: typed ? 1 : 0, kind: bkKind, secs: Math.round((Date.now() - bkSheetOpenAt) / 1000), prefilled: (bkPrefilled || bkRestored) ? 1 : 0 });
     }
   } catch (e) { /* measurement is optional */ }
+  if (bkSheetOpenAt) bkDraftClear(); // a deliberate close (or a save) throws the draft away
   bkSheetOpenAt = 0;
   try { const fn = document.getElementById('floatNote'); if (fn && fn._aside) { fn._aside = false; fn.hidden = false; } } catch (e) { /* optional */ }
   ['bkEntry', 'bkLineSheet', 'bkDebtSheet'].forEach(id => { bk$(id).hidden = true; });
@@ -4240,6 +4286,8 @@ async function bkWrite() {
   }
   bkBusy = false;
   bkSheetSaved = true;
+  if (bkRestored) { ping('draft_saved'); bkRestored = false; }
+  bkDraftClear();
   try { localStorage.setItem('kym_bk_hint_done', '1'); } catch (e) { /* optional */ }
   bkCloseSheets();
   try { await render(); } catch (e) { /* saved; the next render catches up */ }
@@ -4388,6 +4436,14 @@ function bookNudgeTiles() {
     bk$('bkSpent').addEventListener('click', () => bkOpen('out'));
     bk$('bkOwes').addEventListener('click', () => bkOpen('owe'));
     bk$('bkWrite').addEventListener('click', bkWrite);
+    // Kept on every key, chip and word - Facebook's Android browser can kill
+    // the page without any 'hidden' event first (red team 26 Sep).
+    bk$('bkEntry').addEventListener('click', () => setTimeout(bkDraftSave, 0));
+    bk$('bkEntry').addEventListener('input', bkDraftSave);
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') { bkDraftSave(); try { if (localStorage.getItem(BK_DRAFT) && bkSheetOpenAt && !bkSheetSaved) ping('draft_kept'); } catch (e) { /* optional */ } } });
+    // After a reload with a fresh draft: point at the right button once.
+    // Never opens the sheet by itself.
+    setTimeout(() => { try { const d = bkDraftGet(); if (d && bk$('bkScrim').hidden && !(introAudio && !introAudio.paused)) guideToSold(d.kind, true); } catch (e) { /* optional */ } }, 2500);
     bk$('bkWho').addEventListener('input', bkRefresh);
     bk$('bkWho').addEventListener('keydown', ev => { if (ev.key === 'Enter') { ev.preventDefault(); bk$('bkWho').blur(); } });
     bk$('bkNote').addEventListener('keydown', ev => { if (ev.key === 'Enter') { ev.preventDefault(); bk$('bkNote').blur(); } });
@@ -4755,24 +4811,32 @@ function playIntro(lang) {
 // The next step, shown where it happens: the Sold button pulses with a
 // "Your turn" bubble for 8 seconds, or until she taps anything.
 let guideTimer = 0, guideOff = null;
-function guideToSold() {
+function guideToSold(kind, isDraft) {
   try {
-    const bar = document.getElementById('bkBar'); if (!bar) return;
+    kind = kind || 'in';
+    const btnId = { in: 'bkSold', out: 'bkSpent', owe: 'bkOwes' }[kind] || 'bkSold';
+    const bar = document.getElementById('bkBar'), btn = document.getElementById(btnId); if (!bar || !btn) return;
     let tip = document.getElementById('bkGuide');
     if (!tip) { tip = document.createElement('span'); tip.id = 'bkGuide'; tip.className = 'bk-guide'; tip.setAttribute('aria-hidden', 'true'); bar.appendChild(tip); }
-    tip.textContent = voiceLang() === 'tw' && !ES ? 'Sold \u2193' : t('Your turn: tap Sold \u2193', 'Te toca: toca Vend\u00ed \u2193');
+    const label = { in: t('Sold', 'Vend\u00ed'), out: t('Spent', 'Gast\u00e9'), owe: t('Owes me', 'Me deben') }[kind];
+    tip.textContent = isDraft ? t(`Not saved: tap ${label} \u2193`, `Sin guardar: toca ${label} \u2193`)
+      : (voiceLang() === 'tw' && !ES ? label + ' \u2193' : t(`Your turn: tap ${label} \u2193`, `Te toca: toca ${label} \u2193`));
+    // Over its own button; the right-hand one anchors right so it stays on screen.
+    if (kind === 'owe') { tip.style.left = 'auto'; tip.style.right = '0'; } else { tip.style.right = 'auto'; tip.style.left = btn.offsetLeft + 'px'; }
     // Red team 25 Sep: tapping the bubble itself did nothing (the tap was lost),
     // and a second guide was cut short by the first one's timer.
     if (guideOff) guideOff();
+    document.querySelectorAll('.bk-guide-target').forEach(x => x.classList.remove('bk-guide-target'));
+    btn.classList.add('bk-guide-target');
     document.documentElement.classList.add('guide-on');
-    track('guide_shown');
+    track('guide_shown', { kind, draft: isDraft ? 1 : 0 });
     const off = ev => {
-      document.documentElement.classList.remove('guide-on'); document.removeEventListener('pointerdown', off, true); clearTimeout(guideTimer); guideOff = null;
-      if (ev && ev.target && ev.target.closest && ev.target.closest('#bkGuide')) { ev.preventDefault(); bkOpen('in'); }
+      document.documentElement.classList.remove('guide-on'); btn.classList.remove('bk-guide-target'); document.removeEventListener('pointerdown', off, true); clearTimeout(guideTimer); guideOff = null;
+      if (ev && ev.target && ev.target.closest && ev.target.closest('#bkGuide')) { ev.preventDefault(); bkOpen(kind); }
     };
     guideOff = off;
     document.addEventListener('pointerdown', off, true);
-    guideTimer = setTimeout(off, 8000);
+    guideTimer = setTimeout(off, isDraft ? 12000 : 8000);
   } catch (e) { /* guidance is optional */ }
 }
 function markVoiceButtons() {
