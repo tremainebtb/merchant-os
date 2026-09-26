@@ -987,6 +987,27 @@ async function handleAdminSourceDaily(request, env) {
 async function ensureSpendTable(env) {
   await env.COUNTMY_DB.prepare('CREATE TABLE IF NOT EXISTS ad_spend (day TEXT NOT NULL, source TEXT NOT NULL, amount REAL NOT NULL, currency TEXT NOT NULL DEFAULT \'GBP\', note TEXT, updated_at INTEGER, PRIMARY KEY (day, source))').run();
 }
+// 26 Sep (before the Venezuela paid launch): people, taps, saves and records
+// per market, with the currency each record was written in. Real devices only
+// (people_devices), saved and not crossed-out records only.
+async function handleAdminMarkets(request, env) {
+  if (!env.COUNTMY_DB) return cors(new Response(JSON.stringify({ error: 'not configured' }), { status: 503 }));
+  const url = new URL(request.url);
+  if (!env.ADMIN_KEY || (url.searchParams.get('key') || '') !== env.ADMIN_KEY) return cors(new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401 }));
+  await ensureTestSchema(env);
+  const DAY = 86400000, today = Math.floor(Date.now() / DAY);
+  const days = Math.min(400, Math.max(1, parseInt(url.searchParams.get('days') || '30', 10) || 30));
+  const from = (today - days + 1) * DAY;
+  const db = env.COUNTMY_DB;
+  const [people, recs] = await db.batch([
+    db.prepare("SELECT COALESCE(country, '') AS c, COUNT(*) AS people, SUM(CASE WHEN tapped_ts IS NOT NULL THEN 1 ELSE 0 END) AS tapped, SUM(CASE WHEN saved_ts IS NOT NULL THEN 1 ELSE 0 END) AS saved, SUM(CASE WHEN installed_ts IS NOT NULL THEN 1 ELSE 0 END) AS installed FROM people_devices WHERE first_ts >= ? GROUP BY c ORDER BY people DESC").bind(from),
+    db.prepare("SELECT COALESCE(pd.country, '') AS c, COALESCE(e.cur, '') AS cur, COUNT(*) AS n FROM entries e JOIN people_devices pd ON pd.device_hash = e.shop_hash WHERE e.status = 'saved' AND COALESCE(e.deleted, 0) = 0 AND COALESCE(e.is_test, 0) = 0 AND e.ts >= ? GROUP BY c, cur").bind(from)
+  ]);
+  const out = {};
+  for (const r of (people.results || [])) out[r.c || '??'] = { people: r.people, tapped: r.tapped, saved: r.saved, installed: r.installed, records: {} };
+  for (const r of (recs.results || [])) { const k = r.c || '??'; (out[k] = out[k] || { people: 0, tapped: 0, saved: 0, installed: 0, records: {} }).records[r.cur || (k === 'GH' ? 'GHS' : '?')] = r.n; }
+  return cors(new Response(JSON.stringify({ days, from: new Date(from).toISOString().slice(0, 10), markets: out, wv: WORKER_VERSION }), { headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } }));
+}
 async function handleAdminOverview(request, env) {
   if (!env.COUNTMY_DB) return cors(new Response(JSON.stringify({ error: 'not configured' }), { status: 503 }));
   const url = new URL(request.url);
@@ -1733,7 +1754,7 @@ async function handleTranscribe(request, env) {
 // targets fabrication specifically, not every possible error; the review UI is
 // still what catches a wrong-but-grounded number.
 // w116: listen_tw / listen_en accepted by /ping (first-screen listen buttons).
-const WORKER_VERSION = 'w126';
+const WORKER_VERSION = 'w127';
 
 // Spanish (Venezuela) twin of EXTRACT_SYSTEM_PROMPT below: same event types,
 // same {value, evidence} rule, same JSON-only answer. Amounts are bare
@@ -3615,6 +3636,7 @@ export default {
       else if (path === '/admin/push-test' && request.method === 'POST') adminResp = await handleAdminPushTest(request, env);
       else if (path === '/admin/mark-test' && request.method === 'POST') adminResp = await handleAdminMarkTest(request, env);
       else if (path === '/admin/journeys' && request.method === 'GET') adminResp = await handleAdminJourneys(request, env);
+      else if (path === '/admin/markets' && request.method === 'GET') adminResp = await handleAdminMarkets(request, env);
       else if (path === '/admin/source-daily' && request.method === 'GET') adminResp = await handleAdminSourceDaily(request, env);
       else if (path === '/admin/overview' && request.method === 'GET') adminResp = await handleAdminOverview(request, env);
       else if (path === '/admin/spend' && request.method === 'POST') adminResp = await handleAdminSpend(request, env);

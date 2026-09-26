@@ -5036,9 +5036,11 @@ async function restoreFromKey() {
   // Same three labels on every analytics surface (16 Sep), so GA4, Clarity
   // and the owner dashboard can all be cut the same way: build, source, cohort.
   try {
-    const labels = { app_version: window.KYM_VERSION || '', home: BOOK_ON ? 'book' : 'today', source: localStorage.getItem('kym_source') || '', nudge_cohort: String(nudgeCohort()) };
+    // 26 Sep: market + language too, so Ghana and Venezuela/Colombia can be
+    // separated in GA4 and Clarity the day the Spanish ads start.
+    const labels = { app_version: window.KYM_VERSION || '', home: BOOK_ON ? 'book' : 'today', source: localStorage.getItem('kym_source') || '', nudge_cohort: String(nudgeCohort()), market: ES ? (CO ? 'co' : 've') : 'gh', app_lang: LANG };
     if (window.gtag) window.gtag('set', 'user_properties', labels);
-    if (window.clarity) { window.clarity('set', 'version', labels.app_version); window.clarity('set', 'source', labels.source); window.clarity('set', 'cohort', labels.nudge_cohort); }
+    if (window.clarity) { window.clarity('set', 'version', labels.app_version); window.clarity('set', 'source', labels.source); window.clarity('set', 'cohort', labels.nudge_cohort); window.clarity('set', 'market', labels.market); window.clarity('set', 'lang', labels.app_lang); }
   } catch (e) { /* analytics must never interrupt the app */ }
   // Receiving side of the http -> https record bridge (see the head script
   // in index.html). Only ever accepts rows from our own http origin, only

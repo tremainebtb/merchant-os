@@ -361,6 +361,11 @@ footer a{color:var(--muted)}
       </section>
 
       <section class="card s12">
+        <div class="card-h"><div><div class="eyebrow">Markets</div><h2 class="t">Ghana, Venezuela, Colombia</h2></div></div>
+        <div class="tw" id="markets"><p style="color:var(--ink-soft)">Loading</p></div>
+      </section>
+
+      <section class="card s12">
         <div class="card-h"><div><div class="eyebrow">Product</div><h2 class="t">Voice, language and speed</h2></div></div>
         <div class="kpis" id="product" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr))"></div>
       </section>
@@ -425,6 +430,19 @@ const $ = id => document.getElementById(id);
 const fmt = n => (Math.round(Number(n) || 0)).toLocaleString('en-GB');
 const money = n => '£' + (Number(n) || 0).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const pct = (a, b, dp = 0) => b ? (100 * a / b).toFixed(dp) + '%' : '-';
+// Markets card (26 Sep): each country apart - people who arrived in the range,
+// how many tapped / saved / installed, and records by the currency written in.
+function renderMarkets(m) {
+  const el = $('markets'); if (!el || !m || !m.markets) return;
+  const name = { GH: 'Ghana', VE: 'Venezuela', CO: 'Colombia', GB: 'UK', US: 'USA' };
+  const curName = { GHS: 'GH\u20b5', USD: '$', VES: 'Bs', COP: 'COP$' };
+  const rows = Object.entries(m.markets).sort((a, b) => b[1].people - a[1].people);
+  const pc = (a, b) => b ? Math.round(100 * a / b) + '%' : '-';
+  el.innerHTML = '<table><thead><tr><th>Market</th><th>People</th><th>Tapped</th><th>Saved</th><th>Save rate</th><th>Installed</th><th>Records by currency</th></tr></thead><tbody>' +
+    rows.map(([c, r]) => '<tr><td>' + esc(name[c] || c) + '</td><td>' + r.people + '</td><td>' + r.tapped + '</td><td>' + r.saved + '</td><td>' + pc(r.saved, r.people) + '</td><td>' + r.installed + '</td><td>' +
+      (Object.entries(r.records).map(([k, n]) => esc(curName[k] || k) + ' ' + n).join(' \u00b7 ') || '-') + '</td></tr>').join('') +
+    '</tbody></table><p style="margin-top:8px;color:var(--ink-soft)">People who arrived in the last ' + m.days + ' days (real phones only). Records are saved, not crossed out.</p>';
+}
 function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
 const isoDay = d => new Date(d * DAY).toISOString().slice(0, 10);
 const nice = iso => new Date(iso + 'T00:00:00Z').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' });
@@ -485,6 +503,7 @@ async function load() {
   const [ov, st, sd] = await Promise.allSettled([getJSON('/admin/overview?days=' + DAYS + '&cmp=' + CMP), getJSON('/admin/stats'), getJSON('/admin/source-daily?days=30')]);
   if (my !== loadSeq) return false;
   if (ov.status === 'rejected') throw ov.reason;
+  getJSON('/admin/markets?days=' + DAYS).then(renderMarkets).catch(() => { const el = $('markets'); if (el) el.innerHTML = '<p style="color:var(--ink-soft)">Markets not available</p>'; });
   OV = ov.value; ST = st.status === 'fulfilled' ? st.value : null; SD = sd.status === 'fulfilled' ? sd.value : null;
   render();
   return true;
