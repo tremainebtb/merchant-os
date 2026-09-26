@@ -225,7 +225,7 @@ async function handlePing(request, env) {
   // ping was silently rejected with a 400 here (ping() swallows the error),
   // so Spanish usage never once showed up in the spoken-language stats.
   if (!['open', 'save', 'share_shop', 'shop_created', 'ask', 'tap', 'install', 'voice_en', 'voice_twi', 'voice_pidgin', 'voice_es',
-    'restore', 'push_on', 'push_open', 'listen_tw', 'listen_en', 'how_seen', 'how_try', 'momo_saved', 'plus_pay_open', 'plus_paid', 'wa_offer', 'wa_send', 'draft_kept', 'draft_restored', 'draft_saved', 'owe_no_name', 'tap_held', 'listen_end', 'sheet_abandon_typed', 'sheet_abandon_empty', 'iab', 'iab_tap', 'iab_tap_ios', 'iab_typed', 'iab_example', 'stt_browser', 'stt_whisper', 'iab_auto', 'iab_auto_ios', 'iab_stay', 'iab_escaped', 'iab_escaped_ios', 'iab_mic_ok', 'iab_note', 'mic_denied', 'mic_nomic', 'mic_busy', 'mic_empty', 'mic_silent', 'mic_timeout', 'mic_server', 'mic_network'].includes(eventType)) {
+    'restore', 'push_on', 'push_open', 'listen_tw', 'listen_en', 'how_seen', 'how_try', 'momo_saved', 'plus_pay_open', 'plus_paid', 'wa_offer', 'wa_send', 'draft_kept', 'draft_restored', 'draft_saved', 'owe_no_name', 'tap_held', 'edit', 'undo', 'cross_out', 'voice_fixed', 'listen_end', 'sheet_abandon_typed', 'sheet_abandon_empty', 'iab', 'iab_tap', 'iab_tap_ios', 'iab_typed', 'iab_example', 'stt_browser', 'stt_whisper', 'iab_auto', 'iab_auto_ios', 'iab_stay', 'iab_escaped', 'iab_escaped_ios', 'iab_mic_ok', 'iab_note', 'mic_denied', 'mic_nomic', 'mic_busy', 'mic_empty', 'mic_silent', 'mic_timeout', 'mic_server', 'mic_network'].includes(eventType)) {
     return cors(new Response(JSON.stringify({ error: 'invalid event' }), { status: 400 }));
   }
   // 26 Sep: a phone that was offline keeps its events and sends them later
@@ -292,7 +292,20 @@ async function handlePing(request, env) {
       const mobile = (body.mobile === 1 || body.mobile === '1') ? 1 : 0;
       const lang = String((body && body.lang) || '').replace(/[^a-zA-Z-]/g, '').slice(0, 12);
       const standalone = (body.standalone === 1 || body.standalone === '1') ? 1 : 0;
-      await env.COUNTMY_DB.prepare('INSERT OR IGNORE INTO devices (device_hash, source, first_ts, is_test, country, nudge, first_ver, asn_org, is_dc, mobile, lang) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').bind(dh, source, evTs, isTest, country, nudge, ver, asnOrg, isDc, mobile, lang).run();
+      const newDev = await env.COUNTMY_DB.prepare('INSERT OR IGNORE INTO devices (device_hash, source, first_ts, is_test, country, nudge, first_ver, asn_org, is_dc, mobile, lang) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').bind(dh, source, evTs, isTest, country, nudge, ver, asnOrg, isDc, mobile, lang).run();
+      // Gate 0 (26 Sep): three or more brand-new "phones" from the same network,
+      // same link and same country inside one second are a crawler burst, not
+      // traders (3 hits from one network in one second came via an old ad link).
+      // Red team: never in our own markets (MTN Ghana is one network for most
+      // of the country; "Open in Chrome" makes a second id in seconds), and
+      // never a phone that tapped, saved or asked.
+      if (newDev && newDev.meta && newDev.meta.changes && country && !['GH', 'VE', 'CO'].includes(country)) {
+        try {
+          const W = "source = ? AND COALESCE(asn_org, '') = ? AND COALESCE(country, '') = ? AND first_ts BETWEEN ? AND ? AND COALESCE(is_test, 0) = 0 AND tapped_ts IS NULL AND saved_ts IS NULL AND asked_ts IS NULL";
+          const burst = await env.COUNTMY_DB.prepare('SELECT COUNT(*) AS n FROM devices WHERE ' + W).bind(source, asnOrg, country, evTs - 1000, evTs + 1000).first();
+          if (burst && burst.n >= 3) await env.COUNTMY_DB.prepare('UPDATE devices SET is_dc = 1 WHERE ' + W).bind(source, asnOrg, country, evTs - 1000, evTs + 1000).run();
+        } catch (e) { /* the filter must never fail a ping */ }
+      }
       // An offline event can arrive after a newer one: the earliest time wins.
       await env.COUNTMY_DB.prepare('UPDATE devices SET first_ts = ? WHERE device_hash = ? AND first_ts > ?').bind(evTs, dh, evTs).run();
       // Devices first seen before these columns existed get them on their next visit.
@@ -1010,12 +1023,31 @@ async function handleAdminMarkets(request, env) {
   const days = Math.min(400, Math.max(1, parseInt(url.searchParams.get('days') || '30', 10) || 30));
   const from = (today - days + 1) * DAY;
   const db = env.COUNTMY_DB;
-  const [people, recs] = await db.batch([
+  const [people, recs, devRows, actRows] = await db.batch([
     db.prepare("SELECT COALESCE(country, '') AS c, COUNT(*) AS people, SUM(CASE WHEN tapped_ts IS NOT NULL THEN 1 ELSE 0 END) AS tapped, SUM(CASE WHEN saved_ts IS NOT NULL THEN 1 ELSE 0 END) AS saved, SUM(CASE WHEN installed_ts IS NOT NULL THEN 1 ELSE 0 END) AS installed FROM people_devices WHERE first_ts >= ? GROUP BY c ORDER BY people DESC").bind(from),
-    db.prepare("SELECT COALESCE(pd.country, '') AS c, COALESCE(e.cur, '') AS cur, COUNT(*) AS n FROM entries e JOIN people_devices pd ON pd.device_hash = e.shop_hash WHERE e.status = 'saved' AND COALESCE(e.deleted, 0) = 0 AND COALESCE(e.is_test, 0) = 0 AND e.ts >= ? GROUP BY c, cur").bind(from)
+    db.prepare("SELECT COALESCE(pd.country, '') AS c, COALESCE(e.cur, '') AS cur, COUNT(*) AS n FROM entries e JOIN people_devices pd ON pd.device_hash = e.shop_hash WHERE e.status = 'saved' AND COALESCE(e.deleted, 0) = 0 AND COALESCE(e.is_test, 0) = 0 AND e.ts >= ? GROUP BY c, cur").bind(from),
+    db.prepare("SELECT device_hash AS h, COALESCE(country, '') AS c, source, first_ts AS f FROM people_devices WHERE first_ts >= ?").bind(from),
+    db.prepare('SELECT DISTINCT shop_hash AS h, CAST(ts / 3600000 AS INTEGER) AS hr FROM live_events WHERE ts >= ?').bind(from)
   ]);
   const out = {};
   for (const r of (people.results || [])) out[r.c || '??'] = { people: r.people, tapped: r.tapped, saved: r.saved, installed: r.installed, records: {} };
+  // Gate 0: came back on a later day. "Next day" = active the calendar day
+  // after arriving; "within 7 days" = active on any of the 7 days after.
+  // Only people who have had that much time are counted (eligible).
+  // Red team: local calendar days (Venezuela UTC-4, Colombia UTC-5; Ghana is
+  // UTC) and only days that have ended; "paid" = the dashboard's own rule.
+  const OFF = { VE: -4 * 3600000, CO: -5 * 3600000 };
+  const hrs = new Map();
+  for (const r of (actRows.results || [])) (hrs.get(r.h) || hrs.set(r.h, []).get(r.h)).push(r.hr);
+  for (const dv of (devRows.results || [])) {
+    const off = OFF[dv.c] || 0, dayOf = ts => Math.floor((ts + off) / DAY), todayL = dayOf(Date.now());
+    const k = dv.c || '??', fd = dayOf(dv.f), grp = /^facebook\/launch/.test(dv.source || '') ? 'paid' : 'organic';
+    const m = out[k] = out[k] || { people: 0, tapped: 0, saved: 0, installed: 0, records: {} };
+    const c = ((m.returns = m.returns || {})[grp] = m.returns[grp] || { d1_eligible: 0, d1: 0, d7_eligible: 0, d7: 0 });
+    const act = new Set((hrs.get(dv.h) || []).map(hr => dayOf(hr * 3600000)));
+    if (fd + 1 < todayL) { c.d1_eligible++; if (act.has(fd + 1)) c.d1++; }
+    if (fd + 7 < todayL) { c.d7_eligible++; for (let d = fd + 1; d <= fd + 7; d++) if (act.has(d)) { c.d7++; break; } }
+  }
   for (const r of (recs.results || [])) { const k = r.c || '??'; (out[k] = out[k] || { people: 0, tapped: 0, saved: 0, installed: 0, records: {} }).records[r.cur || 'GHS'] = (out[k].records[r.cur || 'GHS'] || 0) + r.n; } // no currency = an English-mode (cedi) record; Spanish records always carry one
   return cors(new Response(JSON.stringify({ days, from: new Date(from).toISOString().slice(0, 10), markets: out, wv: WORKER_VERSION }), { headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } }));
 }
@@ -1765,7 +1797,7 @@ async function handleTranscribe(request, env) {
 // targets fabrication specifically, not every possible error; the review UI is
 // still what catches a wrong-but-grounded number.
 // w116: listen_tw / listen_en accepted by /ping (first-screen listen buttons).
-const WORKER_VERSION = 'w129';
+const WORKER_VERSION = 'w130';
 
 // Spanish (Venezuela) twin of EXTRACT_SYSTEM_PROMPT below: same event types,
 // same {value, evidence} rule, same JSON-only answer. Amounts are bare

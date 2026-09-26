@@ -1536,7 +1536,7 @@ function renderVoiceReview() {
     const idx = Number(e.target.dataset.idx);
     const ev = pendingVoiceEvents[idx];
     await deleteEntry(ev._savedId);
-    track('undo_voice_save', { type: ev.type });
+    track('undo_voice_save', { type: ev.type }); ping('undo'); ping('voice_fixed'); // Gate 0: voice mistakes counted in our backend
     pendingVoiceEvents.splice(idx, 1);
     renderVoiceReview();
     await render();
@@ -2369,7 +2369,7 @@ async function saveEntry() {
     }
     // Storage is complete. A failed refresh must not ask for another save.
     try {
-      if (edited) track('edit_entry', { type: activeType });
+      if (edited) { track('edit_entry', { type: activeType }); ping('edit'); if (editingEntry && editingEntry.source === 'voice') ping('voice_fixed'); }
       else if (!duplicate) {
         track('save_entry', { type: activeType, input_method: sheetVoiceFilled ? 'voice' : 'manual' });
         ping('save');
@@ -4404,13 +4404,13 @@ async function bkCrossOut() {
       if (idx === -1) return;
       const payments = before.payments.slice(); payments.splice(idx, 1);
       await updateEntry(debt.id, { paid: Math.max(0, before.paid - (Number(r.pay.amount) || 0)), payments });
-      track('book_cross', { what: 'payment' });
+      track('book_cross', { what: 'payment' }); ping('cross_out');
       await render();
       bookToast(t('Crossed out', 'Tachado'), async () => { await updateEntry(debt.id, before); await render(); });
     } else {
       const snap = Object.assign({}, r.e);
       await deleteEntry(snap.id);
-      track('delete_entry', { type: snap.type, via: 'book' });
+      track('delete_entry', { type: snap.type, via: 'book' }); ping('cross_out'); if (snap.source === 'voice') ping('voice_fixed');
       await render();
       // Undo writes the very same line back (same id, so the server copy
       // simply comes back too).
@@ -4534,7 +4534,7 @@ function bookNudgeTiles() {
     bk$('bkLineEdit').addEventListener('click', () => { const r = bkRow; bkCloseSheets(); if (r) openSheet(r.e.type, r.e); });
     bk$('bkLineCross').addEventListener('click', bkCrossOut);
     bk$('bkOweBtn').addEventListener('click', bkOpenDebts);
-    bk$('bkToastUndo').addEventListener('click', () => { const u = bkUndo; bookHideToast(); if (u) u(); });
+    bk$('bkToastUndo').addEventListener('click', () => { const u = bkUndo; bookHideToast(); if (u) { ping('undo'); u(); } });
     bk$('bkPrev').addEventListener('click', () => { bookHideToast(); bkViewDay = bkShiftDay(bkViewDay, -1); bookRender(bkEntries); });
     bk$('bkNext').addEventListener('click', () => { bookHideToast(); if (bkViewDay < bkToday) { bkViewDay = bkShiftDay(bkViewDay, 1); bookRender(bkEntries); } });
     document.addEventListener('keydown', ev => { if (ev.key === 'Escape' && !bk$('bkScrim').hidden) bkCloseSheets(); });
