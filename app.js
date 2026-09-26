@@ -2862,7 +2862,9 @@ function momoLine() {
 }
 function reminderMessage(name, amount, note, cur) {
   return t(`Hello ${name}, your balance is ${fmt(amount, cur)}${note ? ' for ' + note : ''}. ${momoLine()} Thank you.${reminderHook()}`,
-    tc(`Hola ${name}, me debes ${fmt(amount, cur)}${note ? ' por ' + note : ''}. Cuando puedas me lo mandas por Pago M\u00f3vil, por favor. \u00a1Gracias!${reminderHook()}`,
+    // 26 Sep audit: a dollar debt said "por Pago M\u00f3vil", which only carries
+    // bol\u00edvares. Dollars are paid in cash, Zelle or Binance.
+    tc(`Hola ${name}, me debes ${fmt(amount, cur)}${note ? ' por ' + note : ''}. Cuando puedas me lo mandas ${cur === 'VES' ? 'por Pago M\u00f3vil' : 'en efectivo, por Zelle o por Binance'}, por favor. \u00a1Gracias!${reminderHook()}`,
        `Hola ${name}, buen d\u00eda. Me debe ${fmt(amount, cur)}${note ? ' de ' + note : ''}. Cuando pueda me lo manda por Nequi o en efectivo, por favor. \u00a1Gracias!${reminderHook()}`));
 }
 
